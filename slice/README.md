@@ -231,6 +231,12 @@ script); Vector availability with blur ON (not needed by the pipeline, so not te
   Metal is not bit-exact; the per-part pixel SHA-1 is the reproducibility token and the list of
   differing parts is in the report.
 
+- **Contractor questions (2026-09-15)** changed three placeholder assumptions: the socket is
+  bone-parented to `head`, not `neck` (the socket carries the whole head pose; `neck` only held
+  on the placeholder because its head bone never moved on its own); the ring lives on exactly
+  one render-visible mesh of `C_HEAD` (the shell) and further head meshes are allowed; hair
+  transparency is an OPEN round-trip item (`conventions.json → roundtrip.hair_transparency`).
+
 ## Not here yet (next steps, in order)
 
 The rigger/animator's bursts replace `PLACEHOLDER_*` and the

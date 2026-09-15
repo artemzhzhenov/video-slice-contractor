@@ -429,10 +429,13 @@ def main():
     socket = bpy.data.objects["SOCKET_HEAD"]
     rig = bpy.data.objects[N["rig"]]
     ctrl = bpy.data.objects[N["face_ctrl"]]
-    heads = [o for o in bpy.data.collections["C_HEAD"].all_objects if o.type == "MESH"]
-    bodies = [o for o in bpy.data.collections["C_BODY"].objects if o.type == "MESH" and N["vertex_group_socket_boundary"] in o.vertex_groups]
+    # Head shell rule (conventions → scene_naming.head_shell_rule): the ring lives on exactly one
+    # render-visible mesh of C_HEAD; eyes, teeth, tongue, brows are further meshes there and go
+    # into default_head_rest.obj, not into the ring. hide_render objects are ignored.
+    heads = [o for o in bpy.data.collections["C_HEAD"].all_objects if o.type == "MESH" and not o.hide_render and N["vertex_group_socket_boundary"] in o.vertex_groups]
+    bodies = [o for o in bpy.data.collections["C_BODY"].all_objects if o.type == "MESH" and not o.hide_render and N["vertex_group_socket_boundary"] in o.vertex_groups]
     if len(heads) != 1 or len(bodies) != 1:
-        raise ExportError(f"expected exactly one head mesh and one body mesh with {N['vertex_group_socket_boundary']}; got {len(heads)} / {len(bodies)}")
+        raise ExportError(f"expected exactly one render-visible head mesh and one body mesh carrying {N['vertex_group_socket_boundary']}; got head {[o.name for o in heads]} / body {[o.name for o in bodies]}")
     cam = scene.camera
     if cam is None or cam.name != N["camera"]:
         raise ExportError("scene camera is not CAM_001")

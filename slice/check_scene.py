@@ -76,7 +76,9 @@ def main():
         for b in N["bones"]["spine"] + [N["bones"]["neck"], N["bones"]["head"], N["bones"]["shoulder_l"], N["bones"]["shoulder_r"]]:
             ok(b in rig.pose.bones, f"bone {b} missing")
     sock = bpy.data.objects.get("SOCKET_HEAD")
-    ok(sock is not None and sock.parent is rig and sock.parent_type == "BONE" and sock.parent_bone == N["bones"]["neck"], "SOCKET_HEAD not bone-parented to the neck")
+    ok(sock is not None and sock.parent is rig and sock.parent_type == "BONE" and sock.parent_bone == N["socket_parent_bone"], f"SOCKET_HEAD not bone-parented to the {N['socket_parent_bone']} bone")
+    shells = [o for o in bpy.data.collections["C_HEAD"].all_objects if o.type == "MESH" and not o.hide_render and N["vertex_group_socket_boundary"] in o.vertex_groups]
+    ok(len(shells) == 1, f"C_HEAD: exactly one render-visible mesh must carry {N['vertex_group_socket_boundary']} (the head shell); found {[o.name for o in shells]}")
     prox = bpy.data.collections.get(N["proxies_collection"])
     ok(prox is not None, "C_PROXIES missing")
     if prox is not None:

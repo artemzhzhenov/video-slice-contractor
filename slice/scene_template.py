@@ -338,14 +338,15 @@ def build(scene, shot):
     # rigger's armature replaces it; bone names are the contract (conventions.json → bones).
     rig = build_placeholder_rig(colls["C_BODY"], root_empty)
 
-    # Socket empty, bone-parented to the neck so it moves with the head animation.
+    # Socket empty, bone-parented to the HEAD bone (conventions → scene_naming.socket_parent_bone):
+    # its base is the boundary ring, and the socket must carry the whole head pose.
     socket = bpy.data.objects.new("SOCKET_HEAD", None)
     socket.empty_display_type = "ARROWS"
     socket.empty_display_size = 0.05
     colls["C_BODY"].objects.link(socket)
     socket.parent = rig
     socket.parent_type = "BONE"
-    socket.parent_bone = "neck"
+    socket.parent_bone = CONV["scene_naming"]["socket_parent_bone"]
     bpy.context.view_layer.update()
     socket.matrix_world = Matrix.Translation((0.0, 0.0, 1.42))  # Blender Z-up → socket-space y = 1.42 m
     bpy.context.view_layer.update()

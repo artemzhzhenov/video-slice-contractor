@@ -25,7 +25,8 @@ Pack Resources; размер до 90 МБ, иначе напиши в `QUESTIONS
 |---|---|
 | `collection C_… missing`, `bone … missing`, `material … missing` | имена не по контракту |
 | `ray visibility is not shadow-caster-only` | у объекта головы/волос не выставлены флаги из TASK §6 |
-| `SOCKET_HEAD not bone-parented to the neck` | сокет не привязан к кости `neck` |
+| `SOCKET_HEAD not bone-parented to the head bone` | сокет не привязан к кости `head` |
+| `C_HEAD: exactly one render-visible mesh must carry SOCKET_BOUNDARY` | кольцо не на одном меше-оболочке (нет или несколько) |
 | `rest gap … ≥ 0.005` | кольца головы и тела не совпадают в покое |
 | `SOCKET_BOUNDARY count mismatch` / `weights are not distinct` | кольца разного размера или веса не заданы порядком |
 | `hair Curves with points cannot be re-projected` | волосы не мешем |
