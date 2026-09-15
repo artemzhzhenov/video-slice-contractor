@@ -18,6 +18,12 @@ PY="$ROOT/.venv/bin/python"; [ -x "$PY" ] || PY=python3
 B=(blender -b --python-exit-code 2)
 mkdir -p "$OUT"
 step() { echo; echo "=== $1"; }
+echo "=== 0 environment"
+command -v blender >/dev/null || { echo "blender is not on PATH — install Blender 5.2.1 LTS (REBUILD.md step 1)"; exit 2; }
+blender --version 2>/dev/null | head -n 1
+"$PY" -c "import jsonschema, numpy" 2>/dev/null || { echo "Python deps missing for $PY — run:  python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   (or: python3 -m pip install -r requirements-dev.txt)"; exit 2; }
+[ -f "$OCIO" ] || { echo "vendored OCIO config missing at $OCIO"; exit 2; }
+echo "python: $PY; OCIO: $(basename "$OCIO")"
 run() { "$@" > "$OUT/last_step.log" 2>&1; rc=$?; grep -E "_OK|_ERROR|checks_failed|ROUNDTRIP_FRAME|COMPOSITE_FRAME|Traceback" "$OUT/last_step.log" | tail -n 6; if [ $rc -ne 0 ]; then echo "STEP FAILED (rc $rc) — full log: $OUT/last_step.log"; exit 2; fi; }
 step "1 check_scene"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/check_scene.py"
 step "2 export SHOT_001"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/export_shot.py" -- --shot SHOT_001 --out "$OUT/exports"
