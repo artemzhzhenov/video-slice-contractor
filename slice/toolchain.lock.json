@@ -1,0 +1,45 @@
+{
+  "pinned_at": "2026-09-15T08:55:32Z",
+  "machine": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "chip": "Apple M4",
+    "ram_gb": 16,
+    "gpu_backend": "METAL (Apple M4, 10 GPU cores) \u2014 verified via cycles preferences"
+  },
+  "blender": {
+    "version": "5.2.1 LTS",
+    "build_hash": "9e2066aef7ef",
+    "build_date": "2026-08-25",
+    "python": "3.13.13",
+    "embedded": {
+      "opencolorio": "2.5.0",
+      "openimageio": "3.1.13",
+      "openexr": "n/a",
+      "alembic": "1.8.3"
+    },
+    "install": {
+      "method": "homebrew cask",
+      "cask_version": "5.2.1",
+      "path": "/opt/homebrew/Caskroom/blender/5.2.1/.homebrew-command-wrappers/blender"
+    },
+    "license": "GNU GPL \u2014 VERIFIED FACT (blender.org/about/license)"
+  },
+  "openimageio_cli": {
+    "version": "3.1.17.0",
+    "install": "homebrew formula 3.1.17.0"
+  },
+  "opencolorio_cli": {
+    "version": "2.5.2",
+    "tool": "ociocheck",
+    "install": "homebrew formula"
+  },
+  "ocio_config": {
+    "file": "benchmarks/bakeoff/01J7B000000000000000BAKEXP/slice/ocio/studio-config-v4.0.0_aces-v2.0_ocio-v2.5.ocio",
+    "source": "https://github.com/AcademySoftwareFoundation/OpenColorIO-Config-ACES/releases/tag/v4.0.0",
+    "release": "v4.0.0 (ACES 2.0, OCIO 2.5)",
+    "sha256": "eda5b0008a43b72b98ad540e32eb0eb83b340dde54e35bddba64ccbafac1029a",
+    "validated": "ociocheck: Archivable yes, tests complete",
+    "requires_ocio": "2.5 \u2014 Blender embeds 2.5.0"
+  },
+  "rule": "A component not listed here is not the slice's toolchain. Any change re-runs slice/pin_toolchain.sh and bumps the package."
+}

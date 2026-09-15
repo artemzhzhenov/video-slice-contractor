@@ -1,0 +1,43 @@
+# secrets and local config
+.env
+.env.*
+*.pem
+*.key
+config/local*
+
+# never commit child imagery or derived personal data
+uploads/
+raw_photos/
+derivatives/
+customer_data/
+*.jpg
+*.jpeg
+*.png
+*.heic
+
+# python / node
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+
+# os / editor
+.DS_Store
+.vscode/
+.idea/
+
+# claude code local
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Phase 0.5 slice — renders and Blender backups are never committed
+benchmarks/**/renders*/
+slice/**/renders*/
+*.blend1
+*.exr
+# regenerable by slice/scene_template.py (REBUILD.md step 3); real asset scenes are archived, this one is not
+benchmarks/**/template.blend
+# placeholder exports are regenerable (REBUILD.md step 5); real-asset exports are committed at burst 2
+benchmarks/**/shots/*/exports/
+# renders under the package are regenerable until a real asset exists
+benchmarks/**/shots/*/renders/

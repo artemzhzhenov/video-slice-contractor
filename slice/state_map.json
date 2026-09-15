@@ -1,0 +1,245 @@
+{
+  "state_map_version": 1,
+  "status": "PROVISIONAL \u2014 proposal \u00a75 windows; final windows are the animator's (burst 2)",
+  "tiers": {
+    "EASY": [
+      "front_neutral",
+      "smile",
+      "gaze_shift",
+      "blink"
+    ],
+    "MEDIUM": [
+      "three_quarter",
+      "laughter",
+      "fear",
+      "sadness",
+      "head_turn",
+      "open_mouth"
+    ],
+    "DIFFICULT": [
+      "profile",
+      "strong_light",
+      "profile_strong_emotion"
+    ],
+    "STRESS": [
+      "hand_over_face",
+      "fast_movement"
+    ]
+  },
+  "medium_window_rule": "a MEDIUM-tier window carries no occlusion and no head angular velocity above the shot's declared threshold \u2014 threshold UNKNOWN until the animator's burst; note that three_quarter and head_turn currently sit inside SHOT_002's strong_light window, which the animator resolves or the bake-off records",
+  "windows": [
+    {
+      "shot_id": "SHOT_001",
+      "state": "front_neutral",
+      "frames": [
+        [
+          1001,
+          1018
+        ]
+      ],
+      "editorial": {
+        "emotion": "neutral_attention",
+        "emotion_intensity": 0.2
+      }
+    },
+    {
+      "shot_id": "SHOT_001",
+      "state": "gaze_shift",
+      "frames": [
+        [
+          1019,
+          1030
+        ]
+      ],
+      "editorial": {
+        "emotion": "curiosity",
+        "emotion_intensity": 0.4,
+        "gaze_target": "PROP_A"
+      }
+    },
+    {
+      "shot_id": "SHOT_001",
+      "state": "blink",
+      "frames": [
+        [
+          1031,
+          1036
+        ],
+        [
+          1078,
+          1083
+        ]
+      ]
+    },
+    {
+      "shot_id": "SHOT_001",
+      "state": "smile",
+      "frames": [
+        [
+          1037,
+          1060
+        ]
+      ],
+      "editorial": {
+        "emotion": "small_smile",
+        "emotion_intensity": 0.6
+      }
+    },
+    {
+      "shot_id": "SHOT_001",
+      "state": "open_mouth",
+      "frames": [
+        [
+          1061,
+          1084
+        ]
+      ],
+      "editorial": {
+        "emotion": "surprise",
+        "emotion_intensity": 0.7
+      }
+    },
+    {
+      "shot_id": "SHOT_001",
+      "state": "laughter",
+      "frames": [
+        [
+          1085,
+          1120
+        ]
+      ],
+      "editorial": {
+        "emotion": "laughter",
+        "emotion_intensity": 0.9
+      }
+    },
+    {
+      "shot_id": "SHOT_002",
+      "state": "strong_light",
+      "frames": [
+        [
+          1121,
+          1240
+        ]
+      ]
+    },
+    {
+      "shot_id": "SHOT_002",
+      "state": "three_quarter",
+      "frames": [
+        [
+          1121,
+          1152
+        ]
+      ],
+      "editorial": {
+        "emotion": "curiosity",
+        "emotion_intensity": 0.5
+      }
+    },
+    {
+      "shot_id": "SHOT_002",
+      "state": "head_turn",
+      "frames": [
+        [
+          1153,
+          1176
+        ]
+      ],
+      "editorial": {
+        "emotion": "curiosity",
+        "emotion_intensity": 0.5
+      }
+    },
+    {
+      "shot_id": "SHOT_002",
+      "state": "profile",
+      "frames": [
+        [
+          1177,
+          1240
+        ]
+      ],
+      "editorial": {
+        "emotion": "laughter",
+        "emotion_intensity": 0.6
+      }
+    },
+    {
+      "shot_id": "SHOT_002",
+      "state": "profile_strong_emotion",
+      "frames": [
+        [
+          1201,
+          1240
+        ]
+      ],
+      "editorial": {
+        "emotion": "laughter",
+        "emotion_intensity": 1.0
+      }
+    },
+    {
+      "shot_id": "SHOT_003",
+      "state": "sadness",
+      "frames": [
+        [
+          1241,
+          1272
+        ]
+      ],
+      "editorial": {
+        "emotion": "sadness",
+        "emotion_intensity": 0.7
+      }
+    },
+    {
+      "shot_id": "SHOT_003",
+      "state": "fear",
+      "frames": [
+        [
+          1273,
+          1304
+        ]
+      ],
+      "editorial": {
+        "emotion": "fear",
+        "emotion_intensity": 0.9
+      }
+    },
+    {
+      "shot_id": "SHOT_003",
+      "state": "hand_over_face",
+      "frames": [
+        [
+          1305,
+          1332
+        ]
+      ],
+      "editorial": {
+        "emotion": "fear",
+        "emotion_intensity": 1.0
+      }
+    },
+    {
+      "shot_id": "SHOT_003",
+      "state": "fast_movement",
+      "frames": [
+        [
+          1333,
+          1360
+        ]
+      ],
+      "editorial": {
+        "emotion": "fear",
+        "emotion_intensity": 0.8
+      }
+    }
+  ],
+  "still_frames": {
+    "SHOT_001": 1050,
+    "SHOT_002": 1215,
+    "SHOT_003": 1290
+  },
+  "editorial_merge_rule": "narrowest window wins where windows overlap"
+}

@@ -1,0 +1,424 @@
+{
+  "channel_vocabulary_version": 1,
+  "source": "proposal \u00a75 channel vocabulary v1 (2026-09-14); project-owned names, no vendor names",
+  "sides": "_l / _r are the character's ANATOMICAL left and right (socket +X = anatomical left)",
+  "control_convention": "placeholder rig: one float custom property per channel on the FACE_CTRL empty, already in channel units. A real rig maps its own controls here: input_range \u2192 output_range, linear.",
+  "channels": [
+    {
+      "channel": "brow_inner_l",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "brow_inner_l"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "inner brow: -1 fully lowered, +1 fully raised"
+    },
+    {
+      "channel": "brow_inner_r",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "brow_inner_r"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "inner brow: -1 fully lowered, +1 fully raised"
+    },
+    {
+      "channel": "brow_outer_l",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "brow_outer_l"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "outer brow tail: -1 fully lowered, +1 fully raised"
+    },
+    {
+      "channel": "brow_outer_r",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "brow_outer_r"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "outer brow tail: -1 fully lowered, +1 fully raised"
+    },
+    {
+      "channel": "lid_aperture_l",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "lid_aperture_l"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "sustained lid pose: -1 closed, 0 relaxed open, +1 widened"
+    },
+    {
+      "channel": "lid_aperture_r",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "lid_aperture_r"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "sustained lid pose: -1 closed, 0 relaxed open, +1 widened"
+    },
+    {
+      "channel": "squint_l",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "squint_l"
+      },
+      "input_range": [
+        0,
+        1
+      ],
+      "output_range": [
+        0,
+        1
+      ],
+      "semantic": "lower-lid tightening"
+    },
+    {
+      "channel": "squint_r",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "squint_r"
+      },
+      "input_range": [
+        0,
+        1
+      ],
+      "output_range": [
+        0,
+        1
+      ],
+      "semantic": "lower-lid tightening"
+    },
+    {
+      "channel": "cheek_raise_l",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "cheek_raise_l"
+      },
+      "input_range": [
+        0,
+        1
+      ],
+      "output_range": [
+        0,
+        1
+      ],
+      "semantic": "cheek raise"
+    },
+    {
+      "channel": "cheek_raise_r",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "cheek_raise_r"
+      },
+      "input_range": [
+        0,
+        1
+      ],
+      "output_range": [
+        0,
+        1
+      ],
+      "semantic": "cheek raise"
+    },
+    {
+      "channel": "nose_wrinkle",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "nose_wrinkle"
+      },
+      "input_range": [
+        0,
+        1
+      ],
+      "output_range": [
+        0,
+        1
+      ],
+      "semantic": "bridge wrinkle"
+    },
+    {
+      "channel": "nostril_flare",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "nostril_flare"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "-1 compressed, +1 flared"
+    },
+    {
+      "channel": "mouth_corner_l",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "mouth_corner_l"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "corner: -1 fully down, +1 fully up"
+    },
+    {
+      "channel": "mouth_corner_r",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "mouth_corner_r"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "corner: -1 fully down, +1 fully up"
+    },
+    {
+      "channel": "mouth_width",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "mouth_width"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "-1 narrowed, +1 stretched"
+    },
+    {
+      "channel": "jaw_open",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "jaw_open"
+      },
+      "input_range": [
+        0,
+        1
+      ],
+      "output_range": [
+        0,
+        1
+      ],
+      "semantic": "0 closed, 1 maximum comfortable open"
+    },
+    {
+      "channel": "jaw_lateral",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "jaw_lateral"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "-1 to character's right, +1 to character's left"
+    },
+    {
+      "channel": "lip_funnel",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "lip_funnel"
+      },
+      "input_range": [
+        0,
+        1
+      ],
+      "output_range": [
+        0,
+        1
+      ],
+      "semantic": "funnel ('oh')"
+    },
+    {
+      "channel": "lip_purse",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "lip_purse"
+      },
+      "input_range": [
+        0,
+        1
+      ],
+      "output_range": [
+        0,
+        1
+      ],
+      "semantic": "purse ('oo')"
+    },
+    {
+      "channel": "lip_press",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "lip_press"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "-1 parted and relaxed, 0 rest contact, +1 pressed thin"
+    },
+    {
+      "channel": "upper_lip_raise_l",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "upper_lip_raise_l"
+      },
+      "input_range": [
+        0,
+        1
+      ],
+      "output_range": [
+        0,
+        1
+      ],
+      "semantic": "upper lip raise"
+    },
+    {
+      "channel": "upper_lip_raise_r",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "upper_lip_raise_r"
+      },
+      "input_range": [
+        0,
+        1
+      ],
+      "output_range": [
+        0,
+        1
+      ],
+      "semantic": "upper lip raise"
+    },
+    {
+      "channel": "gaze_yaw",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "gaze_yaw"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "-1 to character's right, +1 to character's left"
+    },
+    {
+      "channel": "gaze_pitch",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "gaze_pitch"
+      },
+      "input_range": [
+        -1,
+        1
+      ],
+      "output_range": [
+        -1,
+        1
+      ],
+      "semantic": "-1 down, +1 up"
+    },
+    {
+      "channel": "blink_l",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "blink_l"
+      },
+      "input_range": [
+        0,
+        1
+      ],
+      "output_range": [
+        0,
+        1
+      ],
+      "semantic": "transient reflex closure on top of lid_aperture"
+    },
+    {
+      "channel": "blink_r",
+      "control": {
+        "object": "FACE_CTRL",
+        "property": "blink_r"
+      },
+      "input_range": [
+        0,
+        1
+      ],
+      "output_range": [
+        0,
+        1
+      ],
+      "semantic": "transient reflex closure on top of lid_aperture"
+    }
+  ]
+}

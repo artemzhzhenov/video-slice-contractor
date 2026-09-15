@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.video.local/common.json",
+  "title": "Shared definitions",
+  "$defs": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "ulid": { "type": "string", "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "datetime": { "type": "string", "format": "date-time" },
+    "sentinel": { "enum": ["UNKNOWN", "NOT_VERIFIED"] },
+    "money": {
+      "oneOf": [
+        { "type": "number", "exclusiveMinimum": 0 },
+        { "$ref": "#/$defs/sentinel" }
+      ]
+    },
+    "measured_minutes": {
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        { "$ref": "#/$defs/sentinel" }
+      ]
+    },
+    "role_id": { "type": "string", "pattern": "^ROLE_[A-Z0-9_]+$" },
+    "internal_ref": { "type": "string", "pattern": "^ref:[a-z_]+/[A-Za-z0-9/_.-]+$", "maxLength": 512 },
+    "region": { "enum": ["primary"] },
+    "product": { "enum": ["CARTOON", "COMIC"] },
+    "language": { "enum": ["en", "ru"] },
+    "priority_class": { "enum": ["PAID", "PREVIEW"] },
+    "provider_mode": { "enum": ["LIVE", "SANDBOX", "REPLAY"] },
+    "render_profile": { "enum": ["video", "still"] },
+    "cost_class": { "enum": ["FREE", "MODERATE", "EXPENSIVE"] },
+    "shot_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["master_id", "master_version", "shot_id"],
+      "properties": {
+        "master_id": { "$ref": "#/$defs/ulid" },
+        "master_version": { "type": "integer", "minimum": 1 },
+        "shot_id": { "type": "string", "pattern": "^SHOT_[0-9]{3,4}$" }
+      }
+    },
+    "frame_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "integer", "minimum": 1001 },
+        "end": { "type": "integer", "minimum": 1001 }
+      }
+    }
+  }
+}

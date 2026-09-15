@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.video.local/performance_track.json",
+  "title": "PERFORMANCE_TRACK — continuous control channels per frame (ADR-0002 D8)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "shot", "channel_vocabulary_version", "fps", "frames"],
+  "properties": {
+    "schema_version": { "$ref": "common.json#/$defs/schema_version" },
+    "shot": { "$ref": "common.json#/$defs/shot_ref" },
+    "channel_vocabulary_version": { "type": "integer", "minimum": 1 },
+    "fps": { "const": 24 },
+    "frames": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["frame", "socket", "channels"],
+        "properties": {
+          "frame": { "type": "integer", "minimum": 1001 },
+          "socket": {
+            "type": "object", "additionalProperties": false,
+            "required": ["position_m", "quaternion", "scale"],
+            "properties": {
+              "position_m": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+              "quaternion": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": -1, "maximum": 1 } },
+              "scale": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          },
+          "channels": {
+            "type": "object",
+            "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+            "additionalProperties": { "type": "number", "minimum": -1, "maximum": 1 }
+          },
+          "editorial": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "emotion": { "type": "string" },
+              "emotion_intensity": { "type": "number", "minimum": 0, "maximum": 1 },
+              "gaze_target": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
