@@ -9,7 +9,7 @@
 |---|---|
 | Текущая версия сдачи | — |
 | Общий статус | IN PROGRESS |
-| Часов потрачено | 2 |
+| Часов потрачено | 2,2 |
 | Blender | 5.2.1 LTS, build `9e2066aef7ef` (модуль `bpy==5.2.1` с PyPI, Python 3.13.13, Linux x86_64, Cycles CPU — Metal недоступен, см. журнал) |
 
 ## Пункты
@@ -25,9 +25,14 @@
 | 7 | Прокси `NECK_PROXY`, `COLLISION_PROXY` подогнаны | NOT STARTED | | |
 | 8 | Ray visibility головы/волос по TASK §6 | NOT STARTED | | |
 | 9 | `check_asset.sh` проходит (хвост лога ниже) | NOT STARTED | | |
-| 10 | `LICENSES.md` заполнен | NOT STARTED | | |
+| 10 | `LICENSES.md` заполнен | DONE | 2026-09-15 | MPFB2 + своё; дополняется, если появятся новые сторонние элементы |
 
 ## Журнал
+
+- 2026-09-15 — Q10: архив blender.org из среды недоступен (`download.blender.org` и зеркало —
+  HTTP 403 от egress-прокси; открыты только github.com и pypi.org), остаюсь на обёртке над
+  `bpy` того же build hash; финальный прогон `check_asset.sh` дословно — на стороне владельца.
+  Пункт 10 → DONE. 0,2 ч.
 
 - 2026-09-15 — Q9 → MPFB2. Add-on поставлен в среду как extension (`bl_ext.user_default.mpfb`,
   исходники GitHub `makehumancommunity/mpfb2` @ `437dd51`, манифест 2.0.17, min Blender 4.2).
