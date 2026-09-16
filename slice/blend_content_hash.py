@@ -21,7 +21,15 @@ packed data), animation (fcurves and keyframes of objects, actions and shape key
 (objects, shape keys, pose bones: path, index, type, expression, variables with their targets).
 Vertex order: sorted on rounded coordinates, ties broken by the sorted coordinates of the
 edge neighbours; vertices that are still indistinguishable after that are interchangeable, so
-the hash cannot depend on which of them came first (contractor Q12, 2026-09-16)."""
+the hash cannot depend on which of them came first (contractor Q12, 2026-09-16).
+
+The JSON also carries `mesh_data`: per-mesh entries {hash, collections, objects, materials}
+where the hash covers the mesh data-block (geometry, shape keys) AND every user object's vertex
+groups — skin weights are part of the accepted binding, a re-bind is a character change — but
+not the object's transform, parent or pose, for the burst-2 rule that the accepted character's meshes are
+untouched while the rig is animated; `collections` lets that rule select the character's
+collections and ignore the environment. Hash rule version: 2026-09-16.
+"""
 import argparse
 import hashlib
 import json
@@ -253,15 +261,28 @@ def main(argv):
     scene = bpy.data.scenes.get("SLICE") or bpy.context.scene
     scene.frame_set(scene.frame_start)
     report = {"scene": {"name": scene.name, "frame_range": [scene.frame_start, scene.frame_end], "fps": scene.render.fps, "props": props(scene)},
-              "objects": {}, "materials": {}}
+              "objects": {}, "materials": {}, "mesh_data": {}}
     for obj in sorted(bpy.data.objects, key=lambda o: o.name):
         content = object_content(obj)
         report["objects"][obj.name] = hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()
     for m in sorted(bpy.data.materials, key=lambda m: m.name):
         report["materials"][m.name] = hashlib.sha256(json.dumps(material_content(m), sort_keys=True).encode()).hexdigest()
+    # Data-block hashes of meshes, independent of the object's transform, parent and pose: burst 2
+    # animates the character, which changes every object hash below SOCKET_HEAD and the rig, while
+    # the meshes and materials must be the accepted burst-1 ones (contractor/burst-2/ACCEPTANCE.md).
+    users = {}
+    for obj in sorted((o for o in bpy.data.objects if o.type == "MESH"), key=lambda o: (o.data.name, o.name)):
+        users.setdefault(obj.data.name, []).append(obj)
+    for name, objs in users.items():
+        # One entry per data-block; the hash folds mesh_content of EVERY user, so a re-bind of any
+        # user (vertex groups live on the object) changes it.
+        content = [mesh_content(o) for o in objs]
+        report["mesh_data"][name] = {"hash": hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest(),
+                                     "collections": sorted({c.name for o in objs for c in o.users_collection}), "objects": [o.name for o in objs],
+                                     "materials": sorted({sl.material.name for o in objs for sl in o.material_slots if sl.material})}
     total = hashlib.sha256(json.dumps(report, sort_keys=True).encode()).hexdigest()
     report["content_hash"] = total
-    report["rule"] = "sha256 over the canonical JSON of scene settings, per-object content hashes and per-material hashes; see the module docstring for what is covered and the rounding"
+    report["rule"] = "sha256 over the canonical JSON of scene settings, per-object content hashes, per-material hashes and per-mesh data-block hashes (mesh_data, added 2026-09-16 — hashes recorded before that date are of the previous rule and do not reproduce); see the module docstring for what is covered and the rounding"
     if args.json:
         with open(args.json, "w") as f:
             json.dump(report, f, indent=1)

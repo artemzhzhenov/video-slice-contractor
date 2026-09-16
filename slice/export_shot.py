@@ -418,6 +418,8 @@ def main():
         raise ExportError(f"unknown shot {args.shot}")
     fr = CONV["shots"][args.shot]["frame_range"]
     frames = list(range(fr["start"], fr["end"] + 1))
+    if scene.get("shot_id") != args.shot:
+        raise ExportError(f"scene shot_id {scene.get('shot_id')!r} is not {args.shot} — the file is another shot's scene")
     if (scene.frame_start, scene.frame_end) != (fr["start"], fr["end"]):
         raise ExportError(f"scene frame range {scene.frame_start}-{scene.frame_end} is not {args.shot}'s {fr}")
     assert_scene_conventions(scene)
