@@ -88,6 +88,18 @@ def main():
     ctrl = bpy.data.objects.get(N["face_ctrl"])
     cmap = json.loads((ROOT / "slice" / "channel_map.json").read_text())
     ok(ctrl is not None and all(ch["channel"] in ctrl.keys() for ch in cmap["channels"]), "FACE_CTRL missing a channel property")
+    # Soft limits only (contract): a hard min/max on an ID property clamps animated values before
+    # the exporter sees them. Hard limits must be Blender's defaults (±3.4e38); soft limits must
+    # equal the channel's output range (contractor Q12, 2026-09-16).
+    if ctrl is not None:
+        for ch in cmap["channels"]:
+            name = ch["channel"]
+            if name not in ctrl.keys():
+                continue
+            ui = ctrl.id_properties_ui(name).as_dict()
+            lo, hi = ch["output_range"]
+            ok(ui.get("min", 0) <= -1e30 and ui.get("max", 0) >= 1e30, f"FACE_CTRL.{name}: hard limits {ui.get('min')}..{ui.get('max')} — hard limits clamp animation silently; use soft limits only")
+            ok(abs(ui.get("soft_min", 99) - lo) < 1e-9 and abs(ui.get("soft_max", 99) - hi) < 1e-9, f"FACE_CTRL.{name}: soft limits {ui.get('soft_min')}..{ui.get('soft_max')} differ from channel_map range {lo}..{hi}")
     # Socket boundary vertex group exists on the body placeholder.
     body_objs = [o for o in bpy.data.collections["C_BODY"].all_objects if o.type == "MESH"]
     ok(any(N["vertex_group_socket_boundary"] in o.vertex_groups for o in body_objs), "SOCKET_BOUNDARY vertex group missing on body")

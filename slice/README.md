@@ -28,7 +28,7 @@ Authority: ADR-0002 → `docs/experiments/phase-0-5-slice-brief.md` → `…-pro
 | `package.py` | Content-addressed package (D11): `hash` writes `package_manifest.json` with sha256 + bytes of every file, per-shot entries derived from the export and bundle manifests (their hashes re-checked against disk — stale files refuse to package), toolchain and OCIO from the lock (hash verified), `package_hash`; `verify` recomputes and fails on any missing / added / changed file. CI verifies the committed package. |
 | `rebuild_shot.py` | Test-rebuild of one shot from the archived source (REBUILD.md step 8): runs every step into a fresh directory, records each step's exit code and wall-clock, then compares the fresh exports with the archive's by hash (must be identical) and the render bundle parts by pixel SHA-1 (identical / differing counted and listed). |
 | `check_asset.sh` | One command for a delivered scene: check_scene → export → check_exports → check_alembic → smoke render (64 spp / 25 %, the criterion-3 gate needs ≥ 64 spp) → split → composite → round-trip; stops at the first failing gate. The contractor's self-check and our acceptance (`contractor/burst-1/ACCEPTANCE.md`). |
-| `blend_content_hash.py` | Content hash of a `.blend` scene (what it means, not its bytes): canonicalised mesh geometry, vertex groups, shape keys, armature bones, parenting, custom properties, modifiers, materials' nodes, cameras, lights, animation curves; per-object hashes in a JSON so a difference is located. Two builds of the template hash equal (tested); the token for reproducible asset scenes (contractor acceptance item 5, package archiving). |
+| `blend_content_hash.py` | Content hash of a `.blend` scene (what it means, not its bytes): canonicalised mesh geometry (ties between coincident vertices broken by their neighbours), vertex groups, shape keys, armature bones with full orientation, pose-bone constraints and IK, object constraints and modifiers with their RNA parameters, custom properties with their limits, materials' nodes and packed textures by sha256, animation curves and **drivers**; per-object hashes in a JSON so a difference is located. Tested: two template builds hash equal; a moved vertex, a renamed bone, a driver, a constraint, a bone roll, a hard limit or a swapped texture each change it and are located. Gaps found by the contractor's review (Q12) closed 2026-09-16. |
 | `cryptomatte.py` | Pure-Python id decoding (hex → the float32 the rank channels carry, per the Cryptomatte spec), unit-tested in CI. |
 | `measurements/` | JSON outputs of the scripts above, committed; renders and placeholder exports are not (`.gitignore`). |
 
@@ -237,6 +237,8 @@ script); Vector availability with blur ON (not needed by the pipeline, so not te
   on the placeholder because its head bone never moved on its own); the ring lives on exactly
   one render-visible mesh of `C_HEAD` (the shell) and further head meshes are allowed; hair
   transparency is an OPEN round-trip item (`conventions.json → roundtrip.hair_transparency`).
+  `check_scene.py` also rejects hard min/max on the 26 `FACE_CTRL` channel properties (a hard
+  limit clamps animation silently) and requires the soft limits to equal `channel_map.json`.
 
 ## Not here yet (next steps, in order)
 
