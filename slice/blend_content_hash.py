@@ -38,6 +38,10 @@ import sys
 import bpy
 
 R = 6
+# Scene properties the template derives from the MACHINE, not the asset: excluded from the hash so
+# the same file hashes the same on the contractor's Linux CPU and on our macOS Metal (measured
+# 2026-09-16: render_device CPU vs METAL, ocio_config_env an absolute path).
+EXCLUDED_SCENE_PROPS = ("render_device", "ocio_config_env")
 
 
 def r(x, nd=R):
@@ -163,18 +167,29 @@ def fcurves(anim):
     return sorted(curves, key=lambda c: (str(c["slot"]), c["path"], c["index"]))
 
 
-def mesh_content(obj):
+def mesh_content(obj, canonical=True):
+    """canonical=True: vertices re-ordered by rounded coordinates (neighbour tie-break), faces
+    sorted — the order-independent form that is hashed. canonical=False: Blender's own vertex,
+    face and shape-key order kept — the order-sensitive form written by --dump for the numeric
+    comparison of two builds of the same deterministic script on two machines, where float noise
+    would otherwise flip the canonical order of near-tied vertices (found 2026-09-16)."""
     me = obj.data
     verts = [vec(v.co) for v in me.vertices]
-    neighbours = [[] for _ in verts]
-    for e in me.edges:
-        a, b = e.vertices
-        neighbours[a].append(verts[b])
-        neighbours[b].append(verts[a])
-    keys = [(verts[i], sorted(neighbours[i])) for i in range(len(verts))]
-    order = sorted(range(len(verts)), key=lambda i: keys[i])
+    if canonical:
+        neighbours = [[] for _ in verts]
+        for e in me.edges:
+            a, b = e.vertices
+            neighbours[a].append(verts[b])
+            neighbours[b].append(verts[a])
+        keys = [(verts[i], sorted(neighbours[i])) for i in range(len(verts))]
+        order = sorted(range(len(verts)), key=lambda i: keys[i])
+    else:
+        order = list(range(len(verts)))
     remap = {old: new for new, old in enumerate(order)}
-    faces = sorted((tuple(sorted(remap[i] for i in p.vertices)), p.material_index) for p in me.polygons)
+    if canonical:
+        faces = sorted((tuple(sorted(remap[i] for i in p.vertices)), p.material_index) for p in me.polygons)
+    else:
+        faces = [(tuple(p.vertices), p.material_index) for p in me.polygons]
     groups = {}
     for g in obj.vertex_groups:
         weights = []
@@ -185,7 +200,7 @@ def mesh_content(obj):
         groups[g.name] = sorted(weights)
     shape_keys = None
     if me.shape_keys:
-        shape_keys = {kb.name: sorted(vec(kb.data[i].co) for i in range(len(kb.data))) for kb in me.shape_keys.key_blocks}
+        shape_keys = {kb.name: (sorted if canonical else list)(vec(kb.data[i].co) for i in range(len(kb.data))) for kb in me.shape_keys.key_blocks}
     return {"vertices": [verts[i] for i in order], "faces": faces, "materials": [m.name if m else None for m in me.materials],
             "vertex_groups": groups, "shape_keys": shape_keys, "shape_key_anim": fcurves(me.shape_keys.animation_data) if me.shape_keys else None,
             "shape_key_drivers": drivers(me.shape_keys.animation_data) if me.shape_keys else None, "data_props": props(me)}
@@ -227,7 +242,7 @@ def material_content(m):
     return {"nodes": nodes, "blend_method": getattr(m, "blend_method", None)}
 
 
-def object_content(obj):
+def object_content(obj, canonical=True):
     d = {"type": obj.type, "parent": obj.parent.name if obj.parent else None, "parent_type": obj.parent_type,
          "parent_bone": obj.parent_bone, "collections": sorted(c.name for c in obj.users_collection),
          "matrix_world": mat(obj.matrix_world), "hide_render": obj.hide_render,
@@ -236,7 +251,7 @@ def object_content(obj):
          "constraints": [{"type": c.type, "name": c.name, **rna_props(c)} for c in obj.constraints],
          "props": props(obj), "anim": fcurves(obj.animation_data), "drivers": drivers(obj.animation_data)}
     if obj.type == "MESH":
-        d["mesh"] = mesh_content(obj)
+        d["mesh"] = mesh_content(obj, canonical)
     elif obj.type == "ARMATURE":
         d["armature"] = armature_content(obj)
         d["pose_anim"] = fcurves(obj.animation_data)
@@ -257,16 +272,21 @@ def object_content(obj):
 def main(argv):
     p = argparse.ArgumentParser()
     p.add_argument("--json", default="")
+    p.add_argument("--dump", default="", help="write the content in Blender's own vertex/face order (order-sensitive, NOT what is hashed) so two builds of one deterministic script on two machines can be compared numerically within a declared tolerance (slice/content_compare.py)")
     args = p.parse_args(argv)
     scene = bpy.data.scenes.get("SLICE") or bpy.context.scene
     scene.frame_set(scene.frame_start)
-    report = {"scene": {"name": scene.name, "frame_range": [scene.frame_start, scene.frame_end], "fps": scene.render.fps, "props": props(scene)},
+    report = {"scene": {"name": scene.name, "frame_range": [scene.frame_start, scene.frame_end], "fps": scene.render.fps, "props": {k: v for k, v in props(scene).items() if k not in EXCLUDED_SCENE_PROPS}},
               "objects": {}, "materials": {}, "mesh_data": {}}
+    dump = {"scene": report["scene"], "objects": {}, "materials": {}, "mesh_data": {}}
     for obj in sorted(bpy.data.objects, key=lambda o: o.name):
         content = object_content(obj)
+        dump["objects"][obj.name] = object_content(obj, canonical=False) if obj.type == "MESH" else content
         report["objects"][obj.name] = hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()
     for m in sorted(bpy.data.materials, key=lambda m: m.name):
-        report["materials"][m.name] = hashlib.sha256(json.dumps(material_content(m), sort_keys=True).encode()).hexdigest()
+        content = material_content(m)
+        dump["materials"][m.name] = content
+        report["materials"][m.name] = hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()
     # Data-block hashes of meshes, independent of the object's transform, parent and pose: burst 2
     # animates the character, which changes every object hash below SOCKET_HEAD and the rig, while
     # the meshes and materials must be the accepted burst-1 ones (contractor/burst-2/ACCEPTANCE.md).
@@ -277,15 +297,19 @@ def main(argv):
         # One entry per data-block; the hash folds mesh_content of EVERY user, so a re-bind of any
         # user (vertex groups live on the object) changes it.
         content = [mesh_content(o) for o in objs]
+        dump["mesh_data"][name] = [mesh_content(o, canonical=False) for o in objs]
         report["mesh_data"][name] = {"hash": hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest(),
                                      "collections": sorted({c.name for o in objs for c in o.users_collection}), "objects": [o.name for o in objs],
                                      "materials": sorted({sl.material.name for o in objs for sl in o.material_slots if sl.material})}
     total = hashlib.sha256(json.dumps(report, sort_keys=True).encode()).hexdigest()
     report["content_hash"] = total
-    report["rule"] = "sha256 over the canonical JSON of scene settings, per-object content hashes, per-material hashes and per-mesh data-block hashes (mesh_data, added 2026-09-16 — hashes recorded before that date are of the previous rule and do not reproduce); see the module docstring for what is covered and the rounding"
+    report["rule"] = "sha256 over the canonical JSON of scene settings, per-object content hashes, per-material hashes and per-mesh data-block hashes (mesh_data, added 2026-09-16 — hashes recorded before that date are of the previous rule and do not reproduce; scene props render_device and ocio_config_env excluded since 2026-09-16); see the module docstring for what is covered and the rounding"
     if args.json:
         with open(args.json, "w") as f:
             json.dump(report, f, indent=1)
+    if args.dump:
+        with open(args.dump, "w") as f:
+            json.dump(dump, f, sort_keys=True)
     print(f"BLEND_CONTENT_HASH {total} objects={len(report['objects'])} materials={len(report['materials'])}")
 
 

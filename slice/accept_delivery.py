@@ -39,9 +39,12 @@ acceptance_report.json):
   4  check_asset.sh on the rebuilt file (5б) and on the delivered file (item 1 at the same smoke
      settings) unless --no-asset-check, which is recorded as NOT RUN and caps the verdict at
      PARTIAL — never a silent pass.
-  5  exports of --shot from both files compared by the rule of slice/rebuild_shot.py (5в).
-  6  slice/blend_content_hash.py on both files: equal hash, or the differing objects and
-     materials are listed (5г).
+  5  exports of --shot from both files compared by the rule of slice/rebuild_shot.py (5в) —
+     with the declared cross-platform tolerance (conventions.rebuild): a file that is not
+     byte-identical is compared numerically, and proxies.abc by slice/compare_alembic.py.
+  6  slice/blend_content_hash.py on both files: equal hash, or the canonical content dumps
+     compared numerically within the same tolerance; beyond it the differing objects, materials
+     or meshes are listed with their first differing fields (5г).
 
 Verdict line and exit code: ACCEPTANCE_REBUILD_OK (0) — every step ran and passed, MPFB2
 installed from a git source at the declared commit; ACCEPTANCE_REBUILD_PARTIAL (3) — every step
@@ -65,10 +68,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from slice.rebuild_shot import compare_exports, sha256  # noqa: E402
+from slice.content_compare import compare as content_compare  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
 OCIO = ROOT / "benchmarks/bakeoff/01J7B000000000000000BAKEXP/slice/ocio/studio-config-v4.0.0_aces-v2.0_ocio-v2.5.ocio"
+CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
+TOL = CONV["rebuild"]["cross_platform_tolerance"]["numeric_abs"]  # the contractor builds on another machine: float noise is not a difference
 BUILD_TIMEOUT_S = 6 * 3600
 ASSET_CHECK_TIMEOUT_S = 7 * 24 * 3600  # a conformant run of a real asset is hours; the step decides when it is done
 EXIT_OK, EXIT_FAIL, EXIT_PARTIAL, EXIT_USAGE = 0, 2, 3, 64
@@ -76,10 +82,11 @@ EXIT_OK, EXIT_FAIL, EXIT_PARTIAL, EXIT_USAGE = 0, 2, 3, 64
 # LOGICAL line (comments and docstrings removed, names joined by one space, strings replaced by
 # STR); only *.py files are scanned. A hit is quoted and fails the run unless --allow-scan-hits
 # records it and caps the verdict at PARTIAL. Bare words a legitimate script uses (`socket` as a
-# variable, getattr on bpy.context) are not matched — the forms are the module/operator ones.
+# variable, getattr on bpy.context, importlib.import_module — the contract's own way to find the
+# MPFB2 module under any extension repo, Q11) are not matched — the forms are the module/operator ones.
 BUILD_SCRIPT_FORBIDDEN = re.compile(
     r"\b(open_mainfile|read_homefile|read_factory_settings|wm\.append|wm\.link|libraries\.load"
-    r"|subprocess|os\.system|os\.popen|os\.exec\w*|shutil|urllib|requests|http\.client|ftplib|ctypes|importlib|__import__|exec|eval)\b"
+    r"|subprocess|os\.system|os\.popen|os\.exec\w*|shutil|urllib|requests|http\.client|ftplib|ctypes|importlib\.(reload|util|machinery|resources)|__import__|exec|eval)\b"
     r"|\bimport socket\b|\bsocket\.(socket|create_connection|connect)\b|\bfrom os import\b|\bgetattr\(bpy\.ops\.wm")
 PYCACHE_TREES = ("slice", "scripts", "schemas")
 BLENDER_PROFILE_VARS = ("BLENDER_USER_EXTENSIONS", "BLENDER_USER_CONFIG", "BLENDER_USER_SCRIPTS", "BLENDER_USER_DATAFILES")
@@ -400,23 +407,46 @@ def step5_exports(rn, args, files):
         rn.run(f"5 export {name}", ["blender", "-b", str(blend), "--python-exit-code", "2", "-P", str(ROOT / "slice/export_shot.py"), "--", "--shot", args.shot, "--out", str(d)], timeout=1800, must_print="EXPORT_OK")
         rn.run(f"5 check_exports {name}", [PY, str(ROOT / "slice/check_exports.py"), str(d)])
         dirs[name] = d
-    cmp = compare_exports(dirs["delivered"], dirs["rebuilt"])
-    rn.report["exports"] = {"rule": "slice/rebuild_shot.compare_exports", "shot": args.shot, **cmp}
+    cmp = compare_exports(dirs["delivered"], dirs["rebuilt"], tolerance=TOL)
+    rn.report["exports"] = {"rule": "slice/rebuild_shot.compare_exports with conventions.rebuild.cross_platform_tolerance", "shot": args.shot, **cmp}
     if cmp["differing"]:
-        raise AcceptanceError(f"exports of the delivered and the rebuilt file differ: {cmp['differing']}")
+        raise AcceptanceError(f"exports of the delivered and the rebuilt file differ beyond the tolerance {TOL:g}: {cmp['differing']}")
+    if cmp["abc_needs_numeric_comparison"]:
+        r = rn.run("5 compare proxies.abc numerically", ["blender", "-b", "--python-exit-code", "2", "-P", str(ROOT / "slice/compare_alembic.py"), "--", "--a", str(dirs["delivered"] / "proxies.abc"), "--b", str(dirs["rebuilt"] / "proxies.abc"), "--meta", str(dirs["delivered"] / "proxies.abc.meta.json"), "--tol", str(TOL)], timeout=3600, must_print="ALEMBIC_COMPARE_OK")
+        rn.report["exports"]["proxies_abc"] = next(ln for ln in r.stdout.splitlines() if ln.startswith("ALEMBIC_COMPARE_OK"))
+    rn.report["exports"]["status"] = "EQUAL (byte-identical)" if not cmp["within_tolerance"] and not cmp["abc_needs_numeric_comparison"] else f"EQUAL WITHIN TOLERANCE {TOL:g} (max deviation {max(list(cmp['within_tolerance'].values()) or [0.0]):.3e} in the JSON/OBJ files; proxies.abc: {rn.report['exports']['proxies_abc']})"
 
 
 def step6_content_hash(rn, files):
-    reps = {}
+    reps, dumps = {}, {}
     for name, blend in files.items():
-        js = rn.out / f"content_hash_{name}.json"
-        rn.run(f"6 content hash {name}", ["blender", "-b", str(blend), "--python-exit-code", "2", "-P", str(ROOT / "slice/blend_content_hash.py"), "--", "--json", str(js)], timeout=1800, must_print="BLEND_CONTENT_HASH ")
-        reps[name] = json.loads(js.read_text())
+        js, dp = rn.out / f"content_hash_{name}.json", rn.out / f"content_dump_{name}.json"
+        rn.run(f"6 content hash {name}", ["blender", "-b", str(blend), "--python-exit-code", "2", "-P", str(ROOT / "slice/blend_content_hash.py"), "--", "--json", str(js), "--dump", str(dp)], timeout=1800, must_print="BLEND_CONTENT_HASH ")
+        reps[name], dumps[name] = json.loads(js.read_text()), dp
     a, b = reps["delivered"], reps["rebuilt"]
-    diff = {kind: sorted(k for k in set(a[kind]) | set(b[kind]) if a[kind].get(k) != b[kind].get(k)) for kind in ("objects", "materials")}
+    diff = {kind: sorted(k for k in set(a[kind]) | set(b[kind]) if a[kind].get(k) != b[kind].get(k)) for kind in ("objects", "materials", "mesh_data")}
     rn.report["content_hash"] = {"delivered": a["content_hash"], "rebuilt": b["content_hash"], "equal": a["content_hash"] == b["content_hash"], "differing": diff}
-    if a["content_hash"] != b["content_hash"]:
-        raise AcceptanceError(f"content hash differs — objects {diff['objects']}, materials {diff['materials']}")
+    if a["content_hash"] == b["content_hash"]:
+        rn.report["content_hash"]["status"] = "EQUAL (hash)"
+        return
+    # Hashes differ: on another machine float noise flips the 1e-6 rounding of the hash, so the
+    # canonical content is compared numerically within the declared tolerance, section by section.
+    da, db = json.loads(dumps["delivered"].read_text()), json.loads(dumps["rebuilt"].read_text())
+    within, failing = {}, {}
+    for kind in ("objects", "materials", "mesh_data"):
+        for k in diff[kind]:
+            res = content_compare(da[kind].get(k), db[kind].get(k), TOL)
+            if res["equal"]:
+                within[f"{kind}/{k}"] = res["max_dev"]
+            else:
+                failing[f"{kind}/{k}"] = res["differences"][:5]
+    scene_res = content_compare(da["scene"], db["scene"], TOL)
+    if not scene_res["equal"]:
+        failing["scene"] = scene_res["differences"][:5]
+    rn.report["content_hash"].update({"within_tolerance": within, "failing": failing, "tolerance": TOL})
+    if failing:
+        raise AcceptanceError(f"content differs beyond the tolerance {TOL:g}: " + "; ".join(f"{k}: {v[0]}" for k, v in failing.items()))
+    rn.report["content_hash"]["status"] = f"EQUAL WITHIN TOLERANCE {TOL:g} (max deviation {max(within.values()) if within else 0.0:.3e}; {len(within)} entries needed it)"
 
 
 def parse_args(argv):
@@ -495,10 +525,10 @@ def main(argv):
             partial.append(f"build script scan hits allowed by the operator: {len(report['build']['script_scan']['hits'])}")
         report["partial_reasons"] = partial
         if partial:
-            report["status"] = "PARTIAL — rebuilt, check_scene clean, exports identical, content hash equal; " + "; ".join(partial)
+            report["status"] = f"PARTIAL — rebuilt, check_scene clean, exports {report['exports']['status']}, content {report['content_hash']['status']}; " + "; ".join(partial)
             code = EXIT_PARTIAL
         else:
-            report["status"] = "OK — rebuilt from the build script with MPFB2 at the declared commit; check_scene and check_asset passed on both files; exports identical; content hash equal"
+            report["status"] = f"OK — rebuilt from the build script with MPFB2 at the declared commit; check_scene and check_asset passed on both files; exports {report['exports']['status']}; content {report['content_hash']['status']}"
             code = EXIT_OK
     except UsageError:
         report["status"] = "NOT RUN (usage error)"

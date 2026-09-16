@@ -6,5 +6,5 @@
 
 | Элемент | Источник | Лицензия | Коммерческое / модификация | Где в файле |
 |---|---|---|---|---|
-| Базовый меш тела и головы (MakeHuman base mesh, макро-таргеты age/gender/height) | MPFB2 2.0.17, https://github.com/makehumancommunity/mpfb2 @ `437dd51` (2026-08-10), `LICENSE.ASSETS.md` | CC0 1.0 (ассеты); код add-on'а GPL-3.0 — в сдачу не входит | да / да | `C_BODY`, `C_HEAD` (после разделения по кольцу) |
-| Кольцо `SOCKET_BOUNDARY`, риг `RIG_HERO`, лицевая механика, прокси, волосы | своё (скрипты в `deliverables/scripts/`) | — | — | по контракту |
+| Базовый меш тела и головы MakeHuman (hm08), макро- и модельные таргеты, expression unit targets (набор `caucasian`), helper-геометрия глаз/зубов/языка, скелет `default` с весами | MPFB2 `v2.0.17` = коммит `80919fa`, https://github.com/makehumancommunity/mpfb2, `LICENSE.ASSETS.md` | CC0 1.0 (ассеты); код add-on'а GPL-3.0 — в сдачу не входит, используется только при сборке | да / да | `HERO_BODY`, `HERO_HAND_FG`, `HERO_HEAD` (шейпкеи `fc_*`), `HERO_EYE_L/R` (по размеру helper'а), `HERO_TEETH_*`, `HERO_TONGUE`, `RIG_HERO` |
+| Кольцо `SOCKET_BOUNDARY`, `RIG_HERO` (переименование/досборка), маппинг 26 каналов, волосы `HERO_HAIR` (эллипсоидное каре), одежда как регионы материалов, прокси, материалы (процедурные Principled, без текстур) | своё — `deliverables/scripts/build_character.py` | — | — | по контракту |

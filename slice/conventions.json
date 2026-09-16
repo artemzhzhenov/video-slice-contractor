@@ -1,565 +1,574 @@
 {
-  "conventions_version": 1,
-  "source": "ADR-0002 D6/D7/D9 (fixed) + phase-0-5-slice-brief.md §2/§6 + slice proposal §1/§3 (TD-set, PROVISIONAL)",
-  "experiment_id": "01J7B000000000000000BAKEXP",
-  "master_id": "01J7B000000000000000BAKEM1",
-  "master_version": 1,
-  "master_contract_version": 1,
-  "fps": 24,
-  "frame_numbering": "1001-based",
-  "units": {
-    "length": "metres",
-    "time": "seconds",
-    "scene_unit_scale": 1.0
+ "conventions_version": 1,
+ "source": "ADR-0002 D6/D7/D9 (fixed) + phase-0-5-slice-brief.md §2/§6 + slice proposal §1/§3 (TD-set, PROVISIONAL)",
+ "experiment_id": "01J7B000000000000000BAKEXP",
+ "master_id": "01J7B000000000000000BAKEM1",
+ "master_version": 1,
+ "master_contract_version": 1,
+ "fps": 24,
+ "frame_numbering": "1001-based",
+ "units": {
+  "length": "metres",
+  "time": "seconds",
+  "scene_unit_scale": 1.0
+ },
+ "shots": {
+  "SHOT_001": {
+   "frame_range": {
+    "start": 1001,
+    "end": 1120
+   },
+   "tier": "EASY"
   },
-  "shots": {
-    "SHOT_001": {
-      "frame_range": {
-        "start": 1001,
-        "end": 1120
-      },
-      "tier": "EASY"
-    },
-    "SHOT_002": {
-      "frame_range": {
-        "start": 1121,
-        "end": 1240
-      },
-      "tier": "DIFFICULT"
-    },
-    "SHOT_003": {
-      "frame_range": {
-        "start": 1241,
-        "end": 1360
-      },
-      "tier": "STRESS"
-    }
+  "SHOT_002": {
+   "frame_range": {
+    "start": 1121,
+    "end": 1240
+   },
+   "tier": "DIFFICULT"
   },
-  "render_profiles": {
-    "video": {
-      "resolution": [
-        3840,
-        2160
-      ],
-      "shutter_angle_deg": 180,
-      "shutter_position": "CENTRED",
-      "status": "shutter angle PROVISIONAL (TD); resolution fixed by ADR-0002 D6",
-      "samples": 64,
-      "samples_status": "PROVISIONAL — determinism and noise measured on the real asset",
-      "resolution_status": "fixed by ADR-0002 D6"
-    },
-    "still": {
-      "resolution": [
-        3840,
-        3840
-      ],
-      "resolution_basis": "square so a panel crop in either orientation has ≥ 3508 px on its long edge (A4 @ 300 DPI, brief §4B) — PROVISIONAL until COMIC_LAYOUT exists",
-      "shutter_angle_deg": 0,
-      "samples": 256,
-      "samples_status": "PROVISIONAL — 4× the video count (proposal §6 machine-time formula)",
-      "dof": "the camera's own DoF setting; chosen for the page by the TD at burst 1",
-      "frames": "state_map.json → still_frames",
-      "shutter_position": "NOT_APPLICABLE"
-    }
-  },
-  "sub_frame_samples": {
-    "count": 3,
-    "at": [
-      "open",
-      "centre",
-      "close"
-    ],
-    "status": "PROVISIONAL (proposal §3)"
-  },
-  "colour": {
-    "working_space": "ACEScg",
-    "ocio_config": "ASWF OpenColorIO-Config-ACES studio config — exact file, version and sha256 in toolchain.lock.json once pinned",
-    "display_video": "Rec.709",
-    "display_print": "sRGB, profile embedded",
-    "grade": "never baked; separate CDL/LUT after compositing"
-  },
-  "exr": {
-    "container": "OpenEXR multi-part, one file per shot per bundle",
-    "beauty_depth": "half",
-    "data_depth": "float",
-    "compression": "zip",
-    "overscan_px": "UNKNOWN — set by TD on the slice",
-    "handle_frames": 0,
-    "compression_status": "PROVISIONAL, TD may change; lossless only on a reference slice"
-  },
-  "socket_space": {
-    "handedness": "right",
-    "up": "+Y",
-    "forward": "+Z",
-    "x": "character's anatomical left",
-    "from_blender": "X_s = X_b; Y_s = Z_b; Z_s = -Y_b (Rx(-90°), det +1) — proposal §3"
-  },
-  "alpha_declaration": {
-    "PREMULTIPLIED": [
-      "BODY_BEAUTY",
-      "HEAD_HOLDOUT",
-      "DEFAULT_HEAD_BEAUTY",
-      "FOREGROUND_PLATE",
-      "PRECOMP_BACK",
-      "PRECOMP_FRONT"
-    ],
-    "NOT_APPLICABLE": [
-      "DEPTH",
-      "SKIN_ID",
-      "MOTION_VECTORS",
-      "CAMERA",
-      "SOCKET_TRANSFORM",
-      "LIGHTING_REF",
-      "NECK_PROXY",
-      "PERFORMANCE_TRACK",
-      "HEAD_SHADOW_MULTIPLY"
-    ]
-  },
-  "scene_naming": {
-    "collections": [
-      "C_HEAD",
-      "C_HAIR",
-      "C_BODY",
-      "C_HAND_FG",
-      "C_ENV",
-      "C_LIGHTS"
-    ],
-    "materials": [
-      "HERO_SKIN_HEAD",
-      "HERO_SKIN_BODY",
-      "HERO_CLOTH_01",
-      "HERO_HAIR"
-    ],
-    "view_layers": [
-      "L_FULL",
-      "L_BODY",
-      "L_BODYSHADOW",
-      "L_HEAD",
-      "L_FG",
-      "L_DATA"
-    ],
-    "empties": [
-      "SOCKET_SPACE_ROOT",
-      "SOCKET_HEAD"
-    ],
-    "camera": "CAM_001",
-    "vertex_group_socket_boundary": "SOCKET_BOUNDARY",
-    "proxies_collection": "C_PROXIES",
-    "rig": "RIG_HERO",
-    "face_ctrl": "FACE_CTRL",
-    "bones": {
-      "spine": [
-        "spine_01",
-        "spine_02",
-        "spine_03"
-      ],
-      "neck": "neck",
-      "head": "head",
-      "shoulder_l": "shoulder_l",
-      "shoulder_r": "shoulder_r"
-    },
-    "proxies": [
-      "NECK_PROXY",
-      "COLLISION_PROXY"
-    ],
-    "socket_parent_bone": "head",
-    "socket_parent_rule": "SOCKET_HEAD is bone-parented to the `head` bone, whose base sits at the boundary ring: the socket transform carries the whole head pose (neck bend + nod), which is why joints.json has no neck/head entry. Head and hair objects are children of SOCKET_HEAD, unskinned; the body's SOCKET_BOUNDARY ring is weighted 100 % to `head` so the seam follows (contractor Q3, 2026-09-15; the placeholder used `neck`, which only held because its head bone never moved on its own)",
-    "head_shell_rule": "exactly one render-visible mesh in C_HEAD carries the SOCKET_BOUNDARY group — the head shell; eyes, teeth, tongue, brows are further meshes in C_HEAD, exported into default_head_rest.obj and the envelope but not into the ring; hide_render objects are ignored (contractor Q2, 2026-09-15)"
-  },
-  "head_lighting_rule": "shadow-caster only: hero head and hair have ray visibility diffuse/glossy/transmission OFF, shadow ON, camera ON (ADR-0002 D2 amendment 2026-09-14)",
-  "exports": {
-    "per_shot_dir": "shots/<SHOT>/exports",
-    "files": [
-      "camera.json",
-      "socket.json",
-      "joints.json",
-      "socket_boundary.json",
-      "lighting_ref.json",
-      "performance_track.json",
-      "proxies.abc",
-      "proxies.abc.meta.json",
-      "proxies_rest.obj",
-      "default_head_rest.obj",
-      "export_manifest.json"
-    ],
-    "camera_local_convention": "Blender camera: looks down local -Z, +Y up; exported as camera-to-world in socket space",
-    "sub_frame_offsets_frames": [
-      -0.25,
-      0.0,
-      0.25
-    ],
-    "sub_frame_basis": "shutter 180° centred → ±shutter_angle/720 frames (proposal §1 row 7)",
-    "transform_conventions": {
-      "socket": "similarity C·root⁻¹·T·C⁻¹ — the socket's local frame becomes socket-oriented (identity at rest; head asset authored Y-up, Z-forward)",
-      "camera": "left-multiply C·root⁻¹·T — local frame kept: Blender camera looks down local −Z, +Y up",
-      "joints": "left-multiply C·root⁻¹·T — local frame kept: Blender bone convention, +Y along the bone from head to tail, +Z bone roll axis",
-      "alembic": "Blender world space as written by Blender; apply abc_to_socket_matrix_4x4 from proxies.abc.meta.json to every point"
-    },
-    "editorial_merge_rule": "when state windows overlap, the NARROWEST window's editorial wins (sorted by width, widest applied first)",
-    "socket_boundary_ring": {
-      "vertex_group": "SOCKET_BOUNDARY",
-      "order": "weight = index/count around the ring, ascending",
-      "rule": "head and body rings: same count, same order; rest-pose distance between matched vertices is reported"
-    },
-    "default_head_rest": "every renderable mesh of C_HEAD ∪ C_HAIR at the rest frame in the socket's LOCAL frame (C · socket⁻¹ · object · v); placed by socket.json → matrix_4x4; the D7 round-trip re-projects it and the head technology reads it as the default head's geometry (envelope reference, ADR-0002 D1)",
-    "camera_px_by_profile": "camera.json → intrinsics.px_by_profile[<profile>] carries focal_length_px / principal_point_px / resolution_px per render profile; the top-level px values are for the scene's (video) resolution"
-  },
-  "render_groups": {
-    "beauty": {
-      "view_layers": [
-        "L_FULL",
-        "L_BODY",
-        "L_BODYSHADOW",
-        "L_HEAD",
-        "L_FG"
-      ],
-      "motion_blur": "per profile"
-    },
-    "data": {
-      "view_layers": [
-        "L_DATA"
-      ],
-      "motion_blur": "off — Depth is unfiltered and Vector is unavailable with blur (proposal §1 rows 5, 14)"
-    }
-  },
-  "bundles": {
-    "HEAD_RENDER_BUNDLE": {
-      "read_granularity": "per-frame",
-      "consumer": "head technology",
-      "parts": [
-        {
-          "name": "HEAD_HOLDOUT",
-          "from": "beauty:L_HEAD.Combined",
-          "channels": {
-            "L_HEAD.Combined.A": "A"
-          },
-          "alpha": "PREMULTIPLIED",
-          "note": "the head+hair silhouette with the C_HAND_FG occluders shadow-only in L_HEAD (unoccluded by them): what the head layer must fill; occlusion by the hand is applied by PRECOMP_FRONT over it. C_BODY and C_ENV are holdouts in L_HEAD, so where the body or environment is in front of the head the silhouette IS cut — the round-trip excludes and reports those pixels. The visible (occluded) coverage is the object cryptomatte in the COMPOSITE bundle.",
-          "pixel_type": "half"
-        }
-      ],
-      "plus_files": [
-        "export_manifest.json",
-        "camera.json",
-        "socket.json",
-        "joints.json",
-        "socket_boundary.json",
-        "lighting_ref.json",
-        "performance_track.json",
-        "proxies.abc",
-        "proxies_rest.obj",
-        "default_head_rest.obj",
-        "lighting_probe"
-      ]
-    },
-    "COMPOSITE_BUNDLE": {
-      "read_granularity": "per-frame",
-      "consumer": "per-order compositor, QC",
-      "parts": [
-        {
-          "name": "DEFAULT_HEAD_BEAUTY",
-          "from": "beauty:L_FULL.Combined",
-          "alpha": "PREMULTIPLIED",
-          "pixel_type": "half"
-        },
-        {
-          "name": "BODY_BEAUTY",
-          "from": "beauty:L_BODY.Combined",
-          "alpha": "PREMULTIPLIED",
-          "pixel_type": "half"
-        },
-        {
-          "name": "BODY_SHADOW_RAW",
-          "from": "beauty:L_BODYSHADOW.Combined",
-          "alpha": "PREMULTIPLIED",
-          "note": "raw shadowed body plate; HEAD_SHADOW_MULTIPLY = BODY_SHADOW_RAW / BODY_BEAUTY is derived by the compositor script",
-          "pixel_type": "half"
-        },
-        {
-          "name": "FOREGROUND_PLATE",
-          "from": "beauty:L_FG.Combined",
-          "alpha": "PREMULTIPLIED",
-          "pixel_type": "half"
-        },
-        {
-          "name": "HEAD_HOLDOUT",
-          "from": "beauty:L_HEAD.Combined",
-          "channels": {
-            "L_HEAD.Combined.A": "A"
-          },
-          "alpha": "PREMULTIPLIED",
-          "pixel_type": "half",
-          "note": "the head+hair silhouette with the C_HAND_FG occluders shadow-only in L_HEAD (unoccluded by them): what the head layer must fill; occlusion by the hand is applied by PRECOMP_FRONT over it. C_BODY and C_ENV are holdouts in L_HEAD, so where the body or environment is in front of the head the silhouette IS cut — the round-trip excludes and reports those pixels. The visible (occluded) coverage is the object cryptomatte in the COMPOSITE bundle."
-        },
-        {
-          "name": "CRYPTO_OBJECT00",
-          "from": "beauty:L_FULL.CryptoObject00",
-          "alpha": "NOT_APPLICABLE",
-          "pixel_type": "float",
-          "keep_channel_names": true,
-          "note": "channel names keep Blender's layer prefix and the cryptomatte/* manifest attributes are copied onto the part — a Cryptomatte reader matches channels by the manifest's name"
-        },
-        {
-          "name": "CRYPTO_OBJECT01",
-          "from": "beauty:L_FULL.CryptoObject01",
-          "alpha": "NOT_APPLICABLE",
-          "pixel_type": "float",
-          "keep_channel_names": true,
-          "note": "channel names keep Blender's layer prefix and the cryptomatte/* manifest attributes are copied onto the part — a Cryptomatte reader matches channels by the manifest's name"
-        },
-        {
-          "name": "CRYPTO_OBJECT02",
-          "from": "beauty:L_FULL.CryptoObject02",
-          "alpha": "NOT_APPLICABLE",
-          "pixel_type": "float",
-          "keep_channel_names": true,
-          "note": "channel names keep Blender's layer prefix and the cryptomatte/* manifest attributes are copied onto the part — a Cryptomatte reader matches channels by the manifest's name"
-        },
-        {
-          "name": "CRYPTO_MATERIAL00",
-          "from": "beauty:L_FULL.CryptoMaterial00",
-          "alpha": "NOT_APPLICABLE",
-          "pixel_type": "float",
-          "keep_channel_names": true,
-          "note": "channel names keep Blender's layer prefix and the cryptomatte/* manifest attributes are copied onto the part — a Cryptomatte reader matches channels by the manifest's name"
-        },
-        {
-          "name": "CRYPTO_MATERIAL01",
-          "from": "beauty:L_FULL.CryptoMaterial01",
-          "alpha": "NOT_APPLICABLE",
-          "pixel_type": "float",
-          "keep_channel_names": true,
-          "note": "channel names keep Blender's layer prefix and the cryptomatte/* manifest attributes are copied onto the part — a Cryptomatte reader matches channels by the manifest's name"
-        },
-        {
-          "name": "CRYPTO_MATERIAL02",
-          "from": "beauty:L_FULL.CryptoMaterial02",
-          "alpha": "NOT_APPLICABLE",
-          "pixel_type": "float",
-          "keep_channel_names": true,
-          "note": "channel names keep Blender's layer prefix and the cryptomatte/* manifest attributes are copied onto the part — a Cryptomatte reader matches channels by the manifest's name"
-        },
-        {
-          "name": "DEPTH",
-          "from": "data:L_DATA.Depth",
-          "alpha": "NOT_APPLICABLE",
-          "pixel_type": "float"
-        },
-        {
-          "name": "MOTION_VECTORS",
-          "from": "data:L_DATA.Vector",
-          "alpha": "NOT_APPLICABLE",
-          "pixel_type": "float"
-        }
-      ],
-      "derived_by_compositor": [
-        "HEAD_SHADOW_MULTIPLY",
-        "SKIN_ID",
-        "SKIN_ID_HEAD",
-        "SKIN_ID_BODY",
-        "PRECOMP_BACK",
-        "PRECOMP_FRONT"
-      ],
-      "motion_vectors_consumer_note": "MOTION_VECTORS rows in bundle_manifest carry shutter_angle_deg and shutter_position; in the still profile the consumer is NONE (ADR-0002 D5 row 14 amendment)"
-    }
-  },
-  "lighting_probe": {
-    "resolution": [
-      1024,
-      576
-    ],
-    "balls": {
-      "chrome": {
-        "metallic": 1.0,
-        "roughness": 0.02,
-        "base": 0.9
-      },
-      "grey": {
-        "metallic": 0.0,
-        "roughness": 0.5,
-        "base": 0.18
-      }
-    },
-    "placement": "at the socket position, hero collections excluded from the probe view layer",
-    "frame": "the shot's first frame (lighting is asserted static)"
-  },
-  "determinism": {
-    "seed": 0,
-    "use_adaptive_sampling": false,
-    "use_denoising": false,
-    "use_animated_seed": false,
-    "status": "settings fixed and asserted at render; bit-exactness on Cycles/Metal is MEASURED, not claimed — see slice/README.md"
-  },
-  "compositor": {
-    "script": "slice/composite.py (Blender's Python: OpenImageIO + numpy)",
-    "output": "COMPOSITE_BUNDLE/derived.####.exr + precomp_report.####.json",
-    "derived": {
-      "HEAD_SHADOW_MULTIPLY": {
-        "formula": "BODY_SHADOW_RAW.rgb / BODY_BEAUTY.rgb, clamped to [0, 1]; where BODY_BEAUTY.rgb < epsilon the factor is 1 (no information, no darkening)",
-        "epsilon_scene_linear": 0.0001,
-        "epsilon_status": "PROVISIONAL",
-        "pixel_type": "half",
-        "alpha": "NOT_APPLICABLE",
-        "semantic": "the DEFAULT head+hair shadow (ADR-0002 D3 amendment) — QC baseline and negative control, not a per-order input"
-      },
-      "SKIN_ID": {
-        "formula": "material-cryptomatte coverage of HERO_SKIN_HEAD ∪ HERO_SKIN_BODY (all ranks)",
-        "pixel_type": "float",
-        "alpha": "NOT_APPLICABLE"
-      },
-      "SKIN_ID_HEAD": {
-        "formula": "coverage of HERO_SKIN_HEAD",
-        "pixel_type": "float",
-        "alpha": "NOT_APPLICABLE",
-        "consumer": "bake-off M7 (head-vs-body tone)"
-      },
-      "SKIN_ID_BODY": {
-        "formula": "coverage of HERO_SKIN_BODY",
-        "pixel_type": "float",
-        "alpha": "NOT_APPLICABLE",
-        "consumer": "bake-off M7, D4 re-tint"
-      },
-      "PRECOMP_BACK": {
-        "formula": "everything behind the head with the default head's shadow applied = BODY_SHADOW_RAW (equivalently BODY_BEAUTY × HEAD_SHADOW_MULTIPLY); occluders are shadow-only in the body plates (template L_BODY rule)",
-        "pixel_type": "half",
-        "alpha": "PREMULTIPLIED"
-      },
-      "PRECOMP_FRONT": {
-        "formula": "FOREGROUND_PLATE — occluders in front of the head with their own alpha; alpha-zero where none",
-        "pixel_type": "half",
-        "alpha": "PREMULTIPLIED"
-      },
-      "STATIC_PRECOMP": "the ordered pair PRECOMP_BACK + PRECOMP_FRONT (ADR-0002 D5 row 13 amendment)"
-    },
-    "per_order_composite": "PRECOMP_FRONT over (HEAD_LAYER over PRECOMP_BACK), premultiplied overs in scene-linear; HEAD_LAYER comes from the head technology, with its own body shadow multiply replacing HEAD_SHADOW_MULTIPLY in PRECOMP_BACK = BODY_BEAUTY × M_child",
-    "precomp_reproduction_test": {
-      "criterion": "ADR-0002 §Validation 3",
-      "head_layer_default": "L_HEAD.Combined — head + hair with body and environment held out and the occluder shadow-only (unoccluded silhouette)",
-      "reference": "DEFAULT_HEAD_BEAUTY (L_FULL.Combined)",
-      "boundary_band_px": 2,
-      "tolerances": {
-        "within_abs": [
-          0.001,
-          0.01,
-          0.05
-        ],
-        "status": "PROVISIONAL"
-      },
-      "report": "max abs error, fraction within each tolerance inside and outside the band, mean abs error outside the band, same-seed layer agreement away from the head, occluder-footprint check (PRECOMP_BACK holds body, not hand), epsilon-branch pixel fraction",
-      "boundary_band": "pixels within boundary_band_px of the >0.5 edge of HEAD_HOLDOUT or of PRECOMP_FRONT alpha (no wrap at image borders)",
-      "pass_rule": {
-        "metrics": {
-          "outside_band_within_1e-3_min": 0.995,
-          "inside_band_within_5e-2_min": 0.9,
-          "band_fraction_max": 0.05
-        },
-        "status": "PROVISIONAL — placeholder smoke (64 spp, 10 %): outside 1.0, inside@5e-2 0.923, band 0.017; at 8 spp inside@5e-2 = 0.855 (FAIL) — the gate needs the smoke sample count or more; calibrated on the real asset at the conformant sample count",
-        "on_fail": "COMPOSITE_ERROR, exit 2 — criterion 3 is a gate, not a report; the inside-band floor and the band cap keep an edge-localised regression from hiding inside the exclusion set"
-      },
-      "measured_cause_of_error": "MEASURED 2026-09-15 on the placeholder: per-layer Monte Carlo noise is ~0 (same seed, identical geometry → identical paths; the shadowed body plate equals the full render bit-exactly on 99.97 % of pixels away from head and occluder, max 1 half-ULP). Every pixel with error > 1e-3 has fractional head or occluder alpha: the residual is two separately filtered layers meeting at an edge, plus half quantization"
-    },
-    "head_layer_contract": "HEAD_LAYER (default: L_HEAD.Combined; per order: the head technology's layer) is the UNOCCLUDED head+hair, premultiplied; occluders never cut it — PRECOMP_FRONT does",
-    "per_order": {
-      "script": "slice/composite_order.py (Blender's Python: numpy + OpenImageIO)",
-      "formula": "FINAL = PRECOMP_FRONT over (HEAD_LAYER over (BODY_BEAUTY × SHADOW_MULTIPLY_ORDER)) — premultiplied overs in scene-linear ACEScg",
-      "inputs": {
-        "bundle": "renders/<profile> with COMPOSITE_BUNDLE, derived parts and a PASSing precomp reproduction and round-trip (prerequisite gates, CLAUDE.md §6)",
-        "head_layer": "<dir>/head.####.exr — one RGBA part, premultiplied, colorInteropID lin_ap1_scene declared by the head technology (no declaration → error, never assumed)",
-        "shadow_multiply": "<dir>/shadow.####.exr — one RGB part in [0, 1] declared colorInteropID 'data', the ORDER head's body shadow factor from the head technology (ADR-0002 D3 amendment); the default head's HEAD_SHADOW_MULTIPLY is never substituted — that would be a silent fallback to the wrong head's shadow"
-      },
-      "gate": {
-        "unfilled_fraction_max": 0.002,
-        "multiply_out_of_range_fraction_max": 0.0,
-        "multiply_range_slack": 0.0001,
-        "rule": "unfilled: fraction of HEAD_HOLDOUT ≥ 0.5 pixels where the head layer's alpha < 0.5 — the layer must fill the silhouette it was asked to fill (head_layer_contract); multiply: any value outside [0 − slack, 1 + slack] fails — a display-referred or 8-bit shadow map would otherwise be clamped to 1 (no shadow) and pass, which is a silent fallback",
-        "status": "PROVISIONAL — identity run with the default head gives 0.0 / 0.0 by construction; calibrated at the bake-off",
-        "on_fail": "ORDER_COMPOSITE_ERROR, exit 2; frames are staged and nothing is left in <out> except a manifest with status FAIL"
-      },
-      "reported_not_gated": {
-        "overfill_fraction": "head alpha ≥ 0.5 where HEAD_HOLDOUT < 0.01, relative to the holdout area — a different child's hair volume legitimately differs from the default; the D1 envelope is the bound, checked by the head technology at the bake-off"
-      },
-      "output": "<out>/final.####.exr (RGBA half, premultiplied, lin_ap1_scene) + order_composite_manifest.json with idempotency_key (order_id + bundle manifest + frame range + input hashes), input hashes, per-frame metrics, fallbacks: [] (none exist); frames are written to a staging directory and moved into <out> only when every frame passed",
-      "prerequisites": "bundle_manifest.roundtrip.status == PASS and its exports.export_manifest_sha256 equal to the export_manifest.json delivered in HEAD_RENDER_BUNDLE plus_files (a bundle without plus files is not an order input); COMPOSITE_BUNDLE.derived present with every frame's precomp reproduction PASS"
-    }
-  },
-  "bundle_attributes": {
-    "carried": [
-      "colorInteropID",
-      "oiio:ColorSpace"
-    ],
-    "not_carried": "everything else from the raw header (Software, RenderTime, cycles.*, Camera, Frame, Scene) — recorded by name in bundle_manifest, not copied",
-    "colour_rule": "colorInteropID / oiio:ColorSpace: PREMULTIPLIED parts carry the source part's scene-linear declaration; NOT_APPLICABLE parts (mattes, ids, depth, vectors, multiply factors) are declared 'data' exactly as Blender declares its data passes — a colour-managed reader must never transform them",
-    "data_declaration": {
-      "colorInteropID": "data",
-      "oiio:ColorSpace": "data"
-    }
-  },
-  "roundtrip": {
-    "script": "slice/roundtrip.py (Blender's Python: numpy + OpenImageIO; loads NO scene)",
-    "criterion": "ADR-0002 D7 round-trip; brief deliverable H; proposal §4 (Q4)",
-    "inputs": [
-      "camera.json",
-      "socket.json",
-      "default_head_rest.obj",
-      "HEAD_RENDER_BUNDLE/holdout.####.exr"
-    ],
-    "reference": "HEAD_HOLDOUT — the head+hair silhouette with C_HAND_FG occluders shadow-only (ADR-0002 D5 row 2); cut by C_BODY / C_ENV where they are in front of the head (see body_over_head); mattes, not beauty, so this tests the transform contract and not shading",
-    "reprojection": "default_head_rest.obj placed by socket.json, seen by camera.json, rasterised with the profile's pixel intrinsics (px_by_profile) scaled by the render's resolution_percentage; 4×4 supersampled box coverage",
-    "time_integration": {
-      "video": "9 uniform samples across the shutter; position and scale linear, rotation slerp between the three exported sub-frame samples",
-      "still": "centre sample only (shutter 0)"
-    },
-    "metrics": {
-      "p95_boundary_px": "95th percentile of the symmetric nearest-boundary distance between the 0.5 iso-contours of both coverage images upsampled ×4 (bilinear) — sub-pixel, not the integer distance of binary masks",
-      "centroid_px": "distance between the coverage-weighted centroids",
-      "iou": "intersection over union of the ≥0.5 regions",
-      "mean_abs_coverage_in_band": "mean |reprojected − HEAD_HOLDOUT| within 2 px of the reference edge (excluded pixels and their 1-px halo dropped); measured floor on the placeholder 0.018–0.021 at 4K (Cycles' reconstruction filter vs box coverage), gated"
-    },
-    "gate": {
-      "default": {
-        "p95_boundary_px_max": 1.0,
-        "centroid_px_max": 0.5,
-        "iou_min": 0.995
-      },
-      "stress_window": {
-        "shot_id": "SHOT_003",
-        "frames": [
-          1333,
-          1360
-        ],
-        "p95_boundary_px_max": 2.0,
-        "centroid_px_max": 1.0,
-        "iou_min": 0.985
-      },
-      "scaling": "p95_boundary_px_max and centroid_px_max are stated at the profile resolution and multiplied by resolution_percentage/100; the boundary threshold never drops below 2/4 px (two quanta of the iso-contour resolution, one of headroom); iou_min and mean_abs_coverage_in_band_max do not scale; a reduced-scale run is a weaker test and the report says so",
-      "status": "PROVISIONAL (proposal §4; band threshold added 2026-09-15 review round 2 against a measured floor of 0.018–0.021) — calibrated by the bake-off; the 1.0 px boundary value comes from Cycles' ~1.5 px reconstruction filter",
-      "on_fail": "ROUNDTRIP_ERROR, exit 2 — a master whose export does not round-trip is not delivered (ADR-0002 D7)",
-      "mean_abs_coverage_in_band_max": 0.05,
-      "body_over_head_excluded_fraction_max": 0.5
-    },
-    "negative_control": {
-      "translation": {
-        "screen_shift_px": 5.0,
-        "rule": "the socket is displaced along the camera's x axis by the distance that moves it 5 px at the run's resolution; the gate MUST fail on every frame — otherwise the metric is NOT VALIDATED and the script exits 2"
-      },
-      "rotation": {
-        "yaw_deg": 3.0,
-        "rule": "applied to the matrix and the quaternion of every sub-frame sample; reported as VALIDATED if the gate fails, NOT_VALIDATED otherwise. On the placeholder the 3° yaw sits on the band threshold (measured 0.053 still / 0.050 video against 0.05) through the faceting of the 48-segment sphere alone — a rotation-symmetric silhouette cannot validate it; the real head must"
-      },
-      "scale": {
-        "screen_growth_px": 5.0,
-        "rule": "fx and fy are scaled and the principal point moved so the silhouette's centre stays put: a pure size error growing the effective radius by 5 px at the run's resolution (an intrinsics / depth class error — the class of the still-profile principal-point bug found 2026-09-15); the gate MUST fail on every frame, else exit 2"
-      }
-    },
-    "positive_control": {
-      "method": "the shutter-integrated result is compared with the centre-sample-only result on every video frame; --ignore-subframes writes a whole centre-only report",
-      "min_difference": 0.001,
-      "rule": "DISCRIMINATING when centroid or band difference exceeds min_difference; NOT_DISCRIMINATING is recorded, not failed — it means the head did not move enough across this frame's shutter to test the sub-frame data (the placeholder's SHOT_001 is such a case; the real asset's fast-turn window is where this control must read DISCRIMINATING)"
-    },
-    "report": "renders/<profile>/roundtrip_report.<profile>.json; bundle_manifest.<profile>.json → roundtrip {report, status}",
-    "deformation_channel_max_for_gate": 0.2,
-    "deformation_rule": "default_head_rest.obj is the REST head; on a frame whose performance track has |channel| > deformation_channel_max_for_gate the render's silhouette may include facial deformation that the re-projection cannot, and the frame is flagged deformed_beyond_gate_calibration — REPORTED ONLY: it has no consumer and no separate thresholds yet. The frame is gated with the same thresholds as every other; the flag tells the reader of a FAIL where to look first. Separate thresholds for deformed frames are calibrated on the real asset. The proxy (max |channel| over all 26 channels) does not distinguish silhouette-relevant channels (jaw, lips) from gaze or brow",
-    "body_over_head": "C_BODY and C_ENV hold the head out in L_HEAD (only C_HAND_FG occluders are shadow-only), so HEAD_HOLDOUT is cut where the body or the environment is in front of the head. The round-trip drops pixels where such an object's cryptomatte coverage ≥ 0.5 meets the re-projected head (dilated 1 px, so the fractional-coverage halo goes with them) from every sum; contour points inside them are not QUERIED while every contour point stays a TARGET — dropping targets too made a kept point next to a dropped stretch measure the distance to the stretch's far end (176 px on a 5 px perturbation, measured); the price is that a spurious re-projected contour inside the exclusion stays a target. The fraction is reported; a shot where that fraction is not ~0 is a shot-design finding, recorded per frame. The exclusion is bounded: a frame whose excluded fraction exceeds gate.body_over_head_excluded_fraction_max (half the head) FAILS before any metric is computed — a wrong export that places the head over the wall or the body would otherwise be excluded instead of failed (found by the plain-vs-posed negative test, 2026-09-15). Object classes come from export_manifest (head_objects / occluder_objects / holdout_objects) matched to cryptomatte manifest names exactly; instanced or library-path names are not handled and would be an explicit error on the real asset, to be extended then",
-    "hair_transparency": "OPEN — the reference matte is HEAD_HOLDOUT's alpha and the re-projection is solid mesh coverage, so alpha-cut hair cards would read as holes vs solids and fail the gate for a reason that is not the transform. The slice's default hair is solid sculpted strands with an opaque HERO_HAIR (contractor Q4, 2026-09-15). How a head technology's hair handles transparency is its bake-off exam, not the slice's; before a card-based default hair is accepted the round-trip must compare the C_HEAD shell alone against the head object's cryptomatte, or carry the cards' alpha"
+  "SHOT_003": {
+   "frame_range": {
+    "start": 1241,
+    "end": 1360
+   },
+   "tier": "STRESS"
   }
+ },
+ "render_profiles": {
+  "video": {
+   "resolution": [
+    3840,
+    2160
+   ],
+   "shutter_angle_deg": 180,
+   "shutter_position": "CENTRED",
+   "status": "shutter angle PROVISIONAL (TD); resolution fixed by ADR-0002 D6",
+   "samples": 64,
+   "samples_status": "PROVISIONAL — determinism and noise measured on the real asset",
+   "resolution_status": "fixed by ADR-0002 D6"
+  },
+  "still": {
+   "resolution": [
+    3840,
+    3840
+   ],
+   "resolution_basis": "square so a panel crop in either orientation has ≥ 3508 px on its long edge (A4 @ 300 DPI, brief §4B) — PROVISIONAL until COMIC_LAYOUT exists",
+   "shutter_angle_deg": 0,
+   "samples": 256,
+   "samples_status": "PROVISIONAL — 4× the video count (proposal §6 machine-time formula)",
+   "dof": "the camera's own DoF setting; chosen for the page by the TD at burst 1",
+   "frames": "state_map.json → still_frames",
+   "shutter_position": "NOT_APPLICABLE"
+  }
+ },
+ "sub_frame_samples": {
+  "count": 3,
+  "at": [
+   "open",
+   "centre",
+   "close"
+  ],
+  "status": "PROVISIONAL (proposal §3)"
+ },
+ "colour": {
+  "working_space": "ACEScg",
+  "ocio_config": "ASWF OpenColorIO-Config-ACES studio config — exact file, version and sha256 in toolchain.lock.json once pinned",
+  "display_video": "Rec.709",
+  "display_print": "sRGB, profile embedded",
+  "grade": "never baked; separate CDL/LUT after compositing"
+ },
+ "exr": {
+  "container": "OpenEXR multi-part, one file per shot per bundle",
+  "beauty_depth": "half",
+  "data_depth": "float",
+  "compression": "zip",
+  "overscan_px": "UNKNOWN — set by TD on the slice",
+  "handle_frames": 0,
+  "compression_status": "PROVISIONAL, TD may change; lossless only on a reference slice"
+ },
+ "socket_space": {
+  "handedness": "right",
+  "up": "+Y",
+  "forward": "+Z",
+  "x": "character's anatomical left",
+  "from_blender": "X_s = X_b; Y_s = Z_b; Z_s = -Y_b (Rx(-90°), det +1) — proposal §3"
+ },
+ "alpha_declaration": {
+  "PREMULTIPLIED": [
+   "BODY_BEAUTY",
+   "HEAD_HOLDOUT",
+   "DEFAULT_HEAD_BEAUTY",
+   "FOREGROUND_PLATE",
+   "PRECOMP_BACK",
+   "PRECOMP_FRONT"
+  ],
+  "NOT_APPLICABLE": [
+   "DEPTH",
+   "SKIN_ID",
+   "MOTION_VECTORS",
+   "CAMERA",
+   "SOCKET_TRANSFORM",
+   "LIGHTING_REF",
+   "NECK_PROXY",
+   "PERFORMANCE_TRACK",
+   "HEAD_SHADOW_MULTIPLY"
+  ]
+ },
+ "scene_naming": {
+  "collections": [
+   "C_HEAD",
+   "C_HAIR",
+   "C_BODY",
+   "C_HAND_FG",
+   "C_ENV",
+   "C_LIGHTS"
+  ],
+  "materials": [
+   "HERO_SKIN_HEAD",
+   "HERO_SKIN_BODY",
+   "HERO_CLOTH_01",
+   "HERO_HAIR"
+  ],
+  "view_layers": [
+   "L_FULL",
+   "L_BODY",
+   "L_BODYSHADOW",
+   "L_HEAD",
+   "L_FG",
+   "L_DATA"
+  ],
+  "empties": [
+   "SOCKET_SPACE_ROOT",
+   "SOCKET_HEAD"
+  ],
+  "camera": "CAM_001",
+  "vertex_group_socket_boundary": "SOCKET_BOUNDARY",
+  "proxies_collection": "C_PROXIES",
+  "rig": "RIG_HERO",
+  "face_ctrl": "FACE_CTRL",
+  "bones": {
+   "spine": [
+    "spine_01",
+    "spine_02",
+    "spine_03"
+   ],
+   "neck": "neck",
+   "head": "head",
+   "shoulder_l": "shoulder_l",
+   "shoulder_r": "shoulder_r"
+  },
+  "proxies": [
+   "NECK_PROXY",
+   "COLLISION_PROXY"
+  ],
+  "socket_parent_bone": "head",
+  "socket_parent_rule": "SOCKET_HEAD is bone-parented to the `head` bone, whose base sits at the boundary ring: the socket transform carries the whole head pose (neck bend + nod), which is why joints.json has no neck/head entry. Head and hair objects are children of SOCKET_HEAD, unskinned; the body's SOCKET_BOUNDARY ring is weighted 100 % to `head` so the seam follows (contractor Q3, 2026-09-15; the placeholder used `neck`, which only held because its head bone never moved on its own)",
+  "head_shell_rule": "exactly one render-visible mesh in C_HEAD carries the SOCKET_BOUNDARY group — the head shell; eyes, teeth, tongue, brows are further meshes in C_HEAD, exported into default_head_rest.obj and the envelope but not into the ring; hide_render objects are ignored (contractor Q2, 2026-09-15)"
+ },
+ "head_lighting_rule": "shadow-caster only: hero head and hair have ray visibility diffuse/glossy/transmission OFF, shadow ON, camera ON (ADR-0002 D2 amendment 2026-09-14)",
+ "exports": {
+  "per_shot_dir": "shots/<SHOT>/exports",
+  "files": [
+   "camera.json",
+   "socket.json",
+   "joints.json",
+   "socket_boundary.json",
+   "lighting_ref.json",
+   "performance_track.json",
+   "proxies.abc",
+   "proxies.abc.meta.json",
+   "proxies_rest.obj",
+   "default_head_rest.obj",
+   "export_manifest.json"
+  ],
+  "camera_local_convention": "Blender camera: looks down local -Z, +Y up; exported as camera-to-world in socket space",
+  "sub_frame_offsets_frames": [
+   -0.25,
+   0.0,
+   0.25
+  ],
+  "sub_frame_basis": "shutter 180° centred → ±shutter_angle/720 frames (proposal §1 row 7)",
+  "transform_conventions": {
+   "socket": "similarity C·root⁻¹·T·C⁻¹ — the socket's local frame becomes socket-oriented (identity at rest; head asset authored Y-up, Z-forward)",
+   "camera": "left-multiply C·root⁻¹·T — local frame kept: Blender camera looks down local −Z, +Y up",
+   "joints": "left-multiply C·root⁻¹·T — local frame kept: Blender bone convention, +Y along the bone from head to tail, +Z bone roll axis",
+   "alembic": "Blender world space as written by Blender; apply abc_to_socket_matrix_4x4 from proxies.abc.meta.json to every point"
+  },
+  "editorial_merge_rule": "when state windows overlap, the NARROWEST window's editorial wins (sorted by width, widest applied first)",
+  "socket_boundary_ring": {
+   "vertex_group": "SOCKET_BOUNDARY",
+   "order": "weight = index/count around the ring, ascending",
+   "rule": "head and body rings: same count, same order; rest-pose distance between matched vertices is reported"
+  },
+  "default_head_rest": "every renderable mesh of C_HEAD ∪ C_HAIR at the rest frame in the socket's LOCAL frame (C · socket⁻¹ · object · v); placed by socket.json → matrix_4x4; the D7 round-trip re-projects it and the head technology reads it as the default head's geometry (envelope reference, ADR-0002 D1)",
+  "camera_px_by_profile": "camera.json → intrinsics.px_by_profile[<profile>] carries focal_length_px / principal_point_px / resolution_px per render profile; the top-level px values are for the scene's (video) resolution"
+ },
+ "render_groups": {
+  "beauty": {
+   "view_layers": [
+    "L_FULL",
+    "L_BODY",
+    "L_BODYSHADOW",
+    "L_HEAD",
+    "L_FG"
+   ],
+   "motion_blur": "per profile"
+  },
+  "data": {
+   "view_layers": [
+    "L_DATA"
+   ],
+   "motion_blur": "off — Depth is unfiltered and Vector is unavailable with blur (proposal §1 rows 5, 14)"
+  }
+ },
+ "bundles": {
+  "HEAD_RENDER_BUNDLE": {
+   "read_granularity": "per-frame",
+   "consumer": "head technology",
+   "parts": [
+    {
+     "name": "HEAD_HOLDOUT",
+     "from": "beauty:L_HEAD.Combined",
+     "channels": {
+      "L_HEAD.Combined.A": "A"
+     },
+     "alpha": "PREMULTIPLIED",
+     "note": "the head+hair silhouette with the C_HAND_FG occluders shadow-only in L_HEAD (unoccluded by them): what the head layer must fill; occlusion by the hand is applied by PRECOMP_FRONT over it. C_BODY and C_ENV are holdouts in L_HEAD, so where the body or environment is in front of the head the silhouette IS cut — the round-trip excludes and reports those pixels. The visible (occluded) coverage is the object cryptomatte in the COMPOSITE bundle.",
+     "pixel_type": "half"
+    }
+   ],
+   "plus_files": [
+    "export_manifest.json",
+    "camera.json",
+    "socket.json",
+    "joints.json",
+    "socket_boundary.json",
+    "lighting_ref.json",
+    "performance_track.json",
+    "proxies.abc",
+    "proxies_rest.obj",
+    "default_head_rest.obj",
+    "lighting_probe"
+   ]
+  },
+  "COMPOSITE_BUNDLE": {
+   "read_granularity": "per-frame",
+   "consumer": "per-order compositor, QC",
+   "parts": [
+    {
+     "name": "DEFAULT_HEAD_BEAUTY",
+     "from": "beauty:L_FULL.Combined",
+     "alpha": "PREMULTIPLIED",
+     "pixel_type": "half"
+    },
+    {
+     "name": "BODY_BEAUTY",
+     "from": "beauty:L_BODY.Combined",
+     "alpha": "PREMULTIPLIED",
+     "pixel_type": "half"
+    },
+    {
+     "name": "BODY_SHADOW_RAW",
+     "from": "beauty:L_BODYSHADOW.Combined",
+     "alpha": "PREMULTIPLIED",
+     "note": "raw shadowed body plate; HEAD_SHADOW_MULTIPLY = BODY_SHADOW_RAW / BODY_BEAUTY is derived by the compositor script",
+     "pixel_type": "half"
+    },
+    {
+     "name": "FOREGROUND_PLATE",
+     "from": "beauty:L_FG.Combined",
+     "alpha": "PREMULTIPLIED",
+     "pixel_type": "half"
+    },
+    {
+     "name": "HEAD_HOLDOUT",
+     "from": "beauty:L_HEAD.Combined",
+     "channels": {
+      "L_HEAD.Combined.A": "A"
+     },
+     "alpha": "PREMULTIPLIED",
+     "pixel_type": "half",
+     "note": "the head+hair silhouette with the C_HAND_FG occluders shadow-only in L_HEAD (unoccluded by them): what the head layer must fill; occlusion by the hand is applied by PRECOMP_FRONT over it. C_BODY and C_ENV are holdouts in L_HEAD, so where the body or environment is in front of the head the silhouette IS cut — the round-trip excludes and reports those pixels. The visible (occluded) coverage is the object cryptomatte in the COMPOSITE bundle."
+    },
+    {
+     "name": "CRYPTO_OBJECT00",
+     "from": "beauty:L_FULL.CryptoObject00",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float",
+     "keep_channel_names": true,
+     "note": "channel names keep Blender's layer prefix and the cryptomatte/* manifest attributes are copied onto the part — a Cryptomatte reader matches channels by the manifest's name"
+    },
+    {
+     "name": "CRYPTO_OBJECT01",
+     "from": "beauty:L_FULL.CryptoObject01",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float",
+     "keep_channel_names": true,
+     "note": "channel names keep Blender's layer prefix and the cryptomatte/* manifest attributes are copied onto the part — a Cryptomatte reader matches channels by the manifest's name"
+    },
+    {
+     "name": "CRYPTO_OBJECT02",
+     "from": "beauty:L_FULL.CryptoObject02",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float",
+     "keep_channel_names": true,
+     "note": "channel names keep Blender's layer prefix and the cryptomatte/* manifest attributes are copied onto the part — a Cryptomatte reader matches channels by the manifest's name"
+    },
+    {
+     "name": "CRYPTO_MATERIAL00",
+     "from": "beauty:L_FULL.CryptoMaterial00",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float",
+     "keep_channel_names": true,
+     "note": "channel names keep Blender's layer prefix and the cryptomatte/* manifest attributes are copied onto the part — a Cryptomatte reader matches channels by the manifest's name"
+    },
+    {
+     "name": "CRYPTO_MATERIAL01",
+     "from": "beauty:L_FULL.CryptoMaterial01",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float",
+     "keep_channel_names": true,
+     "note": "channel names keep Blender's layer prefix and the cryptomatte/* manifest attributes are copied onto the part — a Cryptomatte reader matches channels by the manifest's name"
+    },
+    {
+     "name": "CRYPTO_MATERIAL02",
+     "from": "beauty:L_FULL.CryptoMaterial02",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float",
+     "keep_channel_names": true,
+     "note": "channel names keep Blender's layer prefix and the cryptomatte/* manifest attributes are copied onto the part — a Cryptomatte reader matches channels by the manifest's name"
+    },
+    {
+     "name": "DEPTH",
+     "from": "data:L_DATA.Depth",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float"
+    },
+    {
+     "name": "MOTION_VECTORS",
+     "from": "data:L_DATA.Vector",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float"
+    }
+   ],
+   "derived_by_compositor": [
+    "HEAD_SHADOW_MULTIPLY",
+    "SKIN_ID",
+    "SKIN_ID_HEAD",
+    "SKIN_ID_BODY",
+    "PRECOMP_BACK",
+    "PRECOMP_FRONT"
+   ],
+   "motion_vectors_consumer_note": "MOTION_VECTORS rows in bundle_manifest carry shutter_angle_deg and shutter_position; in the still profile the consumer is NONE (ADR-0002 D5 row 14 amendment)"
+  }
+ },
+ "lighting_probe": {
+  "resolution": [
+   1024,
+   576
+  ],
+  "balls": {
+   "chrome": {
+    "metallic": 1.0,
+    "roughness": 0.02,
+    "base": 0.9
+   },
+   "grey": {
+    "metallic": 0.0,
+    "roughness": 0.5,
+    "base": 0.18
+   }
+  },
+  "placement": "at the socket position, hero collections excluded from the probe view layer",
+  "frame": "the shot's first frame (lighting is asserted static)"
+ },
+ "determinism": {
+  "seed": 0,
+  "use_adaptive_sampling": false,
+  "use_denoising": false,
+  "use_animated_seed": false,
+  "status": "settings fixed and asserted at render; bit-exactness on Cycles/Metal is MEASURED, not claimed — see slice/README.md"
+ },
+ "compositor": {
+  "script": "slice/composite.py (Blender's Python: OpenImageIO + numpy)",
+  "output": "COMPOSITE_BUNDLE/derived.####.exr + precomp_report.####.json",
+  "derived": {
+   "HEAD_SHADOW_MULTIPLY": {
+    "formula": "BODY_SHADOW_RAW.rgb / BODY_BEAUTY.rgb, clamped to [0, 1]; where BODY_BEAUTY.rgb < epsilon the factor is 1 (no information, no darkening)",
+    "epsilon_scene_linear": 0.0001,
+    "epsilon_status": "PROVISIONAL",
+    "pixel_type": "half",
+    "alpha": "NOT_APPLICABLE",
+    "semantic": "the DEFAULT head+hair shadow (ADR-0002 D3 amendment) — QC baseline and negative control, not a per-order input"
+   },
+   "SKIN_ID": {
+    "formula": "material-cryptomatte coverage of HERO_SKIN_HEAD ∪ HERO_SKIN_BODY (all ranks)",
+    "pixel_type": "float",
+    "alpha": "NOT_APPLICABLE"
+   },
+   "SKIN_ID_HEAD": {
+    "formula": "coverage of HERO_SKIN_HEAD",
+    "pixel_type": "float",
+    "alpha": "NOT_APPLICABLE",
+    "consumer": "bake-off M7 (head-vs-body tone)"
+   },
+   "SKIN_ID_BODY": {
+    "formula": "coverage of HERO_SKIN_BODY",
+    "pixel_type": "float",
+    "alpha": "NOT_APPLICABLE",
+    "consumer": "bake-off M7, D4 re-tint"
+   },
+   "PRECOMP_BACK": {
+    "formula": "everything behind the head with the default head's shadow applied = BODY_SHADOW_RAW (equivalently BODY_BEAUTY × HEAD_SHADOW_MULTIPLY); occluders are shadow-only in the body plates (template L_BODY rule)",
+    "pixel_type": "half",
+    "alpha": "PREMULTIPLIED"
+   },
+   "PRECOMP_FRONT": {
+    "formula": "FOREGROUND_PLATE — occluders in front of the head with their own alpha; alpha-zero where none",
+    "pixel_type": "half",
+    "alpha": "PREMULTIPLIED"
+   },
+   "STATIC_PRECOMP": "the ordered pair PRECOMP_BACK + PRECOMP_FRONT (ADR-0002 D5 row 13 amendment)"
+  },
+  "per_order_composite": "PRECOMP_FRONT over (HEAD_LAYER over PRECOMP_BACK), premultiplied overs in scene-linear; HEAD_LAYER comes from the head technology, with its own body shadow multiply replacing HEAD_SHADOW_MULTIPLY in PRECOMP_BACK = BODY_BEAUTY × M_child",
+  "precomp_reproduction_test": {
+   "criterion": "ADR-0002 §Validation 3",
+   "head_layer_default": "L_HEAD.Combined — head + hair with body and environment held out and the occluder shadow-only (unoccluded silhouette)",
+   "reference": "DEFAULT_HEAD_BEAUTY (L_FULL.Combined)",
+   "boundary_band_px": 2,
+   "tolerances": {
+    "within_abs": [
+     0.001,
+     0.01,
+     0.05
+    ],
+    "status": "PROVISIONAL"
+   },
+   "report": "max abs error, fraction within each tolerance inside and outside the band, mean abs error outside the band, same-seed layer agreement away from the head, occluder-footprint check (PRECOMP_BACK holds body, not hand), epsilon-branch pixel fraction",
+   "boundary_band": "pixels within boundary_band_px of the >0.5 edge of HEAD_HOLDOUT or of PRECOMP_FRONT alpha (no wrap at image borders)",
+   "pass_rule": {
+    "metrics": {
+     "outside_band_within_1e-3_min": 0.995,
+     "inside_band_within_5e-2_min": 0.9,
+     "band_fraction_max": 0.05
+    },
+    "status": "PROVISIONAL — placeholder smoke (64 spp, 10 %): outside 1.0, inside@5e-2 0.923, band 0.017; at 8 spp inside@5e-2 = 0.855 (FAIL) — the gate needs the smoke sample count or more; calibrated on the real asset at the conformant sample count",
+    "on_fail": "COMPOSITE_ERROR, exit 2 — criterion 3 is a gate, not a report; the inside-band floor and the band cap keep an edge-localised regression from hiding inside the exclusion set"
+   },
+   "measured_cause_of_error": "MEASURED 2026-09-15 on the placeholder: per-layer Monte Carlo noise is ~0 (same seed, identical geometry → identical paths; the shadowed body plate equals the full render bit-exactly on 99.97 % of pixels away from head and occluder, max 1 half-ULP). Every pixel with error > 1e-3 has fractional head or occluder alpha: the residual is two separately filtered layers meeting at an edge, plus half quantization"
+  },
+  "head_layer_contract": "HEAD_LAYER (default: L_HEAD.Combined; per order: the head technology's layer) is the UNOCCLUDED head+hair, premultiplied; occluders never cut it — PRECOMP_FRONT does",
+  "per_order": {
+   "script": "slice/composite_order.py (Blender's Python: numpy + OpenImageIO)",
+   "formula": "FINAL = PRECOMP_FRONT over (HEAD_LAYER over (BODY_BEAUTY × SHADOW_MULTIPLY_ORDER)) — premultiplied overs in scene-linear ACEScg",
+   "inputs": {
+    "bundle": "renders/<profile> with COMPOSITE_BUNDLE, derived parts and a PASSing precomp reproduction and round-trip (prerequisite gates, CLAUDE.md §6)",
+    "head_layer": "<dir>/head.####.exr — one RGBA part, premultiplied, colorInteropID lin_ap1_scene declared by the head technology (no declaration → error, never assumed)",
+    "shadow_multiply": "<dir>/shadow.####.exr — one RGB part in [0, 1] declared colorInteropID 'data', the ORDER head's body shadow factor from the head technology (ADR-0002 D3 amendment); the default head's HEAD_SHADOW_MULTIPLY is never substituted — that would be a silent fallback to the wrong head's shadow"
+   },
+   "gate": {
+    "unfilled_fraction_max": 0.002,
+    "multiply_out_of_range_fraction_max": 0.0,
+    "multiply_range_slack": 0.0001,
+    "rule": "unfilled: fraction of HEAD_HOLDOUT ≥ 0.5 pixels where the head layer's alpha < 0.5 — the layer must fill the silhouette it was asked to fill (head_layer_contract); multiply: any value outside [0 − slack, 1 + slack] fails — a display-referred or 8-bit shadow map would otherwise be clamped to 1 (no shadow) and pass, which is a silent fallback",
+    "status": "PROVISIONAL — identity run with the default head gives 0.0 / 0.0 by construction; calibrated at the bake-off",
+    "on_fail": "ORDER_COMPOSITE_ERROR, exit 2; frames are staged and nothing is left in <out> except a manifest with status FAIL"
+   },
+   "reported_not_gated": {
+    "overfill_fraction": "head alpha ≥ 0.5 where HEAD_HOLDOUT < 0.01, relative to the holdout area — a different child's hair volume legitimately differs from the default; the D1 envelope is the bound, checked by the head technology at the bake-off"
+   },
+   "output": "<out>/final.####.exr (RGBA half, premultiplied, lin_ap1_scene) + order_composite_manifest.json with idempotency_key (order_id + bundle manifest + frame range + input hashes), input hashes, per-frame metrics, fallbacks: [] (none exist); frames are written to a staging directory and moved into <out> only when every frame passed",
+   "prerequisites": "bundle_manifest.roundtrip.status == PASS and its exports.export_manifest_sha256 equal to the export_manifest.json delivered in HEAD_RENDER_BUNDLE plus_files (a bundle without plus files is not an order input); COMPOSITE_BUNDLE.derived present with every frame's precomp reproduction PASS"
+  }
+ },
+ "bundle_attributes": {
+  "carried": [
+   "colorInteropID",
+   "oiio:ColorSpace"
+  ],
+  "not_carried": "everything else from the raw header (Software, RenderTime, cycles.*, Camera, Frame, Scene) — recorded by name in bundle_manifest, not copied",
+  "colour_rule": "colorInteropID / oiio:ColorSpace: PREMULTIPLIED parts carry the source part's scene-linear declaration; NOT_APPLICABLE parts (mattes, ids, depth, vectors, multiply factors) are declared 'data' exactly as Blender declares its data passes — a colour-managed reader must never transform them",
+  "data_declaration": {
+   "colorInteropID": "data",
+   "oiio:ColorSpace": "data"
+  }
+ },
+ "roundtrip": {
+  "script": "slice/roundtrip.py (Blender's Python: numpy + OpenImageIO; loads NO scene)",
+  "criterion": "ADR-0002 D7 round-trip; brief deliverable H; proposal §4 (Q4)",
+  "inputs": [
+   "camera.json",
+   "socket.json",
+   "default_head_rest.obj",
+   "HEAD_RENDER_BUNDLE/holdout.####.exr"
+  ],
+  "reference": "HEAD_HOLDOUT — the head+hair silhouette with C_HAND_FG occluders shadow-only (ADR-0002 D5 row 2); cut by C_BODY / C_ENV where they are in front of the head (see body_over_head); mattes, not beauty, so this tests the transform contract and not shading",
+  "reprojection": "default_head_rest.obj placed by socket.json, seen by camera.json, rasterised with the profile's pixel intrinsics (px_by_profile) scaled by the render's resolution_percentage; 4×4 supersampled box coverage",
+  "time_integration": {
+   "video": "9 uniform samples across the shutter; position and scale linear, rotation slerp between the three exported sub-frame samples",
+   "still": "centre sample only (shutter 0)"
+  },
+  "metrics": {
+   "p95_boundary_px": "95th percentile of the symmetric nearest-boundary distance between the 0.5 iso-contours of both coverage images upsampled ×4 (bilinear) — sub-pixel, not the integer distance of binary masks",
+   "centroid_px": "distance between the coverage-weighted centroids",
+   "iou": "intersection over union of the ≥0.5 regions",
+   "mean_abs_coverage_in_band": "mean |reprojected − HEAD_HOLDOUT| within 2 px of the reference edge (excluded pixels and their 1-px halo dropped); measured floor on the placeholder 0.018–0.021 at 4K (Cycles' reconstruction filter vs box coverage), gated"
+  },
+  "gate": {
+   "default": {
+    "p95_boundary_px_max": 1.0,
+    "centroid_px_max": 0.5,
+    "iou_min": 0.995
+   },
+   "stress_window": {
+    "shot_id": "SHOT_003",
+    "frames": [
+     1333,
+     1360
+    ],
+    "p95_boundary_px_max": 2.0,
+    "centroid_px_max": 1.0,
+    "iou_min": 0.985
+   },
+   "scaling": "p95_boundary_px_max and centroid_px_max are stated at the profile resolution and multiplied by resolution_percentage/100; the boundary threshold never drops below 2/4 px (two quanta of the iso-contour resolution, one of headroom); iou_min and mean_abs_coverage_in_band_max do not scale; a reduced-scale run is a weaker test and the report says so",
+   "status": "PROVISIONAL (proposal §4; band threshold added 2026-09-15 review round 2 against a measured floor of 0.018–0.021) — calibrated by the bake-off; the 1.0 px boundary value comes from Cycles' ~1.5 px reconstruction filter",
+   "on_fail": "ROUNDTRIP_ERROR, exit 2 — a master whose export does not round-trip is not delivered (ADR-0002 D7)",
+   "mean_abs_coverage_in_band_max": 0.05,
+   "body_over_head_excluded_fraction_max": 0.5
+  },
+  "negative_control": {
+   "translation": {
+    "screen_shift_px": 5.0,
+    "rule": "the socket is displaced along the camera's x axis by the distance that moves it 5 px at the run's resolution; the gate MUST fail on every frame — otherwise the metric is NOT VALIDATED and the script exits 2"
+   },
+   "rotation": {
+    "yaw_deg": 3.0,
+    "rule": "applied to the matrix and the quaternion of every sub-frame sample; reported as VALIDATED if the gate fails, NOT_VALIDATED otherwise. On the placeholder the 3° yaw sits on the band threshold (measured 0.053 still / 0.050 video against 0.05) through the faceting of the 48-segment sphere alone — a rotation-symmetric silhouette cannot validate it; the real head must"
+   },
+   "scale": {
+    "screen_growth_px": 5.0,
+    "rule": "fx and fy are scaled and the principal point moved so the silhouette's centre stays put: a pure size error growing the effective radius by 5 px at the run's resolution (an intrinsics / depth class error — the class of the still-profile principal-point bug found 2026-09-15); the gate MUST fail on every frame, else exit 2"
+   }
+  },
+  "positive_control": {
+   "method": "the shutter-integrated result is compared with the centre-sample-only result on every video frame; --ignore-subframes writes a whole centre-only report",
+   "min_difference": 0.001,
+   "rule": "DISCRIMINATING when centroid or band difference exceeds min_difference; NOT_DISCRIMINATING is recorded, not failed — it means the head did not move enough across this frame's shutter to test the sub-frame data (the placeholder's SHOT_001 is such a case; the real asset's fast-turn window is where this control must read DISCRIMINATING)"
+  },
+  "report": "renders/<profile>/roundtrip_report.<profile>.json; bundle_manifest.<profile>.json → roundtrip {report, status}",
+  "deformation_channel_max_for_gate": 0.2,
+  "deformation_rule": "default_head_rest.obj is the REST head; on a frame whose performance track has |channel| > deformation_channel_max_for_gate the render's silhouette may include facial deformation that the re-projection cannot, and the frame is flagged deformed_beyond_gate_calibration — REPORTED ONLY: it has no consumer and no separate thresholds yet. The frame is gated with the same thresholds as every other; the flag tells the reader of a FAIL where to look first. Separate thresholds for deformed frames are calibrated on the real asset. The proxy (max |channel| over all 26 channels) does not distinguish silhouette-relevant channels (jaw, lips) from gaze or brow",
+  "body_over_head": "C_BODY and C_ENV hold the head out in L_HEAD (only C_HAND_FG occluders are shadow-only), so HEAD_HOLDOUT is cut where the body or the environment is in front of the head. The round-trip drops pixels where such an object's cryptomatte coverage ≥ 0.5 meets the re-projected head (dilated 1 px, so the fractional-coverage halo goes with them) from every sum; contour points inside them are not QUERIED while every contour point stays a TARGET — dropping targets too made a kept point next to a dropped stretch measure the distance to the stretch's far end (176 px on a 5 px perturbation, measured); the price is that a spurious re-projected contour inside the exclusion stays a target. The fraction is reported; a shot where that fraction is not ~0 is a shot-design finding, recorded per frame. The exclusion is bounded: a frame whose excluded fraction exceeds gate.body_over_head_excluded_fraction_max (half the head) FAILS before any metric is computed — a wrong export that places the head over the wall or the body would otherwise be excluded instead of failed (found by the plain-vs-posed negative test, 2026-09-15). Object classes come from export_manifest (head_objects / occluder_objects / holdout_objects) matched to cryptomatte manifest names exactly; instanced or library-path names are not handled and would be an explicit error on the real asset, to be extended then",
+  "hair_transparency": "OPEN — the reference matte is HEAD_HOLDOUT's alpha and the re-projection is solid mesh coverage, so alpha-cut hair cards would read as holes vs solids and fail the gate for a reason that is not the transform. The slice's default hair is solid sculpted strands with an opaque HERO_HAIR (contractor Q4, 2026-09-15). How a head technology's hair handles transparency is its bake-off exam, not the slice's; before a card-based default hair is accepted the round-trip must compare the C_HEAD shell alone against the head object's cryptomatte, or carry the cards' alpha"
+ },
+ "rebuild": {
+  "cross_platform_tolerance": {
+   "numeric_abs": 1e-05,
+   "units": "the same absolute tolerance for every exported number: metres for positions and vertices, unit-quaternion and matrix elements, channel values in [-1, 1]",
+   "basis": "MEASURED 2026-09-16 on the contractor's v01: the same build script on Linux CPU (bpy 5.2.1) and on macOS Metal (Blender 5.2.1) produces exports and bone matrices that differ by at most 1.3e-7 m / 1.3e-7 per element (float32 arithmetic order); 1e-5 is ~100x above that noise and ~50x below the smallest modelling change the contract cares about (the 5 mm rest-gap threshold is 5e-3)",
+   "rule": "a rebuild on another machine is EQUAL WITHIN TOLERANCE when every number of every export file, every proxy vertex at every sub-frame sample and every field of the canonical scene content lies within numeric_abs of its counterpart and every non-numeric field is identical; byte-identical files are EQUAL; anything else DIFFERS and fails. The tolerance is never applied on the same machine (rebuild_shot.py) where exports must be byte-identical",
+   "status": "PROVISIONAL — calibration set: contractor v01 vs its rebuild (one asset, one pair of machines)"
+  }
+ }
 }

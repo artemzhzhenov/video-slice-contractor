@@ -55,31 +55,89 @@ def sha256(path):
     return h.hexdigest()
 
 
-def compare_exports(dir_a, dir_b):
+def _obj_lines(path):
+    verts, other = [], []
+    for line in Path(path).read_text().splitlines():
+        if line.startswith("v "):
+            verts.append([float(x) for x in line.split()[1:4]])
+        else:
+            other.append(line)
+    return verts, other
+
+
+def compare_exports(dir_a, dir_b, tolerance=None):
     """The export-reproducibility rule, shared with slice/accept_delivery.py: every file in
     both directories by sha256 (missing on one side counts as differing) — except proxies.abc,
     whose bytes carry a write date and the source path (measured 2026-09-15) and is compared
     through proxies_geometry_sha256 in its meta file, and export_manifest.json, which is
     compared field by field without files.proxies.abc (and without the older ocio_env path).
-    Returns the comparison dict; "differing" empty means the two exports are the same."""
+
+    With `tolerance` (slice/conventions.json → rebuild.cross_platform_tolerance.numeric_abs,
+    for a rebuild on ANOTHER machine) a file that is not byte-identical is compared
+    numerically: JSON trees by slice/content_compare.compare, OBJ vertex lines as numbers with
+    every other line identical, the manifest without its per-file hashes (the files themselves
+    are compared). proxies.abc whose geometry hash differs is then not a difference but a
+    request: "abc_needs_numeric_comparison" — slice/compare_alembic.py under Blender decides.
+    Returns the comparison dict; "differing" empty means the two exports are the same (byte or
+    within tolerance), "within_tolerance" names the files that needed the tolerance and their
+    largest deviation."""
     dir_a, dir_b = Path(dir_a), Path(dir_b)
     a = {f.name: sha256(f) for f in dir_a.iterdir() if f.is_file()}
     b = {f.name: sha256(f) for f in dir_b.iterdir() if f.is_file()}
     differing = sorted(k for k in set(a) | set(b) if a.get(k) != b.get(k) and k not in ("proxies.abc", "export_manifest.json"))
+    within = {}
+    if tolerance is not None:
+        from slice.content_compare import compare as num_compare
+        still = []
+        for k in differing:
+            if k not in a or k not in b:
+                still.append(k)
+                continue
+            if k.endswith(".json"):
+                ja, jb = json.loads((dir_a / k).read_text()), json.loads((dir_b / k).read_text())
+                if k == "proxies.abc.meta.json":  # the geometry hash rounds at 1e-6 and flips under noise; the cache itself is compared numerically below
+                    ja.pop("proxies_geometry_sha256", None), jb.pop("proxies_geometry_sha256", None)
+                res = num_compare(ja, jb, tolerance)
+                if res["equal"]:
+                    within[k] = res["max_dev"]
+                else:
+                    still.append(f"{k} ({res['differences'][0][0]}: {res['differences'][0][1]!r} vs {res['differences'][0][2]!r})")
+            elif k.endswith(".obj"):
+                va, oa = _obj_lines(dir_a / k)
+                vb, ob = _obj_lines(dir_b / k)
+                if oa != ob or len(va) != len(vb):
+                    still.append(f"{k} (non-vertex lines or vertex count differ)")
+                else:
+                    dev = max((abs(x - y) for p, q in zip(va, vb) for x, y in zip(p, q)), default=0.0)
+                    if dev <= tolerance:
+                        within[k] = dev
+                    else:
+                        still.append(f"{k} (vertex deviation {dev:.3e} > {tolerance:g})")
+            else:
+                still.append(k)
+        differing = still
     ma, mb = (json.loads((d / "export_manifest.json").read_text()) for d in (dir_a, dir_b))
     for m in (ma, mb):
         m.get("files", {}).pop("proxies.abc", None)
         m.pop("ocio_env", None)
+        if tolerance is not None:
+            m.pop("files", None)  # the files are compared above; their hashes legitimately differ within tolerance
     if ma != mb:
         differing.append("export_manifest.json (beyond files.proxies.abc)")
     ga = json.loads((dir_a / "proxies.abc.meta.json").read_text()).get("proxies_geometry_sha256")
     gb = json.loads((dir_b / "proxies.abc.meta.json").read_text()).get("proxies_geometry_sha256")
     abc = "identical bytes" if a.get("proxies.abc") == b.get("proxies.abc") else ("geometry identical (bytes differ: write date / source path in the Alembic header)" if ga and ga == gb else "GEOMETRY DIFFERS")
+    needs_abc = False
     if abc == "GEOMETRY DIFFERS":
-        differing.append("proxies.abc (geometry hash)")
+        if tolerance is None:
+            differing.append("proxies.abc (geometry hash)")
+        else:
+            abc = "geometry hash differs — numeric comparison required (slice/compare_alembic.py)"
+            needs_abc = True
     n_all = len(set(a) | set(b))
-    return {"files_compared": n_all, "byte_identical": n_all - len(differing) - (0 if abc == "identical bytes" else 1),
-            "geometry_identical_bytes_differ": [] if abc == "identical bytes" else ["proxies.abc"], "differing": differing, "proxies_abc": abc}
+    return {"files_compared": n_all, "byte_identical": n_all - len(differing) - len(within) - (0 if abc == "identical bytes" else 1),
+            "geometry_identical_bytes_differ": [] if abc == "identical bytes" else ["proxies.abc"], "differing": differing, "proxies_abc": abc,
+            "tolerance": tolerance, "within_tolerance": within, "abc_needs_numeric_comparison": needs_abc}
 
 
 def compare(pkg, shot, out, report, no_archive):

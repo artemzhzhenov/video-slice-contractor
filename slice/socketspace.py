@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import math
 
-SCALE_TOL = 1e-6
+SCALE_TOL = 1e-5  # Blender stores bone matrices in float32: a tilted bone decomposes with a scale error of ~1.3e-6 (contractor Q14, measured on the MakeHuman skeleton, 2026-09-16); 1e-5 is one order above that noise and three below any intended scale
 R_B2S = [[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]]
 C = [[1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, -1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
 C_INV = [[1.0, 0.0, 0.0, 0.0], [0.0, 0.0, -1.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
