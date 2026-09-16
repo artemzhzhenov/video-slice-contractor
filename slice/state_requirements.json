@@ -1,0 +1,28 @@
+{
+ "state_requirements_version": 1,
+ "source": "contractor/burst-2/TASK.md §4 (DRAFT 2026-09-16) — the machine-readable half of the table; every number here is the task's minimum, not a target. Human items (hand fraction, shadow picture, liveliness) are in ACCEPTANCE item 4, not here",
+ "status": "DRAFT with the burst-2 task; PROVISIONAL numbers are calibrated when the animator's first delivery exists",
+ "head_angle_rule": "angle in degrees between the socket's local +Z (the face direction, socket.json matrix_4x4 column 2) and the direction from the socket origin to the camera origin (camera.json position_m), both in socket space, centre sample of each frame",
+ "angular_velocity_rule": "degrees per second between the centre-sample quaternions of consecutive frames: 2·acos(|q_i · q_{i+1}|) · fps; T = state_map.json → head_angular_velocity_threshold_deg_s, declared by the animator (burst 2 §6.3); rules that need T are NOT_EVALUATED until it exists",
+ "freeze_rule": {"max_frames_without_change": 12, "channel_epsilon": 1e-4, "socket_position_epsilon_m": 1e-4, "socket_quaternion_epsilon": 1e-4,
+                 "note": "a run of more than this many consecutive frames in which no channel and neither the socket position nor its rotation changes is a freeze (burst-2 ACCEPTANCE item 3); measured per shot over every frame"},
+ "blink_peak": 0.95,
+ "states": {
+  "front_neutral": {"all_frames": {"abs_channels_max": 0.15, "head_angle_deg_max": 15}},
+  "gaze_shift": {"peak": {"any_abs_min": {"gaze_yaw": 0.5, "gaze_pitch": 0.5}}, "all_frames": {"head_rotation_from_window_start_deg_max": 10}},
+  "blink": {"peak_per_window": {"min": {"blink_l": 0.95, "blink_r": 0.95}}},
+  "smile": {"peak": {"min": {"mouth_corner_l": 0.8, "mouth_corner_r": 0.8, "cheek_raise_l": 0.5, "cheek_raise_r": 0.5}}},
+  "open_mouth": {"peak": {"min": {"jaw_open": 0.7, "brow_inner_l": 0.6, "brow_inner_r": 0.6}}},
+  "laughter": {"peak": {"min": {"jaw_open": 0.9, "mouth_corner_l": 0.9, "mouth_corner_r": 0.9, "squint_l": 0.6, "squint_r": 0.6}}},
+  "strong_light": {"lighting": {"min_lights": 1, "colour_ratio_max_over_min_min": 1.5}},
+  "three_quarter": {"hold": {"head_angle_deg_range": [35, 55], "min_consecutive_frames": 12}},
+  "head_turn": {"endpoints": {"head_angle_deg_at_start_max": 55, "head_angle_deg_at_end_min": 80}, "velocity": {"max_deg_s": "T"}},
+  "profile": {"all_frames": {"head_angle_deg_range": [80, 100]}},
+  "profile_strong_emotion": {"peak": {"min": {"jaw_open": 0.9, "mouth_corner_l": 0.9, "mouth_corner_r": 0.9, "squint_l": 0.6, "squint_r": 0.6}}, "all_frames": {"head_angle_deg_range": [80, 100]}},
+  "sadness": {"peak": {"min": {"brow_inner_l": 0.7, "brow_inner_r": 0.7}, "max": {"mouth_corner_l": -0.6, "mouth_corner_r": -0.6, "gaze_pitch": -0.3}}},
+  "fear": {"peak": {"min": {"brow_inner_l": 0.9, "brow_inner_r": 0.9, "lid_aperture_l": 0.8, "lid_aperture_r": 0.8, "jaw_open": 0.4}}},
+  "hand_over_face": {"peak": {"max": {"lid_aperture_l": -0.5, "lid_aperture_r": -0.5}}, "human": "hand covers a fifth to a half of the head silhouette — ACCEPTANCE item 4"},
+  "fast_movement": {"velocity": {"min_deg_s": "T"}}
+ },
+ "medium_tier_velocity_rule": "every window of a MEDIUM-tier state: angular velocity ≤ T on every frame (state_map.json medium_window_rule); occlusion by hand or body is a human item"
+}
