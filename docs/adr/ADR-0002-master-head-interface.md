@@ -7,7 +7,9 @@ Amended 2026-09-14 from the slice proposal review (`../experiments/phase-0-5-sli
 §8–§9): D2 head as shadow-caster only; D3/D5 row 9 semantics; D5 row 13 as a plate pair; D5 row 14
 and D7 shutter fields; D6 alpha `NOT_APPLICABLE` for data passes; D1 envelope recorded on the slice;
 D7 round-trip implemented against the matte with per-profile intrinsics (amendment 2026-09-15).
-Amended 2026-09-15: D5 row 2 holdout is the unoccluded silhouette (slice compositor measurement). Contract version `master_contract_version = 1`.
+Amended 2026-09-15: D5 row 2 holdout is the unoccluded silhouette (slice compositor measurement).
+Amended 2026-09-16: D7 round-trip measured on the real head — controls validated, rest-head
+re-projection found to fail open-jaw frames (open defect of the test). Contract version `master_contract_version = 1`.
 Validated by the Phase 0.5 reference slice (§Validation); any item that fails validation reopens
 this ADR before any master production begins. Layer: Core (`../architecture/layering.md`).
 
@@ -177,6 +179,22 @@ the wall would otherwise be excluded instead of failed); and the re-projected
 head is the REST head, so frames with facial deformation beyond |0.2| on any channel are
 flagged in the report (reported only — no separate thresholds exist yet; they are calibrated
 on the real asset, and until then such frames are gated like every other).
+Amendment 2026-09-16 (measured on the contractor's v01 head, SHOT_001, seven video frames and
+the still at 100 %; `slice/measurements/roundtrip_v01_SHOT_001_review.json`): the controls are
+validated on a real silhouette — the 3° rotation fails every metric (p95 3.3–3.5 px; the
+placeholder sphere could not validate it), and the shutter-integration control discriminates
+wherever the head moves (centre-only differs by 0.014–0.040 and fails the gate on two of five
+moving frames); a frame that does not move across the shutter cannot test the sub-frame data and
+reads NOT_DISCRIMINATING (threshold raised to 0.005 above the measured static floor). The gate
+catches a 0.5-px translation or size error and a 0.5–0.75° rotation. The PROVISIONAL thresholds
+are kept. **Open defect of this test:** re-projecting the rest head fails a correct export on
+an open jaw (jaw_open 0.87: p95 2.57 px, the extra pixels at the chin), so the test as written
+cannot accept a master whose hero laughs. Loosening the thresholds on deformed frames is rejected
+because it would hide transform errors of the same size; the re-projected head must carry the
+frame's facial deformation (the per-frame deformed default head in the socket's local frame)
+before any master with open-mouth frames is accepted — Phase 0.5 burst 2 included.
+`iou_min` depends on the silhouette's size (≈ 0.67 px of boundary error at r ≈ 270 px, 2 px in a
+close-up); a size-aware form is to be decided on burst 2's framings.
 
 ### D8. Performance track
 

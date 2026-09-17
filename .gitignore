@@ -41,3 +41,16 @@ benchmarks/**/template.blend
 benchmarks/**/shots/*/exports/
 # renders under the package are regenerable until a real asset exists
 benchmarks/**/shots/*/renders/
+
+# handoff guard: files that could carry credentials never enter git (session-handoff rule).
+# Tracked schema/fixture names that merely contain "token" stay allowed explicitly.
+access.md
+*secret*
+*token*
+credentials*
+*credentials*
+!schemas/delivery_token.json
+!fixtures/delivery_token/
+!fixtures/_invalid/delivery_token/
+!fixtures/_invalid/delivery_token/*
+!fixtures/delivery_token/*

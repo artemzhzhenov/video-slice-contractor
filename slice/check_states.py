@@ -9,9 +9,11 @@ velocity), lighting_ref.json (the strong-light key). Plain Python, no Blender:
 Verdict and exit code: STATES_OK (0) — every rule evaluated and met; STATES_PARTIAL (3) — every
 evaluated rule met but some rule could not be evaluated (the animator's angular-velocity
 threshold T is not declared in state_map.json yet); STATES_FAIL (2) — a rule failed, with the
-window, the rule and the measured value. This is a gate against a frozen or timid performance,
-not a judgement of acting (ACCEPTANCE item 4 is the human's). Rules marked "human" in the
-requirements are listed as HUMAN and never evaluated here."""
+window, the rule and the measured value. The velocity rules carry the separation margin of
+state_requirements.json → velocity_separation (MEDIUM windows ≤ 0.8·T, fast_movement ≥ 1.5·T).
+This is a gate against a frozen or timid performance, not a judgement of acting (ACCEPTANCE
+item 4 is the human's). Rules marked "human" in the requirements are listed as HUMAN and never
+evaluated here."""
 import argparse
 import json
 import math
@@ -63,7 +65,7 @@ def rot_between_deg(qa, qb):
     return math.degrees(2 * math.acos(min(1.0, abs(sum(x * y for x, y in zip(qa, qb))))))
 
 
-def evaluate_window(state, spec, ranges, frames, lights, T):
+def evaluate_window(state, spec, ranges, frames, lights, T, sep):
     """One state's windows against its requirement block. Returns a list of rule results."""
     results = []
     win = [fr for a, b in ranges for fr in range(a, b + 1) if fr in frames]
@@ -122,9 +124,11 @@ def evaluate_window(state, spec, ranges, frames, lights, T):
             if T is None:
                 res("angular velocity vs T", False, f"T not declared in state_map.json (max measured {m:.1f}°/s)", status="NOT_EVALUATED")
             elif "max_deg_s" in rule:
-                res(f"angular velocity ≤ T = {T}°/s on every frame", m <= T, round(m, 2))
+                lim = sep["medium_max_over_T"] * T
+                res(f"angular velocity ≤ {sep['medium_max_over_T']}·T = {lim:g}°/s on every frame", m <= lim, round(m, 2))
             else:
-                res(f"angular velocity > T = {T}°/s on some frame", m > T, round(m, 2))
+                lim = sep["fast_peak_over_T_min"] * T
+                res(f"angular velocity ≥ {sep['fast_peak_over_T_min']}·T = {lim:g}°/s on some frame", m >= lim, round(m, 2))
         elif kind == "lighting":
             ok_lights = []
             for L in lights["lights"]:
@@ -143,23 +147,27 @@ def evaluate_window(state, spec, ranges, frames, lights, T):
 def check(exports, shot, smap, reqs):
     frames, order, lights, fps = load_exports(exports)
     T = smap.get("head_angular_velocity_threshold_deg_s")
+    sep = reqs["velocity_separation"]
+    if T is not None and not (isinstance(T, (int, float)) and T > 0):
+        raise StatesError(f"state_map.json head_angular_velocity_threshold_deg_s must be a positive number, got {T!r}")
     windows = [w for w in smap["windows"] if w["shot_id"] == shot]
     if not windows:
         raise StatesError(f"state_map.json has no windows for {shot}")
     tier_of = {s: t for t, ss in smap["tiers"].items() for s in ss}
-    report = {"shot": shot, "frames": [order[0], order[-1]], "fps": fps, "T_deg_s": T, "windows": [], "global": []}
+    report = {"shot": shot, "frames": [order[0], order[-1]], "fps": fps, "T_deg_s": T, "velocity_separation": {k: sep[k] for k in ("medium_max_over_T", "fast_peak_over_T_min")}, "windows": [], "global": []}
     for w in windows:
         spec = reqs["states"].get(w["state"])
         if spec is None:
             raise StatesError(f"no requirement block for state {w['state']}")
-        rules = evaluate_window(w["state"], spec, w["frames"], frames, lights, T)
+        rules = evaluate_window(w["state"], spec, w["frames"], frames, lights, T, sep)
         if tier_of.get(w["state"]) == "MEDIUM":
             win = [fr for a, b in w["frames"] for fr in range(a, b + 1) if fr in frames]
             m = max(frames[fr]["ang_vel_deg_s"] for fr in win) if win else 0.0
             if T is None:
                 rules.append({"rule": "MEDIUM window: angular velocity ≤ T", "status": "NOT_EVALUATED", "measured": f"T not declared (max measured {m:.1f}°/s)"})
             else:
-                rules.append({"rule": f"MEDIUM window: angular velocity ≤ T = {T}°/s", "status": "PASS" if m <= T else "FAIL", "measured": round(m, 2)})
+                lim = sep["medium_max_over_T"] * T
+                rules.append({"rule": f"MEDIUM window: angular velocity ≤ {sep['medium_max_over_T']}·T = {lim:g}°/s", "status": "PASS" if m <= lim else "FAIL", "measured": round(m, 2)})
         report["windows"].append({"state": w["state"], "tier": tier_of.get(w["state"]), "frames": w["frames"], "rules": rules})
     fz = reqs["freeze_rule"]
     run, best, best_at = 0, 0, None
