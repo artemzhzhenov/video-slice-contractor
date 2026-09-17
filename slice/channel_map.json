@@ -3,7 +3,16 @@
   "source": "proposal \u00a75 channel vocabulary v1 (2026-09-14); project-owned names, no vendor names",
   "sides": "_l / _r are the character's ANATOMICAL left and right (socket +X = anatomical left)",
   "control_convention": "placeholder rig: one float custom property per channel on the FACE_CTRL empty, already in channel units. A real rig maps its own controls here: input_range \u2192 output_range, linear.",
-  "channels": [
+ "combination_rules": [
+  {
+   "sides": ["l", "r"],
+   "channels": ["lid_aperture_{side}", "blink_{side}"],
+   "effective": "lid closure = max(max(0, -lid_aperture), blink); lid widening = max(0, lid_aperture) * (1 - blink)",
+   "meaning": "blink closes the eye on top of the held lid pose and never beyond full closure: lid_aperture -1 is already closed, so a blink adds nothing there; a blink on a widened eye (fear) closes it fully, so the widening fades as the blink rises. Every consumer of the performance track (the default head's rig, every head technology) applies this rule to the raw channel values",
+   "status": "clarification of vocabulary v1 ('blink: on top of lid_aperture'), not a new channel meaning — contractor Q19/Q21, 2026-09-17",
+   "why": "two independent closure targets summed to 2.0 at lid_aperture -1 with blink 1 and drove the lid through the eye; a widening target left a gap under a full blink"
+  }
+ ],  "channels": [
     {
       "channel": "brow_inner_l",
       "control": {
@@ -82,7 +91,7 @@
         -1,
         1
       ],
-      "semantic": "sustained lid pose: -1 closed, 0 relaxed open, +1 widened"
+      "semantic": "sustained lid pose: -1 fully closed, 0 relaxed open, +1 widened; combined with blink by combination_rules"
     },
     {
       "channel": "lid_aperture_r",
@@ -98,7 +107,7 @@
         -1,
         1
       ],
-      "semantic": "sustained lid pose: -1 closed, 0 relaxed open, +1 widened"
+      "semantic": "sustained lid pose: -1 fully closed, 0 relaxed open, +1 widened; combined with blink by combination_rules"
     },
     {
       "channel": "squint_l",
@@ -402,7 +411,7 @@
         0,
         1
       ],
-      "semantic": "transient reflex closure on top of lid_aperture"
+      "semantic": "transient reflex closure on top of lid_aperture (1 = fully closed whatever the lid pose; combination_rules)"
     },
     {
       "channel": "blink_r",
@@ -418,7 +427,7 @@
         0,
         1
       ],
-      "semantic": "transient reflex closure on top of lid_aperture"
+      "semantic": "transient reflex closure on top of lid_aperture (1 = fully closed whatever the lid pose; combination_rules)"
     }
   ]
 }

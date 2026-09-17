@@ -6,8 +6,10 @@
 #   SHOT_001 — the criterion-3 gate needs ≥ 64 spp, measured: 8 and 16 spp fail it on the placeholder;
 #   the scene must be the named shot's scene, i.e. built with scene_template.py --shot SHOT)
 #
-# Steps: check_scene → export the shot → check_exports → check_alembic → smoke render of one
-# video frame and the still (with the lighting probe) → split → composite → round-trip.
+# Steps: check_scene → export the shot → check_exports → check_alembic → smoke render of the
+# video frames slice/pick_frames.py chooses from the exports (the first frame, the fastest head
+# turn, the widest open jaw) and the still (with the lighting probe) → split → composite →
+# round-trip.
 # Every step prints its own verdict; the script stops at the first failure with exit 2.
 # Needs Blender 5.2.1 on PATH and the vendored OCIO config (set here).
 set -u
@@ -32,7 +34,10 @@ step "1 check_scene"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/sli
 step "2 export $SHOT"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/export_shot.py" -- --shot "$SHOT" --out "$OUT/exports"
 step "3 check_exports"; run "$PY" "$ROOT/slice/check_exports.py" "$OUT/exports"
 step "4 check_alembic"; run "${B[@]}" -P "$ROOT/slice/check_alembic.py" -- --abc "$OUT/exports/proxies.abc" --meta "$OUT/exports/proxies.abc.meta.json"
-step "5 render video frame $FIRST ($SAMPLES spp, $SCALE %)"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --profile video --frames "$FIRST" --samples "$SAMPLES" --scale "$SCALE" --probe --out "$OUT/renders"
+VFRAMES="$("$PY" "$ROOT/slice/pick_frames.py" "$OUT/exports" 2>"$OUT/pick_frames.err")" || { echo "frame choice failed: $(tail -n 1 "$OUT/pick_frames.err")"; exit 2; }
+rm -f "$OUT/pick_frames.err"
+case "$VFRAMES" in "$FIRST"|"$FIRST",*) ;; *) echo "frame choice $VFRAMES does not start at the shot's first frame $FIRST"; exit 2;; esac
+step "5 render video frames $VFRAMES ($SAMPLES spp, $SCALE %)"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --profile video --frames "$VFRAMES" --samples "$SAMPLES" --scale "$SCALE" --probe --out "$OUT/renders"
 step "5 render still"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --profile still --frames still --samples "$SAMPLES" --scale "$SCALE" --probe --out "$OUT/renders"
 for prof in video still; do
   step "6 split $prof"; run "${B[@]}" -P "$ROOT/slice/split_bundles.py" -- "$OUT/renders/$prof" --exports "$OUT/exports"

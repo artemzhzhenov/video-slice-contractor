@@ -18,7 +18,11 @@ Load-bearing checks only — each one can fail on a real defect:
 - socket boundary rings: equal count, rest gap below 5 mm, per-frame rings present;
 - lighting: at least one light or an HDRI, unit directions; proxies.abc and proxies_rest.obj
   non-empty; abc_to_socket matrix present; default_head_rest.obj non-empty, socket-local, counts
-  equal to the manifest's; camera px_by_profile present for every render profile.
+  equal to the manifest's; camera px_by_profile present for every render profile;
+- default_head_deformed.npy: float32 of shape [frames, offsets, C_HEAD vertices, 3] as the
+  manifest declares, finite, its C_HEAD objects the first objects of the rest OBJ, and its
+  rest-frame centre sample equal to default_head_rest.obj within the rigid tolerance (same
+  vertex order, same frame).
 Exit 0 on success; exit 1 with the list of failures."""
 import hashlib
 import json
@@ -130,6 +134,23 @@ def check(out_dir):
     env_lo, env_hi = sb["envelope_socket_local"]["min_m"], sb["envelope_socket_local"]["max_m"]
     ok(vs and all(env_lo[i] - 1e-6 <= v[i] <= env_hi[i] + 1e-6 for v in vs for i in range(3)), "default_head_rest.obj: vertices outside the exported socket-local envelope — the OBJ is not in the socket's local frame")
     ok(vs and all(abs(min(v[i] for v in vs) - env_lo[i]) < 1e-5 and abs(max(v[i] for v in vs) - env_hi[i]) < 1e-5 for i in range(3)), "default_head_rest.obj: bounding box differs from the exported envelope")
+    dh = man.get("default_head_deformed")
+    ok(dh is not None, "manifest lacks default_head_deformed")
+    if dh is not None and (out / dh["file"]).exists():
+        import numpy as np
+        arr = np.load(out / dh["file"], allow_pickle=False)
+        rest_objs = man["default_head_rest"]["objects"]
+        n_head = sum(o["vertices"] for o in dh["objects"])
+        ok(arr.dtype == np.dtype("<f4"), f"default_head_deformed: dtype {arr.dtype}")
+        ok(list(arr.shape) == dh["shape"] == [len(frames), len(offsets), n_head, 3], f"default_head_deformed: shape {arr.shape} vs manifest {dh['shape']} / {len(frames)} frames × {len(offsets)} offsets × {n_head} vertices")
+        ok([(o["object"], o["vertices"]) for o in rest_objs[:len(dh["objects"])]] == [(o["object"], o["vertices"]) for o in dh["objects"]]
+           and all(o["collection"] == "C_HEAD" for o in rest_objs[:len(dh["objects"])])
+           and sorted(dh["rigid_objects"] + [o["object"] for o in dh["objects"]]) == sorted(o["object"] for o in rest_objs),
+           "default_head_deformed: objects are not the C_HEAD prefix of default_head_rest.obj plus the rigid rest")
+        ok(bool(np.isfinite(arr).all()), "default_head_deformed: non-finite vertex")
+        if arr.shape[:3] == (len(frames), len(offsets), n_head) and len(vs) >= n_head:
+            dev = float(np.abs(arr[0, offsets.index(0.0)].astype(np.float64) - np.asarray(vs[:n_head])).max())
+            ok(dev <= CONV["exports"]["default_head_deformed"]["rigid_tolerance_m"], f"default_head_deformed: rest-frame centre sample differs from default_head_rest.obj by {dev:.2e} m — vertex order or frame differ")
     ok((out / "proxies.abc.meta.json").exists() and len(json.loads((out / "proxies.abc.meta.json").read_text()).get("proxies_geometry_sha256", "")) == 64, "proxies meta: proxies_geometry_sha256 missing")
     meta = json.loads((out / "proxies.abc.meta.json").read_text())
     ok(len(meta.get("abc_to_socket_matrix_4x4", [])) == 4, "proxies meta: abc_to_socket matrix missing")

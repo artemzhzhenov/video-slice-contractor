@@ -4,8 +4,10 @@ rows 6, 7, 8, 11, 12; proposal §1, §3, §5):
     blender -b <scene.blend> --python-exit-code 2 -P slice/export_shot.py -- --shot SHOT_001 --out <pkg>/shots/SHOT_001/exports
 
 Writes camera.json, socket.json, joints.json, socket_boundary.json, lighting_ref.json,
-performance_track.json, proxies.abc (+ .meta.json), proxies_rest.obj and export_manifest.json
-(sha256 of each file, plus the SOCKET_SPACE_ROOT world matrix every file is relative to).
+performance_track.json, proxies.abc (+ .meta.json), proxies_rest.obj, default_head_rest.obj,
+default_head_deformed.npy (QC only — the D7 round-trip's per-sample head) and
+export_manifest.json (sha256 of each file, plus the SOCKET_SPACE_ROOT world matrix every file is
+relative to).
 
 Transform conventions (conventions.json → exports.transform_conventions): the socket is converted
 as a similarity (its local frame becomes socket-oriented); camera and joints are converted by
@@ -300,7 +302,13 @@ def head_rest_meshes(scene, frames):
                 continue
             if o.type == "CURVES" and len(o.data.points) > 0:
                 raise ExportError(f"{o.name}: hair Curves with points cannot be re-projected as a mesh — deliver a mesh hair proxy in {coll} or exclude it by contract")
+            if o.type == "CURVES":
+                continue  # an empty hair Curves object (the template's placeholder) has nothing to re-project
             if o.type != "MESH":
+                if o.type in GEOMETRY_TYPES:
+                    # it would be in the rendered matte (export_manifest head_objects) but not in the
+                    # re-projected head — an explicit error, not a silent omission (review 2026-09-17)
+                    raise ExportError(f"{o.name}: render-visible {o.type} in {coll} cannot be re-projected — convert it to a mesh")
                 continue
             ev = o.evaluated_get(depsgraph)
             found.append((o, ev, ev.to_mesh(), coll))
@@ -353,6 +361,74 @@ def export_default_head(scene, socket, frames, out):
     (out / "default_head_rest.obj").write_text("# default head, socket-local frame (Y up, Z forward), rest frame %d\n" % frames[0] + "\n".join(lines) + "\n")
     return {"file": "default_head_rest.obj", "space": "socket-local: C · socket⁻¹ · object; identity at rest — place with socket.json matrix_4x4", "frame": frames[0],
             "objects": objects, "vertices": n_v, "faces": n_f, "hair": "mesh objects of C_HAIR only; Curves hair is not re-projectable (exporter raises if present with points)"}
+
+
+def export_default_head_deformed(scene, socket, frames, out, head_rec):
+    """The default head as the renderer saw it at every frame and sub-frame sample: every mesh of
+    C_HEAD evaluated (shape keys, drivers from FACE_CTRL, eye rotation), in the socket's local
+    frame, vertices in exactly the order of default_head_rest.obj (whose first vertices are the
+    C_HEAD objects). float32 array [frames, sub-frame offsets, vertices, 3] as .npy. The D7
+    round-trip re-projects THIS head, so it compares transforms and not facial deformation — the
+    rest head fails a correct export on an open jaw (measured on contractor v01, frame 1100,
+    2026-09-16). C_HAIR is not stored: the contract hangs the hair rigidly on the socket (TASK §4,
+    no skinning, no simulation), so its socket-local vertices must equal the rest OBJ at every
+    sample; a hair mesh that moves beyond the rigid tolerance is an error, not a silent use of the
+    rest geometry. QC only: not a HEAD_RENDER plus file — a head technology receives the
+    performance track, never the default head's deformation (identity and performance stay apart)."""
+    import numpy as np
+    rigid_tol = CONV["exports"]["default_head_deformed"]["rigid_tolerance_m"]
+    objs = head_rec["objects"]
+    head_objs = [o for o in objs if o["collection"] == "C_HEAD"]
+    if objs[:len(head_objs)] != head_objs:
+        raise ExportError("default head: C_HEAD objects are not the first objects of default_head_rest.obj — the deformed array could not share its vertex order")
+    hair_objs = objs[len(head_objs):]
+    n = sum(o["vertices"] for o in head_objs)
+    arr = np.empty((len(frames), len(OFFSETS), n, 3), dtype="<f4")
+    C = np.array(ss.C, dtype=np.float64)
+    hair_dev = {o["object"]: 0.0 for o in hair_objs}
+    obj_rest = np.array([[float(t) for t in l.split()[1:4]] for l in (out / "default_head_rest.obj").read_text().splitlines() if l.startswith("v ")], dtype=np.float64)
+    hair_rest, start = {}, n
+    for o in hair_objs:  # the hair's rest vertices as written to the OBJ (rest frame, centre sample)
+        hair_rest[o["object"]] = obj_rest[start:start + o["vertices"]]
+        start += o["vertices"]
+
+    def local_vertices(o, depsgraph, expected):
+        ev = bpy.data.objects[o].evaluated_get(depsgraph)
+        mesh = ev.to_mesh()
+        try:
+            if len(mesh.vertices) != expected:
+                raise ExportError(f"{o}: {len(mesh.vertices)} evaluated vertices at this sample, {expected} in default_head_rest.obj — topology must not change over the shot")
+            co = np.empty(expected * 3, dtype=np.float64)
+            mesh.vertices.foreach_get("co", co)
+        finally:
+            ev.to_mesh_clear()
+        m = C @ np.array(socket.matrix_world.inverted(), dtype=np.float64) @ np.array(ev.matrix_world, dtype=np.float64)
+        return co.reshape(-1, 3) @ m[:3, :3].T + m[:3, 3]
+
+    for fi, frame in enumerate(frames):
+        for si, off in enumerate(OFFSETS):
+            set_time(scene, frame, off)
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            start = 0
+            for o in head_objs:
+                arr[fi, si, start:start + o["vertices"]] = local_vertices(o["object"], depsgraph, o["vertices"])
+                start += o["vertices"]
+            for o in hair_objs:
+                v = local_vertices(o["object"], depsgraph, o["vertices"])
+                hair_dev[o["object"]] = max(hair_dev[o["object"]], float(np.abs(v - hair_rest[o["object"]]).max()))
+    if not np.isfinite(arr).all():
+        raise ExportError("default_head_deformed: non-finite vertex")
+    moving = {o: d for o, d in hair_dev.items() if d > rigid_tol}
+    if moving:
+        raise ExportError(f"C_HAIR must hang rigidly on SOCKET_HEAD (no skinning, no shape keys, no simulation): {', '.join(f'{o} moves {d:.2e} m' for o, d in sorted(moving.items()))} in socket space > {rigid_tol} m")
+    np.save(out / "default_head_deformed.npy", arr, allow_pickle=False)
+    # No measured floats in this record: the manifest is compared field by field across machines.
+    return {"file": "default_head_deformed.npy", "dtype": "float32 little-endian", "shape": list(arr.shape),
+            "axes": ["frame (the shot range in order)", "sub-frame offset (exports.sub_frame_offsets_frames)", "vertex (the first vertices of default_head_rest.obj, same order)", "xyz"],
+            "space": "socket-local, as default_head_rest.obj — place with socket.json matrix_4x4 of the same sample",
+            "objects": [{"object": o["object"], "vertices": o["vertices"]} for o in head_objs],
+            "rigid_objects": [o["object"] for o in hair_objs], "rigid_tolerance_m": rigid_tol,
+            "consumer": "QC only (D7 round-trip); not a HEAD_RENDER plus file"}
 
 
 def export_proxies(scene, root, frames, out):
@@ -449,6 +525,7 @@ def main():
     export_performance_track(scene, ctrl, socket_rec, frames, out, args.shot)
     export_proxies(scene, root, frames, out)
     head_rec = export_default_head(scene, socket, frames, out)
+    deformed_rec = export_default_head_deformed(scene, socket, frames, out, head_rec)
     files = sorted(f.name for f in out.iterdir() if f.name != "export_manifest.json")
     expected = set(CONV["exports"]["files"]) - {"export_manifest.json"}
     if set(files) != expected:
@@ -459,6 +536,7 @@ def main():
                 "frames": [frames[0], frames[-1]], "sub_frame_offsets_frames": OFFSETS,
                 "socket_space_root_world_matrix_4x4_blender": m4(root.matrix_world),
                 "transform_conventions": CONV["exports"]["transform_conventions"], "default_head_rest": head_rec,
+                "default_head_deformed": deformed_rec,
                 # Object classes for the round-trip's cryptomatte reading (conventions → roundtrip.body_over_head):
                 # the head's own objects (any type, C_HEAD ∪ C_HAIR), the shadow-only occluders (C_HAND_FG),
                 # and the objects that hold the head out in L_HEAD (C_BODY ∪ C_ENV). Render-visible geometry only.

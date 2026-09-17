@@ -75,7 +75,7 @@ def compare_exports(dir_a, dir_b, tolerance=None):
     With `tolerance` (slice/conventions.json → rebuild.cross_platform_tolerance.numeric_abs,
     for a rebuild on ANOTHER machine) a file that is not byte-identical is compared
     numerically: JSON trees by slice/content_compare.compare, OBJ vertex lines as numbers with
-    every other line identical, the manifest without its per-file hashes (the files themselves
+    every other line identical, .npy arrays element by element with equal shape and dtype, the manifest without its per-file hashes (the files themselves
     are compared). proxies.abc whose geometry hash differs is then not a difference but a
     request: "abc_needs_numeric_comparison" — slice/compare_alembic.py under Blender decides.
     Returns the comparison dict; "differing" empty means the two exports are the same (byte or
@@ -113,6 +113,17 @@ def compare_exports(dir_a, dir_b, tolerance=None):
                         within[k] = dev
                     else:
                         still.append(f"{k} (vertex deviation {dev:.3e} > {tolerance:g})")
+            elif k.endswith(".npy"):
+                import numpy as np
+                xa, xb = np.load(dir_a / k, allow_pickle=False), np.load(dir_b / k, allow_pickle=False)
+                if xa.shape != xb.shape or xa.dtype != xb.dtype:
+                    still.append(f"{k} (shape or dtype differ: {xa.shape} {xa.dtype} vs {xb.shape} {xb.dtype})")
+                else:
+                    dev = float(np.abs(xa.astype(np.float64) - xb.astype(np.float64)).max()) if xa.size else 0.0
+                    if dev <= tolerance:
+                        within[k] = dev
+                    else:
+                        still.append(f"{k} (value deviation {dev:.3e} > {tolerance:g})")
             else:
                 still.append(k)
         differing = still

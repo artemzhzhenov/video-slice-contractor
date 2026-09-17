@@ -9,7 +9,9 @@ and D7 shutter fields; D6 alpha `NOT_APPLICABLE` for data passes; D1 envelope re
 D7 round-trip implemented against the matte with per-profile intrinsics (amendment 2026-09-15).
 Amended 2026-09-15: D5 row 2 holdout is the unoccluded silhouette (slice compositor measurement).
 Amended 2026-09-16: D7 round-trip measured on the real head — controls validated, rest-head
-re-projection found to fail open-jaw frames (open defect of the test). Contract version `master_contract_version = 1`.
+re-projection found to fail open-jaw frames (open defect of the test).
+Amended 2026-09-17: D7 re-projects the per-sample deformed default head (defect closed); D8
+channel combination rules. Contract version `master_contract_version = 1`.
 Validated by the Phase 0.5 reference slice (§Validation); any item that fails validation reopens
 this ADR before any master production begins. Layer: Core (`../architecture/layering.md`).
 
@@ -195,6 +197,19 @@ frame's facial deformation (the per-frame deformed default head in the socket's 
 before any master with open-mouth frames is accepted — Phase 0.5 burst 2 included.
 `iou_min` depends on the silhouette's size (≈ 0.67 px of boundary error at r ≈ 270 px, 2 px in a
 close-up); a size-aware form is to be decided on burst 2's framings.
+Amendment 2026-09-17 (implemented; the open defect above is closed): the re-projected head is the
+**default head as rendered** — the export writes every C_HEAD mesh evaluated at every frame and
+sub-frame sample in the socket's local frame (`default_head_deformed.npy`, vertex order of
+`default_head_rest.obj`), the round-trip interpolates it across the shutter like the socket, and
+C_HAIR must stay rigid on the socket (the export stops otherwise). This file is **QC only** and not
+a HEAD_RENDER deliverable: a head technology receives the performance track, never the default
+head's deformation (identity and performance stay separate, §D8). The rest head is still
+re-projected on every frame and reported, never gated. Measured on v01 at 100 %: frame 1100
+(jaw_open 0.87) now passes at the floor (p95 0.25 px, centroid 0.004 px, band 0.016) while the
+rest head on the same render reproduces the old failure (2.57 px / 0.57 px); a placeholder head
+with a 2-cm jaw passes deformed and fails at rest (slice test). The positive control is reported
+per frame, and the acceptance self-check renders the fastest-turning and the widest-jaw frame
+besides the first.
 
 ### D8. Performance track
 
@@ -203,7 +218,10 @@ per-frame **project-owned continuous control-channel vector**:
 
 - named channels with documented ranges and a written semantic definition each (brow
   inner/outer, lid aperture, squint, cheek raise, nose, mouth corners, jaw, lip funnel/purse,
-  gaze yaw/pitch, blink, asymmetry per side), plus head pose from §D7;
+  gaze yaw/pitch, blink, asymmetry per side), plus head pose from §D7; where two channels act
+  on the same feature, the vocabulary states how they combine, and every consumer applies that
+  rule to the raw values (amendment 2026-09-17: lid closure = max(lid pose closure, blink), a
+  blink cancels lid widening — `slice/channel_map.json → combination_rules`);
 - a **reference render of every channel at its extremes on the default head**, shipped with the
   master, so "what does 0.7 on this channel look like" has one answer;
 - the channel vocabulary is versioned in single-source-of-truth config; `mouth_state` never

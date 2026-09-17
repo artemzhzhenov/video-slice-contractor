@@ -1,7 +1,11 @@
 """D7 round-trip test (ADR-0002 D7; brief deliverable H; conventions.json → roundtrip).
 
-Re-projects the default head from the EXPORTED data alone — camera.json, socket.json and
-default_head_rest.obj — and compares its matte against HEAD_HOLDOUT from the HEAD_RENDER bundle.
+Re-projects the default head from the EXPORTED data alone — camera.json, socket.json,
+default_head_rest.obj (faces, rigid hair) and default_head_deformed.npy (the C_HEAD vertices as
+the renderer saw them at every sub-frame sample) — and compares its matte against HEAD_HOLDOUT
+from the HEAD_RENDER bundle. The deformed head makes the test compare transforms, not facial
+deformation: the rest head failed a correct export on an open jaw (contractor v01, frame 1100,
+2026-09-16); it is still re-projected on every frame and reported as `rest_head_comparison`.
 No scene is loaded: if the numbers written to the head technology cannot put the head where the
 renderer put it, this is where it shows. Runs under Blender's Python for numpy + OpenImageIO:
 
@@ -18,9 +22,8 @@ Negative controls run on every frame and MUST fail the gate, else the metric is 
 and the script exits 2: a socket translation worth 5 px on screen and a focal scale that grows
 the silhouette by 5 px; a 3° yaw is reported VALIDATED / NOT_VALIDATED. The positive control
 compares the shutter-integrated result with the centre sample and reports DISCRIMINATING or
-NOT_DISCRIMINATING. Frames whose performance track has a channel beyond
-deformation_channel_max_for_gate are flagged: the rest head is re-projected against a deformed
-render there, and a FAIL blocks delivery until calibrated (conservative side).
+NOT_DISCRIMINATING per frame (a frame that does not move across the shutter cannot
+discriminate).
 The bundle manifest's roundtrip status is set to ERROR before the first frame and to the result
 after the last, so an aborted run never leaves a stale PASS. Writes roundtrip_report.<profile>.json."""
 import argparse
@@ -111,10 +114,34 @@ def reproject(verts, faces, socket_m, cam_m, fx_fy, cx_cy, w, h):
     return rasterize(uv[faces], w, h)
 
 
+def head_at(samples_xyz, rest_verts, sample_offsets):
+    """verts(offset) for one frame: the exported deformed C_HEAD vertices (samples_xyz, one row
+    per exported sub-frame offset) interpolated linearly between samples, like the socket's
+    position; the remaining OBJ vertices (rigid hair) from the rest head."""
+    n = samples_xyz.shape[1]
+    rows = np.asarray(samples_xyz, np.float64)
+
+    def at(offset):
+        if offset <= sample_offsets[0]:
+            cur = rows[0]
+        elif offset >= sample_offsets[-1]:
+            cur = rows[-1]
+        else:
+            k = max(i for i, o in enumerate(sample_offsets) if o <= offset)
+            t = (offset - sample_offsets[k]) / (sample_offsets[k + 1] - sample_offsets[k])
+            cur = (1 - t) * rows[k] + t * rows[k + 1]
+        v = rest_verts.copy()
+        v[:n] = cur
+        return v
+    return at
+
+
 def coverage_for_frame(verts, faces, sock_samples, cam_samples, fx_fy, cx_cy, w, h, offsets):
+    """verts: an (N, 3) array, or a function offset → (N, 3) array (head_at)."""
     acc = np.zeros((h, w), np.float32)
     for off in offsets:
-        acc += reproject(verts, faces, sample_at(sock_samples, off), sample_at(cam_samples, off), fx_fy, cx_cy, w, h)
+        v = verts(off) if callable(verts) else verts
+        acc += reproject(v, faces, sample_at(sock_samples, off), sample_at(cam_samples, off), fx_fy, cx_cy, w, h)
     return acc / len(offsets)
 
 
@@ -254,17 +281,27 @@ def main(argv):
     if cam_rec["sub_frame_offsets_frames"] != want_offsets or sock_rec["sub_frame_offsets_frames"] != want_offsets:
         raise RoundTripError(f"exported sub-frame offsets {cam_rec['sub_frame_offsets_frames']} do not match the video shutter {vp['shutter_angle_deg']}° ({want_offsets})")
     verts, faces = load_obj(ex / "default_head_rest.obj")
+    dh = exman.get("default_head_deformed")
+    if dh is None or not (ex / dh["file"]).exists():
+        raise RoundTripError("the exports carry no default_head_deformed.npy — re-export with the current export_shot.py (the rest head alone cannot be compared with a deformed frame)")
+    deformed = np.load(ex / dh["file"], allow_pickle=False)
+    first, last = exman["frames"]
+    n_head = sum(o["vertices"] for o in dh["objects"])
+    if list(deformed.shape) != dh["shape"] or deformed.shape != (last - first + 1, len(want_offsets), n_head, 3) or n_head > len(verts):
+        raise RoundTripError(f"default_head_deformed.npy shape {deformed.shape} does not match the manifest {dh['shape']}, the shot range, the offsets or the head OBJ ({len(verts)} vertices)")
+    rest_dev = float(np.abs(deformed[0, want_offsets.index(0.0)].astype(np.float64) - verts[:n_head]).max())
+    if rest_dev > CONV["exports"]["default_head_deformed"]["rigid_tolerance_m"]:
+        raise RoundTripError(f"default_head_deformed.npy at the rest sample differs from default_head_rest.obj by {rest_dev:.2e} m — the two do not share a vertex order or a frame")
     classes = {k: exman[k] for k in ("head_objects", "occluder_objects", "holdout_objects")}
     integrate = prof["shutter_angle_deg"] > 0 and not args.ignore_subframes
     offsets = list(np.linspace(want_offsets[0], want_offsets[-1], TIME_SAMPLES)) if integrate else [0.0]
     cam_by_frame = {f["frame"]: f for f in cam_rec["frames"]}
     sock_by_frame = {f["frame"]: f for f in sock_rec["frames"]}
     track_by_frame = {f["frame"]: max(abs(v) for v in f["channels"].values()) for f in track["frames"]}
-    deform_max = RT["deformation_channel_max_for_gate"]
     report = {"schema_note": "D7 round-trip report; conventions.json → roundtrip", "shot_id": shot, "profile": profile,
               "smoke_test_only": bm["smoke_test_only"], "resolution_percentage": scale,
-              "reference": RT["reference"], "head_geometry": exman["default_head_rest"], "time_offsets_frames": [float(o) for o in offsets],
-              "supersampling": SS, "gate_status_of_thresholds": RT["gate"]["status"], "deformation_channel_max_for_gate": deform_max,
+              "reference": RT["reference"], "head_geometry": exman["default_head_rest"], "head_geometry_deformed": dh, "time_offsets_frames": [float(o) for o in offsets],
+              "supersampling": SS, "gate_status_of_thresholds": RT["gate"]["status"],
               "exports": {"export_manifest_sha256": hashlib.sha256((ex / "export_manifest.json").read_bytes()).hexdigest()},  # identity by hash, never by path
               "frames": [], "negative_control": RT["negative_control"]}
     all_failed, ctrl_not_failed, rot_validated, pos_discriminating = [], [], [], []
@@ -284,7 +321,8 @@ def main(argv):
         cx_cy = [v * f for v in px["principal_point_px"]]
         cam_s = samples_of(cam_by_frame[frame], "extrinsic_matrix_4x4")
         sock_s = samples_of(sock_by_frame[frame], "matrix_4x4")
-        cov = coverage_for_frame(verts, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, offsets)
+        head = head_at(deformed[frame - first], verts, want_offsets)
+        cov = coverage_for_frame(head, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, offsets)
         exclude, classified = body_over_head(rd / "COMPOSITE_BUNDLE" / comp_rows[frame]["file"], classes, cov >= 0.5)
         excl_frac = float(exclude.sum() / max(int((cov >= 0.5).sum()), 1))
         th = thresholds_for(shot, frame, scale)
@@ -294,7 +332,7 @@ def main(argv):
             # (found by the plain-vs-posed negative test, 2026-09-15); below it the exclusion is
             # a recorded shot finding and the remaining silhouette is measured.
             rec = {"frame": frame, "metrics": None, "thresholds": th, "failed": ["body_over_head_excluded_fraction"], "status": "FAIL",
-                   "performance_track_max_abs_channel": track_by_frame[frame], "deformed_beyond_gate_calibration": track_by_frame[frame] > deform_max,
+                   "performance_track_max_abs_channel": track_by_frame[frame],
                    "body_over_head_excluded": {"pixels": int(exclude.sum()), "fraction_of_reprojected": excl_frac, **classified},
                    "controls": "not run — the frame failed before measurement"}
             report["frames"].append(rec)
@@ -307,7 +345,7 @@ def main(argv):
         failed = gate(m, th)
         nc = RT["negative_control"]
         shifted, shift_m = perturb_translation(sock_s, cam_s, fx_fy[0], nc["translation"]["screen_shift_px"])
-        m_t = measure(coverage_for_frame(verts, faces, shifted, cam_s, fx_fy, cx_cy, w, h, offsets))
+        m_t = measure(coverage_for_frame(head, faces, shifted, cam_s, fx_fy, cx_cy, w, h, offsets))
         # Scale control: a pure size error of +growth px on the effective radius, about the
         # silhouette's own centre — fx, fy scaled and the principal point moved so the centre
         # stays put (review round 2: scaling about the principal point moved an off-axis head by
@@ -318,37 +356,47 @@ def main(argv):
         wsum = float(cov.sum())
         centre = (float((xs_ * cov).sum() / wsum), float((ys_ * cov).sum() / wsum))
         cx_cy_s = [centre[0] - focal_scale * (centre[0] - cx_cy[0]), centre[1] - focal_scale * (centre[1] - cx_cy[1])]
-        m_s = measure(coverage_for_frame(verts, faces, sock_s, cam_s, [v * focal_scale for v in fx_fy], cx_cy_s, w, h, offsets))
-        m_r = measure(coverage_for_frame(verts, faces, perturb_rotation(sock_s, nc["rotation"]["yaw_deg"]), cam_s, fx_fy, cx_cy, w, h, offsets))
+        m_s = measure(coverage_for_frame(head, faces, sock_s, cam_s, [v * focal_scale for v in fx_fy], cx_cy_s, w, h, offsets))
+        m_r = measure(coverage_for_frame(head, faces, perturb_rotation(sock_s, nc["rotation"]["yaw_deg"]), cam_s, fx_fy, cx_cy, w, h, offsets))
+        # The rest head on the same frame: what the test measured before 2026-09-17. Reported,
+        # never gated — where it fails and the deformed head passes, the frame's facial
+        # deformation is visible in the silhouette and the deformed geometry is what saved it.
+        m_rest = measure(coverage_for_frame(verts, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, offsets))
         t_failed, s_failed, r_failed = gate(m_t, th), gate(m_s, th), gate(m_r, th)
         rec = {"frame": frame, "metrics": m, "thresholds": th, "failed": failed, "status": "PASS" if not failed else "FAIL",
                "performance_track_max_abs_channel": track_by_frame[frame],
-               "deformed_beyond_gate_calibration": track_by_frame[frame] > deform_max,
+               "rest_head_comparison": {"metrics": m_rest, "gate_failed": gate(m_rest, th),
+                                        "note": "the rest head re-projected on this frame, reported only: failing here while the deformed head passes means the facial deformation is visible in the silhouette"},
                "body_over_head_excluded": {"pixels": int(exclude.sum()), "fraction_of_reprojected": excl_frac, **classified},
                "controls": {"translation": {"shift_m": shift_m, "screen_shift_px": nc["translation"]["screen_shift_px"], "metrics": m_t, "gate_failed": t_failed, "status": "VALIDATED" if t_failed else "NOT_VALIDATED"},
                             "scale": {"focal_scale": focal_scale, "screen_growth_px": nc["scale"]["screen_growth_px"], "principal_point_px_used": cx_cy_s, "metrics": m_s, "gate_failed": s_failed, "status": "VALIDATED" if s_failed else "NOT_VALIDATED"},
                             "rotation": {"yaw_deg": nc["rotation"]["yaw_deg"], "metrics": m_r, "gate_failed": r_failed, "status": "VALIDATED" if r_failed else "NOT_VALIDATED"}}}
         if integrate:
-            m_c = measure(coverage_for_frame(verts, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, [0.0]))
+            m_c = measure(coverage_for_frame(head, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, [0.0]))
             delta = max(abs(m_c["centroid_px"] - m["centroid_px"]), abs(m_c["mean_abs_coverage_in_band"] - m["mean_abs_coverage_in_band"]))
             disc = delta > RT["positive_control"]["min_difference"]
             rec["positive_control_centre_only"] = {"metrics": m_c, "gate_failed": gate(m_c, th), "difference": delta,
                                                    "status": "DISCRIMINATING" if disc else "NOT_DISCRIMINATING",
                                                    "note": "integrated vs centre-only; NOT_DISCRIMINATING means the head moved too little across this frame's shutter for the sub-frame data to be tested here"}
-            pos_discriminating.append(disc)
+            pos_discriminating.append((frame, disc))
         report["frames"].append(rec)
         if failed:
             all_failed.append(frame)
         if not t_failed or not s_failed:
             ctrl_not_failed.append(frame)
         rot_validated.append(bool(r_failed))
-        print(f"ROUNDTRIP_FRAME {frame} {rec['status']} p95={m['p95_boundary_px']:.2f}px centroid={m['centroid_px']:.3f}px iou={m['iou']:.4f} band_mean_abs={m['mean_abs_coverage_in_band']:.4f} excluded={rec['body_over_head_excluded']['fraction_of_reprojected']:.4f} deformed={rec['deformed_beyond_gate_calibration']} | ctrl translation={'fails' if t_failed else 'DOES NOT FAIL'} scale={'fails' if s_failed else 'DOES NOT FAIL'} rotation={'fails' if r_failed else 'does not fail'}")
+        print(f"ROUNDTRIP_FRAME {frame} {rec['status']} p95={m['p95_boundary_px']:.2f}px centroid={m['centroid_px']:.3f}px iou={m['iou']:.4f} band_mean_abs={m['mean_abs_coverage_in_band']:.4f} excluded={rec['body_over_head_excluded']['fraction_of_reprojected']:.4f} rest_head={'fails' if rec['rest_head_comparison']['gate_failed'] else 'passes'} | ctrl translation={'fails' if t_failed else 'DOES NOT FAIL'} scale={'fails' if s_failed else 'DOES NOT FAIL'} rotation={'fails' if r_failed else 'does not fail'}")
     report["status"] = "PASS" if not all_failed and not ctrl_not_failed else "FAIL"
     report["failed_frames"] = all_failed
     report["control_not_failing_frames"] = ctrl_not_failed
     report["rotation_control"] = "VALIDATED" if rot_validated and all(rot_validated) else "NOT_VALIDATED — the gate did not catch a 3° yaw on every frame; on a silhouette-symmetric head this control cannot discriminate (recorded, not an export defect)"
     if integrate:
-        report["positive_control"] = "DISCRIMINATING" if pos_discriminating and all(pos_discriminating) else "NOT_DISCRIMINATING on at least one frame — the sub-frame data is exercised but not tested where the head does not move across the shutter"
+        yes = [f for f, d in pos_discriminating if d]
+        no = [f for f, d in pos_discriminating if not d]
+        # Per-frame truth, summarised: a static frame cannot discriminate and says so; the
+        # sub-frame data is tested on the frames listed as discriminating (review 2026-09-16:
+        # the all-frames form read NOT_DISCRIMINATING whenever a static first frame was rendered).
+        report["positive_control"] = (f"DISCRIMINATING on frames {yes}" if yes else "NOT_DISCRIMINATING on every frame — the sub-frame data is exercised but not tested (no frame moves across the shutter)") + (f"; not on {no} (no motion across the shutter)" if yes and no else "")
     if args.ignore_subframes:
         report["mode"] = "positive control run: centre sample only"
     out = rd / f"roundtrip_report.{profile}{'.centre_only' if args.ignore_subframes else ''}.json"
@@ -361,7 +409,7 @@ def main(argv):
         raise RoundTripError(f"round-trip FAIL on frames {all_failed} — the export does not place the head where the render did")
     if ctrl_not_failed:
         raise RoundTripError(f"negative control did not fail on frames {ctrl_not_failed} — the metric is NOT VALIDATED at this resolution")
-    print(f"ROUNDTRIP_OK {profile} {len(report['frames'])} frames rotation_control={report['rotation_control'][:13]} positive_control={report.get('positive_control', 'n/a')[:18]} -> {out}")
+    print(f"ROUNDTRIP_OK {profile} {len(report['frames'])} frames rotation_control={report['rotation_control'][:13]} positive_control={report.get('positive_control', 'n/a (still)')} -> {out}")
 
 
 if __name__ == "__main__":

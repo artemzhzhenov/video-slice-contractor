@@ -180,8 +180,15 @@
    "proxies.abc.meta.json",
    "proxies_rest.obj",
    "default_head_rest.obj",
+   "default_head_deformed.npy",
    "export_manifest.json"
   ],
+  "default_head_deformed": {
+   "rigid_tolerance_m": 1e-05,
+   "rule": "every render-visible mesh of C_HEAD evaluated at every frame and sub-frame offset, socket-local, float32 [frames, offsets, vertices, 3], vertex order of default_head_rest.obj; C_HAIR must stay within rigid_tolerance_m of its first sample (contract: hair hangs rigidly on the socket) or the export stops",
+   "consumer": "QC only — the D7 round-trip re-projects this head (ADR-0002 D7 amendment 2026-09-17); it is NOT a HEAD_RENDER plus file: a head technology receives the performance track, never the default head's deformation",
+   "basis": "the rest head failed a correct export at jaw_open 0.87 (contractor v01, frame 1100, 2026-09-16); rigid_tolerance_m equals rebuild.cross_platform_tolerance.numeric_abs, ~100x above the measured float noise of a socket child"
+  },
   "camera_local_convention": "Blender camera: looks down local -Z, +Y up; exported as camera-to-world in socket space",
   "sub_frame_offsets_frames": [
    -0.25,
@@ -501,10 +508,11 @@
    "camera.json",
    "socket.json",
    "default_head_rest.obj",
+   "default_head_deformed.npy",
    "HEAD_RENDER_BUNDLE/holdout.####.exr"
   ],
   "reference": "HEAD_HOLDOUT — the head+hair silhouette with C_HAND_FG occluders shadow-only (ADR-0002 D5 row 2); cut by C_BODY / C_ENV where they are in front of the head (see body_over_head); mattes, not beauty, so this tests the transform contract and not shading",
-  "reprojection": "default_head_rest.obj placed by socket.json, seen by camera.json, rasterised with the profile's pixel intrinsics (px_by_profile) scaled by the render's resolution_percentage; 4×4 supersampled box coverage",
+  "reprojection": "the default head as rendered — default_head_deformed.npy for the C_HEAD vertices (interpolated linearly between the exported sub-frame samples), default_head_rest.obj for the faces and the rigid hair — placed by socket.json, seen by camera.json, rasterised with the profile's pixel intrinsics (px_by_profile) scaled by the render's resolution_percentage; 4×4 supersampled box coverage",
   "time_integration": {
    "video": "9 uniform samples across the shutter; position and scale linear, rotation slerp between the three exported sub-frame samples",
    "still": "centre sample only (shutter 0)"
@@ -558,8 +566,7 @@
    "min_difference_status": "PROVISIONAL — raised from 0.001 on 2026-09-16 (measurements/roundtrip_v01_SHOT_001_review.json): on v01 the static frame 1001 (0.001° per shutter) differs by 0.0018–0.0020 at 100 %, which read DISCRIMINATING against 0.001 while testing nothing; moving frames (0.26–0.41° per shutter) differ by 0.0136–0.0404. A frame that does not move reads NOT_DISCRIMINATING whatever the threshold — pick a moving frame to test the sub-frame data"
   },
   "report": "renders/<profile>/roundtrip_report.<profile>.json; bundle_manifest.<profile>.json → roundtrip {report, status}",
-  "deformation_channel_max_for_gate": 0.2,
-  "deformation_rule": "default_head_rest.obj is the REST head; on a frame whose performance track has |channel| > deformation_channel_max_for_gate the render's silhouette may include facial deformation that the re-projection cannot, and the frame is flagged deformed_beyond_gate_calibration — REPORTED ONLY: it has no consumer and no separate thresholds yet. The frame is gated with the same thresholds as every other; the flag tells the reader of a FAIL where to look first. Separate thresholds for deformed frames are calibrated on the real asset. The proxy (max |channel| over all 26 channels) does not distinguish silhouette-relevant channels (jaw, lips) from gaze or brow. MEASURED on v01 (2026-09-16, measurements/roundtrip_v01_SHOT_001_review.json): a correct export FAILS at jaw_open 0.87 (frame 1100: p95 2.57 px, centroid 0.57 px, band 0.069; 605 of 649 missing pixels at the chin), passes at jaw_open 0.19 (p95 0.35 px); the proxy flags a blink (1.0) and mouth corners (0.74) that leave the silhouette unchanged. Looser thresholds for deformed frames are rejected (they hide transform errors of the same size); the recommended fix is re-projecting the per-frame deformed default head — OPEN, needed before burst 2 is accepted",
+  "deformation_rule": "since 2026-09-17 the re-projected head carries the frame's facial deformation (exports.default_head_deformed), so a deformed frame is gated with the same thresholds and the test measures the transform only. History: the rest head re-projected against deformed renders FAILED a correct export at jaw_open 0.87 (contractor v01 frame 1100: p95 2.57 px, centroid 0.57 px, band 0.069, 605 of 649 missing pixels at the chin) and passed at jaw_open 0.19; loosening the thresholds on deformed frames was rejected (it hides transform errors of the same size), and the old flag (max |channel| > 0.2) marked blinks and mouth corners that leave the silhouette unchanged. The rest head is still re-projected on every frame and reported as rest_head_comparison (never gated)",
   "body_over_head": "C_BODY and C_ENV hold the head out in L_HEAD (only C_HAND_FG occluders are shadow-only), so HEAD_HOLDOUT is cut where the body or the environment is in front of the head. The round-trip drops pixels where such an object's cryptomatte coverage ≥ 0.5 meets the re-projected head (dilated 1 px, so the fractional-coverage halo goes with them) from every sum; contour points inside them are not QUERIED while every contour point stays a TARGET — dropping targets too made a kept point next to a dropped stretch measure the distance to the stretch's far end (176 px on a 5 px perturbation, measured); the price is that a spurious re-projected contour inside the exclusion stays a target. The fraction is reported; a shot where that fraction is not ~0 is a shot-design finding, recorded per frame. The exclusion is bounded: a frame whose excluded fraction exceeds gate.body_over_head_excluded_fraction_max (half the head) FAILS before any metric is computed — a wrong export that places the head over the wall or the body would otherwise be excluded instead of failed (found by the plain-vs-posed negative test, 2026-09-15). Object classes come from export_manifest (head_objects / occluder_objects / holdout_objects) matched to cryptomatte manifest names exactly; instanced or library-path names are not handled and would be an explicit error on the real asset, to be extended then",
   "hair_transparency": "OPEN — the reference matte is HEAD_HOLDOUT's alpha and the re-projection is solid mesh coverage, so alpha-cut hair cards would read as holes vs solids and fail the gate for a reason that is not the transform. The slice's default hair is solid sculpted strands with an opaque HERO_HAIR (contractor Q4, 2026-09-15). How a head technology's hair handles transparency is its bake-off exam, not the slice's; before a card-based default hair is accepted the round-trip must compare the C_HEAD shell alone against the head object's cryptomatte, or carry the cards' alpha"
  },
