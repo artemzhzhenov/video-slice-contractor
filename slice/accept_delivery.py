@@ -494,6 +494,7 @@ def main(argv):
     out.mkdir(parents=True, exist_ok=True)
     profile = out / "blender_profile"
     env = dict(os.environ, OCIO=str(OCIO), CYCLES_METAL_DISABLE_BINARY_ARCHIVES="1", PYTHONDONTWRITEBYTECODE="1")
+    env.pop("CHECK_ASSET_QUICK", None)  # acceptance always runs the full check_asset.sh, whatever the caller's shell has set
     for var in BLENDER_PROFILE_VARS:
         d = profile / var.removeprefix("BLENDER_USER_").lower()
         d.mkdir(parents=True)

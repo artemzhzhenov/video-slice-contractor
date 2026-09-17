@@ -10,6 +10,11 @@
 # video frames slice/pick_frames.py chooses from the exports (the first frame, the fastest head
 # turn, the widest open jaw) and the still (with the lighting probe) → split → composite →
 # round-trip.
+#
+# CHECK_ASSET_QUICK=1 — an intermediate run for the animator between deliveries: the shot's first
+# video frame only, no still. It ends with ASSET_CHECK_QUICK_OK, never ASSET_CHECK_OK: the full
+# run is what a delivery needs (contractor Q22, 2026-09-17: one CPU video frame takes ~100 s at
+# 64 spp / 25 %).
 # Every step prints its own verdict; the script stops at the first failure with exit 2.
 # Needs Blender 5.2.1 on PATH and the vendored OCIO config (set here).
 set -u
@@ -37,11 +42,17 @@ step "4 check_alembic"; run "${B[@]}" -P "$ROOT/slice/check_alembic.py" -- --abc
 VFRAMES="$("$PY" "$ROOT/slice/pick_frames.py" "$OUT/exports" 2>"$OUT/pick_frames.err")" || { echo "frame choice failed: $(tail -n 1 "$OUT/pick_frames.err")"; exit 2; }
 rm -f "$OUT/pick_frames.err"
 case "$VFRAMES" in "$FIRST"|"$FIRST",*) ;; *) echo "frame choice $VFRAMES does not start at the shot's first frame $FIRST"; exit 2;; esac
+PROFILES="video still"
+if [ "${CHECK_ASSET_QUICK:-}" = "1" ]; then VFRAMES="$FIRST"; PROFILES="video"; echo "QUICK run: first video frame only, no still — not a delivery check"; fi
 step "5 render video frames $VFRAMES ($SAMPLES spp, $SCALE %)"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --profile video --frames "$VFRAMES" --samples "$SAMPLES" --scale "$SCALE" --probe --out "$OUT/renders"
-step "5 render still"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --profile still --frames still --samples "$SAMPLES" --scale "$SCALE" --probe --out "$OUT/renders"
-for prof in video still; do
+[ "$PROFILES" = "video" ] || { step "5 render still"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --profile still --frames still --samples "$SAMPLES" --scale "$SCALE" --probe --out "$OUT/renders"; }
+for prof in $PROFILES; do
   step "6 split $prof"; run "${B[@]}" -P "$ROOT/slice/split_bundles.py" -- "$OUT/renders/$prof" --exports "$OUT/exports"
   step "7 composite $prof"; run "${B[@]}" -P "$ROOT/slice/composite.py" -- "$OUT/renders/$prof"
   step "8 round-trip $prof"; run "${B[@]}" -P "$ROOT/slice/roundtrip.py" -- --exports "$OUT/exports" --renders "$OUT/renders/$prof"
 done
+if [ "$PROFILES" = "video" ]; then
+  echo; echo "ASSET_CHECK_QUICK_OK — every gate passed on the first video frame of $BLEND, $SHOT ($SAMPLES spp / $SCALE %) — NOT a delivery check: run without CHECK_ASSET_QUICK before delivering"
+  exit 0
+fi
 echo; echo "ASSET_CHECK_OK — every gate passed on $BLEND, $SHOT (smoke settings $SAMPLES spp / $SCALE %; thresholds PROVISIONAL)"
