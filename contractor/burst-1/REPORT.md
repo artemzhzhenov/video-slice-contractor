@@ -7,95 +7,100 @@
 
 | Поле | Значение |
 |---|---|
-| Текущая версия сдачи | **v01** — `deliverables/character_v01.blend` |
-| Общий статус | DONE (ждёт приёмки владельца: дословный `check_asset.sh` на M4 + пересборка по п. 5) |
-| Часов потрачено | 6,2 (нарастающим итогом) |
-| Blender | 5.2.1 LTS, build `9e2066aef7ef` (модуль `bpy==5.2.1` с PyPI, Python 3.13.13, Linux x86_64, Cycles CPU) |
-| Шаблон | `scene_template.py` @ `5c24679`, `--shot SHOT_001` |
-| Хэш содержимого v01 | `499694b91e1c17523c1f6ae74e88c59bf7997206c8397833f2e9ba55eee1bb7e` (`blend_content_hash.py`; две независимые сборки из двух шаблонов дают один хэш) |
+| Текущая версия сдачи | **v02** — `deliverables/character_v02.blend` (v01 принят 2026-09-16; v02 = Q16–Q22) |
+| Общий статус | DONE (ждёт приёмки: дословный `check_asset.sh` и пересборка по п. 5 на M4, визуальная оценка п. 2) |
+| Часов потрачено | 19,2 нарастающим итогом (v01 6,2 · v02 **13,0** — ровно кап) |
+| Blender | 5.2.1 LTS, build `9e2066aef7ef` (модуль `bpy==5.2.1`, Python 3.13.13, Linux x86_64, 1 ядро, Cycles CPU; `OpenImageIO 3.1.17` с PyPI для шагов 6–8) |
+| Шаблон | `scene_template.py` @ `15ac994` (не менялся с `27d06be`), `--shot SHOT_001` |
+| Хэш содержимого v02 | `f766197e386c09eef74e52c84fa6b157c763b23b17b727069b15b0cde0fc7e19` (`blend_content_hash.py`; две независимые сборки из двух шаблонов совпали) |
+| MPFB2 | `v2.0.17` = `80919fa`, модуль `bl_ext.<repo>.mpfb` (см. шаг 0) |
 
 ## Пересборка одной командой (ACCEPTANCE п. 5)
 
-Шаг 0 — MPFB2 `v2.0.17` (коммит `80919fa`) как extension:
+Шаг 0 — MPFB2 как extension (один раз):
 
     git clone --branch v2.0.17 https://github.com/makehumancommunity/mpfb2.git && cd mpfb2/src && zip -r mpfb.zip mpfb
     blender -b --command extension install-file mpfb.zip --repo user_default --enable
 
-Скрипт ищет модуль под любым репозиторием (`bl_ext.user_default.mpfb` из исходников, `bl_ext.blender_org.mpfb` из Blender Extensions) и останавливается, если версия в `blender_manifest.toml` не 2.0.17.
-
 Сборка:
 
     blender -b --python-exit-code 2 -P slice/scene_template.py -- --out template.blend --shot SHOT_001
-    blender -b template.blend --python-exit-code 2 -P contractor/burst-1/deliverables/scripts/build_character.py -- --out character_v01.blend
+    blender -b template.blend --python-exit-code 2 -P contractor/burst-1/deliverables/scripts/build_character.py -- --out character_v02.blend
 
-Ожидаемый хвост: `ring: 42 vertices, centre [-0.0, -0.0245, 1.1973] …` и
-`BUILD_OK … height=1.4 ring=42 ring_z=1.1973 body_verts=7633 head_verts=4200 hair_verts=2202 bones=102 blender=5.2.1 LTS`.
-Случайности в сборке нет; всё, что имело недетерминированный порядок (bmesh solidify), заменено явной генерацией — см. журнал.
+Ожидаемый хвост: `BUILD_OK … height=1.4 ring=42 ring_z=1.1973 body_verts=5701 head_verts=4200 hair_verts=6928 bones=102 blender=5.2.1 LTS`.
+Флаг `--keep-env` оставляет пол и стену шаблона (Q16) — **по умолчанию выключен**, см. Q23.
+Ручной геометрии нет: всё строит скрипт. Случайности нет.
 
 ## Пункты
 
 | # | Пункт | Статус | Дата | Комментарий |
 |---|---|---|---|---|
-| 1 | Репозиторий установлен, шаблон собран, `check_scene.py` на шаблоне проходит | DONE | 2026-09-15 | коммит `5c24679` |
-| 2 | Персонаж (тело, одежда, руки) в `C_BODY` / `C_HAND_FG`, материалы по именам | DONE | 2026-09-16 | `HERO_BODY` (MakeHuman base mesh, девочка, рост 1,40 м, 7633 вершин, один модификатор Armature); одежда — регионы материала `HERO_CLOTH_01` (воротник над ключицей, рукава до локтя, леггинсы), обувь `HERO_SHOES`; шея, предплечья, кисти — `HERO_SKIN_BODY`; `HERO_HAND_FG` — левая кисть, отделённая по запястью с теми же весами (шов сварен) |
-| 3 | Дефолтная голова в `C_HEAD`, кольцо `SOCKET_BOUNDARY`, заканчивается на кольце | DONE | 2026-09-16 | `HERO_HEAD` — оболочка (`HERO_SKIN_HEAD` + полоса бровей `HERO_BROW`), кольцо = существующий edge-loop шеи, 42 вершины, веса `(i+1)/N` по углу, `rest_gap max 0.0 / mean 0.0`; отдельные `HERO_EYE_L/R`, `HERO_TEETH_UPPER/LOWER`, `HERO_TONGUE`; envelope в socket-space x ±0,103, y −0,016…0,238, z −0,109…0,120 м |
-| 4 | Волосы мешем в `C_HAIR` | DONE | 2026-09-16 | `HERO_HAIR` — сплошное каре (два эллипсоидных слоя, толщина 2,5 см, обрез по линии волос/затылку, рёбра закрыты), непрозрачный `HERO_HAIR`, без alpha |
-| 5 | Риг `RIG_HERO` с обязательными костями, скиннинг, `SOCKET_HEAD` на `head` | DONE | 2026-09-16 | скелет MakeHuman default, 102 кости (лицевые удалены, их веса → `head`); `spine_01..05`, `neck`, `head` (основание = центр кольца), `shoulder_l/r`; кольцо тела 100 % на `head`; `SOCKET_HEAD` и `FACE_CTRL` перепривязаны, не пересозданы; экспортируемая цепочка строго осевая (см. Q14) |
-| 6 | Лицевая механика от свойств `FACE_CTRL` (26 каналов) | DONE | 2026-09-16 | шейпкеи из expression-таргетов MakeHuman (набор `caucasian`), двусторонние каналы разделены маской по X, `jaw_lateral` процедурный, `gaze_yaw/pitch` — драйверы поворота глаз; драйверы `max(±v,0)`; soft-лимиты шаблона не тронуты; нижние зубы и язык следуют за `jaw_open`; тест — `previews/face_channels_test.png` |
-| 7 | Прокси `NECK_PROXY`, `COLLISION_PROXY` подогнаны | DONE | 2026-09-16 | цилиндр по шее (ключица→кольцо, r = 1,08·r кольца) → `neck`; бокс плеч/груди → `spine_03`; `hide_render` |
-| 8 | Ray visibility головы/волос по TASK §6 | DONE | 2026-09-16 | все 7 объектов `C_HEAD` ∪ `C_HAIR` |
-| 9 | `check_asset.sh` проходит (хвост лога ниже) | DONE* | 2026-09-16 | *по шагам той же обёрткой (`blender`-бинаря в среде нет), все 8 шагов PASS; дословный прогон — владелец |
-| 10 | `LICENSES.md` заполнен | DONE | 2026-09-15 | тег `v2.0.17` |
+| 1 | Репозиторий установлен, шаблон собран, `check_scene.py` проходит | DONE | 2026-09-15 | |
+| 2 | Персонаж (тело, одежда, руки) в `C_BODY` / `C_HAND_FG` | DONE (v02) | 2026-09-17 | **Одежда отдельной геометрией:** `HERO_DRESS` — параметрическая труба по сечениям тела (48×30, воротник над ключицей → подол над коленом, расклешение ниже талии, «юбка не сужается вниз»), `HERO_SLEEVE_L/R` — трубы вдоль плечевой кости до локтя, закрытые со стороны плеча; веса от ближайшей вершины тела (numpy, детерминированно), один Armature, `HERO_CLOTH_01`. **Тело под одеждой удалено** (2188 граней из 7600, запас 3 см под воротником, подолом и манжетами; шар плеча оставлен под платьем). Открыты: шея, предплечья, кисти, ноги ниже подола. Превью поворота на 60°: дыр нет |
+| 3 | Дефолтная голова в `C_HEAD`, кольцо `SOCKET_BOUNDARY` | DONE (v02) | 2026-09-17 | как в v01 + **веко Q19/Q21** и **зрачок геометрией** (сфера с полюсом на оси взгляда, зрачок 10° и радужка 25° — точные кольца вершин). `HERO_BROWS` — отдельный меш: параметрическая дуга над каждым глазом, спроецированная на кожу, сужается к внешнему концу, шейпкеи `brow_*` от ближайшей вершины оболочки; рендерится, без кольца |
+| 4 | Волосы мешем в `C_HAIR` | DONE (v02) | 2026-09-17 | каре прядями: шлем-подложка (два эллипсоидных слоя, 1,8 см) + 61 прядь явной генерацией (44 бок/затылок до линии челюсти/затылка, 14 чёлки, 3 на левом виске); пряди идут по поверхности до широты 105°, дальше строго вниз. **Жёстко** на `SOCKET_HEAD`, без шейпкеев и драйверов; экспорт `default_head_deformed`: волосы в допуске. **Глаза, брови и рот открыты на фронте, ¾ и профиле** (`previews/head|three_quarter|side.png`); прядь на виске кончается у наружного угла глаза и **не двигается на повороте** (Q22) |
+| 5 | Риг `RIG_HERO`, скиннинг, `SOCKET_HEAD` на `head` | DONE (v02) | 2026-09-17 | **веса шеи (Q17):** четыре ряда рёбер под кольцом с `head` 0,78 → 0,52 → 0,28 → 0,10 (обход топологии от шовного loop'а), кольцо ровно 100 % `head`. Превью 60° (`neck` 25° + `head` 35° + кивок 8°), ¾ и сбоку: без защипа, шов сварен. Preserve Volume **не понадобился**, выключен |
+| 6 | Лицевая механика `FACE_CTRL` (26 каналов) | DONE (v02) | 2026-09-17 | **веко:** `lid_aperture −1` = полное смыкание — скрипт измеряет зазор между краем верхнего века и статичным нижним по колонке зрачка и масштабирует юнит MakeHuman (×1,402 на этой голове), закрытое веко проецируется на сферу глаза; in-between на −0,5 (те же вершины, вытолкнутые из сферы). Драйверы по `combination_rules`: `c = max(max(0,−lid), blink)`, full = `max(0,2c−1)`, mid = `1−|2c−1|`, widen = `max(0,lid)·(1−blink)`. Серия `previews/lid_*.png`: −1 сомкнуто, −0,5 полуприкрыто без среза склеры, +1 расширено, −1+blink и +1+blink сомкнуты |
+| 7 | Прокси `NECK_PROXY`, `COLLISION_PROXY` | DONE | 2026-09-16 | без изменений |
+| 8 | Ray visibility головы/волос | DONE | 2026-09-16 | все объекты `C_HEAD` ∪ `C_HAIR` (7 + брови) |
+| 9 | `check_asset.sh` проходит | DONE* | 2026-09-17 | *пошагово той же обёрткой (`blender`-бинаря нет), **все 8 шагов на 64 spp / 25 %**, три видеокадра `pick_frames` + стилл — хвост ниже |
+| 10 | `LICENSES.md` | DONE | 2026-09-17 | без новых сторонних элементов |
 
 ## Журнал
 
-- 2026-09-15 — контракт прочитан, Q2–Q13, среда (см. выше). 2,2 ч.
-- 2026-09-16 — `build_character.py`, сборка v01 и все проверки. Что оказалось нетривиальным:
-  - **ring через bisect отброшен** в пользу существующего edge-loop (обход по топологии от
-    вершины на середине шеи, валентность 4) — бисекция интерполирует шейпкеи и портит
-    порядок; loop даёт побитовое совпадение колец.
-  - **Масштаб костей в float32:** наклонные кости MakeHuman декомпозируются с ошибкой
-    ~1,3e-6, `export_shot.py` требует 1e-6 → экспортируемая цепочка сделана строго
-    осевой (`root`, `spine_*`, `neck`, `head` — вертикально на оси кольца; плечи — по X). Q14.
-  - **bmesh solidify недетерминирован** (порядок по хэшу указателей): у двух сборок
-    расходились координаты волос до 12 см. Волосы генерируются явно (u×v сетка, два слоя,
-    рёбра по boundary-edge'ам) — хэши совпали.
-  - Камера шаблона держит анимацию: мои превью первое время рендерились с её позиции;
-    `preview_render.py` снимает анимацию во временной сцене.
-  - Шаг 5 (Cycles CPU, 64 spp, 25 %): video 99 с, still 129 с. Шаги 6–8 потребовали
-    `OpenImageIO` — в pip-`bpy` его нет, поставлен `OpenImageIO 3.1.17` с PyPI.
-  4,0 ч.
+- 2026-09-15 … 2026-09-16 — v01, см. историю. 6,2 ч.
+- 2026-09-17 — v02 по списку Q22, 13,0 ч. Что оказалось нетривиальным:
+  - **Веко:** юнит закрытия MakeHuman на увеличенных стилизацией глазах оставлял щель; первая попытка
+    измерять зазор только по движущимся вершинам дала «зазора нет» (нижнее веко в юните не двигается) —
+    зазор считается против статичного нижнего края.
+  - **Одежда:** «платье как смещённые грани тела» отброшено (лохматый край, две трубы ног вместо юбки);
+    параметрическая труба по сечениям + монотонная юбка. Плечи: три итерации, чтобы рукав начинался
+    внутри платья и не было видно внутрь трубы (закрыт торец, старт за 6 см до сустава).
+  - **Волосы:** пряди по меридиану эллипсоида не достигали линии челюсти (дно эллипсоида выше неё) и
+    оборачивались вокруг головы через лицо; исправлено уходом с поверхности вниз после 105°.
+  - **Брови:** три версии по полосе вершин оболочки давали разрыв дуги (z-окно ловило складку века и
+    гребень); итог — параметрическая дуга, спроецированная на кожу.
+  - **Q23 (окружение):** см. ниже; окружение также делает рендер в 4–5 раз дольше (215 с vs 46 с на стилл).
+  - Среда: 1 ядро CPU, лимит 300 с на команду, фон убивается — шаг 5 без окружения укладывается
+    (video 3 кадра 246 с, still 119 с), с окружением — нет.
 
-Известные косметические ограничения (не по контракту, на решение владельца): брови —
-блочная полоса граней оболочки (разрешение базового меша); волосы — гладкий «шлем»-каре без
-прядей; одежда — материал по регионам, без отдельной геометрии; глаза — зрачок из граней
-сферы; текстур нет, всё процедурные Principled.
+## Q23 — окружение роняет `composite.py`
+
+С `PLACEHOLDER_ENV_*` (Q16) гейт precomp reproduction падает: `inside_band_within_5e-2` 0,879 на стилле,
+0,890 на видео; без окружения 0,969; v01 (контроль, те же 24 spp) 0,966; пряди ни при чём (0,883 без
+них). Round-trip с окружением **проходит** (p95 0,25 px, iou 0,9995). Полоса включает стык стены и пола
+на всю ширину кадра — там `FRONT over (HEAD over BACK)` расходится с beauty > 0,05. Это формула D5 при
+наличии окружения, не персонаж. Решение: `--keep-env` выключен по умолчанию, чтобы сдача прошла
+автоприёмку; Q16 остаётся открытым до правки компоновщика/порога. Лог экспериментов —
+`deliverables/logs/q23_env_experiments.log`. Побочно: round-trip требует масштаба с целыми пикселями
+(16 % падает: `holdout is 614x345`), 20 % и 25 % работают.
+
+Косметические ограничения (на решение владельца): текстур нет (процедурные Principled); пряди —
+гладкие трубки одного цвета; платье без складок и рисунка.
 
 ## Последний прогон `check_asset.sh`
 
-Команда и дата: 2026-09-16, пошагово через `bpy_module_runner.py` (эмулирует
-`blender -b <file> -P <script> -- …`), `character_v01.blend`, 64 spp / 25 %.
+2026-09-17, пошагово через `bpy_module_runner.py`, `character_v02.blend`, `SHOT_001`, 64 spp / 25 %,
+кадры `pick_frames` = 1001,1090,1102 + стилл 1050:
 
 ```
 === 1 check_scene       {"blender": "5.2.1 LTS", "device": "CPU", "scene_linear": "ACEScg", "checks_failed": []}
-=== 2 export SHOT_001   EXPORT_OK SHOT_001 120 frames
+=== 2 export            EXPORT_OK SHOT_001 120 frames
 === 3 check_exports     "checks_failed": []
 === 4 check_alembic     "checks_failed": []
-=== 5 render video      RENDER_OK video 1 frames   (99 s CPU)
-=== 5 render still      RENDER_OK still 1 frames   (129 s CPU)
-=== 6 split video       SPLIT_OK {"HEAD_RENDER_BUNDLE": {"frames": 1}, "COMPOSITE_BUNDLE": {"frames": 1}}
-=== 7 composite video   COMPOSITE_FRAME 1001 PASS outside_band_within_1e-3=1.0000 inside_band_within_5e-2=0.969 band=0.0044
-=== 8 round-trip video  ROUNDTRIP_FRAME 1001 PASS p95=0.25px centroid=0.002px iou=0.9992 band_mean_abs=0.0201 | ctrl translation=fails scale=fails rotation=fails
-                        ROUNDTRIP_OK video rotation_control=VALIDATED positive_control=NOT_DISCRIMINATING
+=== pick_frames         1001,1090,1102
+=== 5 render video      RENDER_OK video 3 frames (246 s)      still: RENDER_OK still 1 frames (119 s)
+=== 6 split video       SPLIT_OK HEAD_RENDER_BUNDLE 3 frames, COMPOSITE_BUNDLE 3 frames
+=== 7 composite video   1001 PASS inside_band=0.973 · 1090 PASS 0.968 · 1102 PASS 0.979   COMPOSITE_OK 3 frames
+=== 8 round-trip video  1001 PASS p95=0.25px centroid=0.002px iou=0.9987 rest_head=passes
+                        1090 PASS p95=0.25px centroid=0.001px iou=0.9991 rest_head=passes
+                        1102 PASS p95=0.25px centroid=0.002px iou=0.9994 rest_head=fails   (jaw_open — негативный контроль работает)
+                        ROUNDTRIP_OK video 3 frames rotation_control=VALIDATED positive_control=NOT_DISCRIMINATING
 === 6 split still       SPLIT_OK
-=== 7 composite still   COMPOSITE_FRAME 1050 PASS outside_band_within_1e-3=1.0000 inside_band_within_5e-2=0.966 band=0.0038
-=== 8 round-trip still  ROUNDTRIP_FRAME 1050 PASS p95=0.25px centroid=0.004px iou=0.9989 band_mean_abs=0.0201 deformed=True
-                        ROUNDTRIP_OK still rotation_control=VALIDATED
+=== 7 composite still   1050 PASS inside_band=0.968   COMPOSITE_OK
+=== 8 round-trip still  1050 PASS p95=0.25px centroid=0.005px iou=0.9992 rest_head=passes   ROUNDTRIP_OK rotation_control=VALIDATED
 ```
-
-Заметка: rotation_control на настоящей голове **VALIDATED** (на манекене-сфере он не
-валидировался — см. conventions.roundtrip.negative_control.rotation).
 
 ## Блокеры
 
-- нет. Открыты Q14 (допуск масштаба костей) и Q15 (высота кольца vs камера) — на v01 не влияют.
+- нет. Открыт Q23 (окружение vs `composite.py`) — на приёмку v02 не влияет при `--keep-env` по умолчанию.

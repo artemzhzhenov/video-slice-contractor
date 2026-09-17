@@ -6,10 +6,11 @@
 #   SHOT_001 — the criterion-3 gate needs ≥ 64 spp, measured: 8 and 16 spp fail it on the placeholder;
 #   the scene must be the named shot's scene, i.e. built with scene_template.py --shot SHOT)
 #
-# Steps: check_scene → export the shot → check_exports → check_alembic → smoke render of the
-# video frames slice/pick_frames.py chooses from the exports (the first frame, the fastest head
-# turn, the widest open jaw) and the still (with the lighting probe) → split → composite →
-# round-trip.
+# Steps: check_scene → check_silhouette (no see-through hole at the head↔body seam, in the rest
+# pose and at the slice's maximum head turn) → export the shot → check_exports → check_alembic →
+# smoke render of the video frames slice/pick_frames.py chooses from the exports (the first frame,
+# the fastest head turn, the widest open jaw) and the still (with the lighting probe) → split →
+# composite → round-trip.
 #
 # CHECK_ASSET_QUICK=1 — an intermediate run for the animator between deliveries: the shot's first
 # video frame only, no still. It ends with ASSET_CHECK_QUICK_OK, never ASSET_CHECK_OK: the full
@@ -36,6 +37,7 @@ blender --version 2>/dev/null | head -n 1
 echo "python: $PY; OCIO: $(basename "$OCIO")"
 run() { "$@" > "$OUT/last_step.log" 2>&1; rc=$?; grep -E "_OK|_ERROR|checks_failed|ROUNDTRIP_FRAME|COMPOSITE_FRAME|Traceback" "$OUT/last_step.log" | tail -n 6; if [ $rc -ne 0 ]; then echo "STEP FAILED (rc $rc) — full log: $OUT/last_step.log"; exit 2; fi; }
 step "1 check_scene"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/check_scene.py"
+step "1b check_silhouette"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/check_silhouette.py" -- --out "$OUT/silhouette"
 step "2 export $SHOT"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/export_shot.py" -- --shot "$SHOT" --out "$OUT/exports"
 step "3 check_exports"; run "$PY" "$ROOT/slice/check_exports.py" "$OUT/exports"
 step "4 check_alembic"; run "${B[@]}" -P "$ROOT/slice/check_alembic.py" -- --abc "$OUT/exports/proxies.abc" --meta "$OUT/exports/proxies.abc.meta.json"
