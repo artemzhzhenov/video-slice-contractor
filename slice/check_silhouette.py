@@ -89,7 +89,18 @@ def id_materials(objs):
     return by_colour
 
 
+def socket_rotation(socket, depsgraph):
+    """SOCKET_HEAD's world yaw / pitch / roll in degrees — what the pose actually did to the head."""
+    q = socket.evaluated_get(depsgraph).matrix_world.to_quaternion()
+    f, up = q @ Vector((0.0, -1.0, 0.0)), q @ Vector((0.0, 0.0, 1.0))
+    return {"yaw_deg": round(math.degrees(math.atan2(f.x, -f.y)), 1),
+            "pitch_deg": round(math.degrees(math.asin(max(-1.0, min(1.0, f.z)))), 1),
+            "roll_deg": round(math.degrees(math.atan2(up.x, up.z)), 1)}
+
+
 def pose_rig(rig, bones):
+    """Bones are rotated in their own local frame, where +Y runs along the bone: a turn is a
+    rotation about Y and about Z it is a roll. The caller verifies what the pose achieved."""
     rig.animation_data_clear()
     for pb in rig.pose.bones:
         pb.rotation_mode = "XYZ"
@@ -103,6 +114,23 @@ def pose_rig(rig, bones):
         r["xyz".index(axis)] = math.radians(deg)
         pb.rotation_euler = r
     bpy.context.view_layer.update()
+
+
+def check_achieved(pose_name, got):
+    """A pose is trusted only where it is measured: a wrong rotation axis turns a 60° turn into a
+    60° roll without any error (measured 2026-09-19 on our own first version)."""
+    want = S["pose"].get("achieved", {}).get(pose_name)
+    if not want:
+        return None
+    tol = want["tolerance_deg"]
+    off = {k: got[k] for k in ("yaw_deg", "pitch_deg", "roll_deg")
+           if abs(got[k] - want[f"socket_{k}"]) > tol}
+    if off:
+        raise SilhouetteError(f"pose {pose_name} did not turn the head as declared: SOCKET_HEAD is at {got}, "
+                              f"conventions → silhouette.pose.achieved asks for yaw {want['socket_yaw_deg']}°, "
+                              f"pitch {want['socket_pitch_deg']}°, roll {want['socket_roll_deg']}° (±{tol}°). "
+                              f"Bone rotations are local: +Y runs along the bone, so a turn is about Y")
+    return got
 
 
 def figure_bounds(objs, depsgraph):
@@ -299,6 +327,10 @@ def main():
         for pose_name, bones in S["pose"]["poses"].items():
             pose_rig(rig, bones)
             dg = bpy.context.evaluated_depsgraph_get()
+            got = socket_rotation(socket_obj, dg)
+            check_achieved(pose_name, got)
+            report["poses_measured"] = {**report.get("poses_measured", {}), pose_name: got}
+            print(f"SILHOUETTE_POSE {pose_name} socket yaw {got['yaw_deg']:+}° pitch {got['pitch_deg']:+}° roll {got['roll_deg']:+}°")
             socket = socket_obj.evaluated_get(dg).matrix_world.translation.copy()
             bounds = figure_bounds(objs, dg)
             for view in S["views"]:
