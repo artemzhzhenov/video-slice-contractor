@@ -525,9 +525,9 @@
   },
   "gate": {
    "default": {
-    "p95_boundary_px_max": 1.0,
+    "p95_boundary_px_max": 0.5,
     "centroid_px_max": 0.5,
-    "iou_min": 0.995
+    "iou_boundary_error_px_max": 0.15
    },
    "stress_window": {
     "shot_id": "SHOT_003",
@@ -537,9 +537,16 @@
     ],
     "p95_boundary_px_max": 2.0,
     "centroid_px_max": 1.0,
-    "iou_min": 0.985
+    "iou_boundary_error_px_max": 0.3
    },
-   "scaling": "p95_boundary_px_max and centroid_px_max are stated at the profile resolution and multiplied by resolution_percentage/100; the boundary threshold never drops below 2/4 px (two quanta of the iso-contour resolution, one of headroom); iou_min and mean_abs_coverage_in_band_max do not scale; a reduced-scale run is a weaker test and the report says so",
+   "iou_rule": {
+    "formula": "iou_min = clamp(1 \u2212 iou_boundary_error_px_max \u00d7 boundary_px / reference_px, floor, ceiling)",
+    "floor": 0.9,
+    "ceiling": 0.9995,
+    "basis": "IoU is not a framing-free number: the same boundary error costs 1 \u2212 IoU in proportion to the silhouette\u2019s boundary over its area, so a flat iou_min is nearly free on a big head and harsh on a small one. Stating the threshold as the boundary error it implies makes it comparable with p95 and independent of the framing \u2014 which burst 2 changes deliberately (close-up \u00be \u2192 profile, a hand across the face, the head far away).",
+    "status": "PROVISIONAL \u2014 measured 2026-09-19 on contractor v01/v02/v03, SHOT_001, at 25 % and 100 %: a correct export implies 0.022\u20130.054 px of boundary error; the rest head on an open jaw 0.11\u20130.39 px; the 3\u00b0 yaw control 0.24\u20130.33 px; the 5 px translation 3.6\u20133.8 px; the 5 px growth 4.5\u20134.7 px. 0.15 px leaves a correct export ~3\u00d7 of headroom and makes IoU catch the rotation control, which used to fail on the band metric alone \u2014 with the old flat 0.995 a 0.5 px translation passed the IoU test at 100 %"
+   },
+   "scaling": "p95_boundary_px_max and centroid_px_max are stated at the profile resolution and multiplied by resolution_percentage/100; the boundary threshold never drops below 2/4 px (two quanta of the iso-contour resolution, one of headroom). The IoU threshold is not scaled and needs no scaling: it is stated as a boundary error in pixels and resolved per frame against that frame's own silhouette (see iou_rule), which is what makes it the same test on a close-up and on a distant head. mean_abs_coverage_in_band_max does not scale either. A reduced-scale run is still a weaker test \u2014 the render must use a percentage that gives whole pixels on both axes (render_passes.py refuses the rest) and the positive control cannot discriminate below 100 % \u2014 and the report says so",
    "status": "PROVISIONAL (proposal §4; band threshold added 2026-09-15 review round 2 against a measured floor of 0.018–0.021) — calibrated by the bake-off; the 1.0 px boundary value comes from Cycles' ~1.5 px reconstruction filter. Reviewed 2026-09-16 on the real head (contractor v01, SHOT_001, 7 video frames + 1 still at 100 %; measurements/roundtrip_v01_SHOT_001_review.json): values kept — undeformed floor p95 0.25 px / centroid ≤ 0.006 px / IoU ≥ 0.9997 / band 0.016–0.020; the gate catches 0.5 px translation or growth and 0.5–0.75° rotation, mostly through the band metric; iou_min is size-dependent (≈ 0.67 px of uniform boundary error at this framing) — a size-aware form is proposed for burst 2",
    "on_fail": "ROUNDTRIP_ERROR, exit 2 — a master whose export does not round-trip is not delivered (ADR-0002 D7)",
    "mean_abs_coverage_in_band_max": 0.05,
@@ -563,7 +570,7 @@
    "method": "the shutter-integrated result is compared with the centre-sample-only result on every video frame; --ignore-subframes writes a whole centre-only report",
    "min_difference": 0.005,
    "rule": "DISCRIMINATING when centroid or band difference exceeds min_difference; NOT_DISCRIMINATING is recorded, not failed — it means the head did not move enough across this frame's shutter to test the sub-frame data (the placeholder's SHOT_001 is such a case; the real asset's fast-turn window is where this control must read DISCRIMINATING)",
-   "min_difference_status": "PROVISIONAL — raised from 0.001 on 2026-09-16 (measurements/roundtrip_v01_SHOT_001_review.json): on v01 the static frame 1001 (0.001° per shutter) differs by 0.0018–0.0020 at 100 %, which read DISCRIMINATING against 0.001 while testing nothing; moving frames (0.26–0.41° per shutter) differ by 0.0136–0.0404. A frame that does not move reads NOT_DISCRIMINATING whatever the threshold — pick a moving frame to test the sub-frame data"
+   "min_difference_status": "PROVISIONAL — raised from 0.001 on 2026-09-16 (measurements/roundtrip_v01_SHOT_001_review.json): on v01 the static frame 1001 (0.001° per shutter) differs by 0.0018–0.0020 at 100 %, which read DISCRIMINATING against 0.001 while testing nothing; moving frames (0.26–0.41° per shutter) differ by 0.0136–0.0404. A frame that does not move reads NOT_DISCRIMINATING whatever the threshold — pick a moving frame to test the sub-frame data. **Resolution matters as much as motion (measured 2026-09-19 on contractor v02 and v03, SHOT_001):** the same moving frames that read DISCRIMINATING at 100 % (differences 0.0136–0.0404) read NOT_DISCRIMINATING at 25 %, where the difference falls to 0.0042–0.0045 against this 0.005 floor — the sub-frame motion is a quarter as many pixels. A smoke run at 25 % therefore never tests the sub-frame data, whatever frame it picks; only a 100 % run does. The threshold is left absolute on purpose: it is a coverage difference, and scaling it would hide that a small render cannot see this"
   },
   "report": "renders/<profile>/roundtrip_report.<profile>.json; bundle_manifest.<profile>.json → roundtrip {report, status}",
   "deformation_rule": "since 2026-09-17 the re-projected head carries the frame's facial deformation (exports.default_head_deformed), so a deformed frame is gated with the same thresholds and the test measures the transform only. History: the rest head re-projected against deformed renders FAILED a correct export at jaw_open 0.87 (contractor v01 frame 1100: p95 2.57 px, centroid 0.57 px, band 0.069, 605 of 649 missing pixels at the chin) and passed at jaw_open 0.19; loosening the thresholds on deformed frames was rejected (it hides transform errors of the same size), and the old flag (max |channel| > 0.2) marked blinks and mouth corners that leave the silhouette unchanged. The rest head is still re-projected on every frame and reported as rest_head_comparison (never gated)",

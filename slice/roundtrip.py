@@ -40,7 +40,7 @@ sys.path.insert(0, str(ROOT))
 from slice.camera_model import project  # noqa: E402
 from slice.composite import coverage, crypto_manifest, read_parts  # noqa: E402
 from slice.cryptomatte import float_id_from_hex  # noqa: E402
-from slice.matte_metrics import SS, MatteError, metrics, rasterize  # noqa: E402
+from slice.matte_metrics import SS, MatteError, iou_min_for, metrics, rasterize  # noqa: E402
 
 CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
 RT = CONV["roundtrip"]
@@ -155,9 +155,16 @@ def thresholds_for(shot, frame, scale):
     # the upsampled iso-contour, so its threshold never drops below 2/SS — one quantum of
     # headroom (review round 2). IoU and the band coverage difference are resolution-free.
     return {"p95_boundary_px_max": max(g["p95_boundary_px_max"] * f, 2.0 / SS),
-            "centroid_px_max": g["centroid_px_max"] * f, "iou_min": g["iou_min"],
+            "centroid_px_max": g["centroid_px_max"] * f,
+            "iou_boundary_error_px_max": g["iou_boundary_error_px_max"], "iou_rule": RT["gate"]["iou_rule"],
             "mean_abs_coverage_in_band_max": RT["gate"]["mean_abs_coverage_in_band_max"],
             "body_over_head_excluded_fraction_max": RT["gate"]["body_over_head_excluded_fraction_max"]}
+
+
+def iou_min_of(m, th):
+    """This frame's IoU floor — the rule lives in matte_metrics so CI can test it without Blender."""
+    r = th["iou_rule"]
+    return iou_min_for(m, th["iou_boundary_error_px_max"], r["floor"], r["ceiling"])
 
 
 def gate(m, th):
@@ -166,7 +173,7 @@ def gate(m, th):
         failed.append("p95_boundary_px")
     if m["centroid_px"] > th["centroid_px_max"]:
         failed.append("centroid_px")
-    if m["iou"] < th["iou_min"]:
+    if m["iou"] < iou_min_of(m, th):
         failed.append("iou")
     if m["mean_abs_coverage_in_band"] > th["mean_abs_coverage_in_band_max"]:
         failed.append("mean_abs_coverage_in_band")
@@ -315,7 +322,9 @@ def main(argv):
         h, w = ref.shape
         px = cam_by_frame[frame]["intrinsics"]["px_by_profile"][profile]
         if [round(v * scale / 100) for v in px["resolution_px"]] != [w, h]:
-            raise RoundTripError(f"frame {frame}: holdout is {w}x{h}, profile {profile} at {scale} % is {px['resolution_px']}")
+            raise RoundTripError(f"frame {frame}: holdout is {w}x{h}, profile {profile} at {scale} % is {px['resolution_px']} — "
+                                 f"a scale that does not give whole pixels renders one size and is re-derived as another; "
+                                 f"render_passes.py refuses such a scale, so this holdout predates that check or was not made by it")
         f = scale / 100.0
         fx_fy = [v * f for v in px["focal_length_px"]]
         cx_cy = [v * f for v in px["principal_point_px"]]
@@ -363,7 +372,7 @@ def main(argv):
         # deformation is visible in the silhouette and the deformed geometry is what saved it.
         m_rest = measure(coverage_for_frame(verts, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, offsets))
         t_failed, s_failed, r_failed = gate(m_t, th), gate(m_s, th), gate(m_r, th)
-        rec = {"frame": frame, "metrics": m, "thresholds": th, "failed": failed, "status": "PASS" if not failed else "FAIL",
+        rec = {"frame": frame, "metrics": m, "thresholds": {**th, "iou_min_resolved": iou_min_of(m, th)}, "failed": failed, "status": "PASS" if not failed else "FAIL",
                "performance_track_max_abs_channel": track_by_frame[frame],
                "rest_head_comparison": {"metrics": m_rest, "gate_failed": gate(m_rest, th),
                                         "note": "the rest head re-projected on this frame, reported only: failing here while the deformed head passes means the facial deformation is visible in the silhouette"},

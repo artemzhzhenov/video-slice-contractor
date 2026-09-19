@@ -71,6 +71,14 @@ def configure_device(scene):
 def apply_profile(scene, profile, samples, scale):
     p = CONV["render_profiles"][profile]
     rx, ry = p["resolution"]
+    # A smoke scale must give whole pixels on both axes. Blender truncates rx·pct/100 while every
+    # consumer that re-derives the size rounds it, so a scale like 16 % on 3840×2160 renders
+    # 614×345 where the round-trip expects 614×346 and stops with a size mismatch that says
+    # nothing about its cause (contractor, 2026-09-17). Refused here, where the cause is visible.
+    if (rx * scale) % 100 or (ry * scale) % 100:
+        ok = [s for s in range(1, 101) if not (rx * s) % 100 and not (ry * s) % 100]
+        raise RenderError(f"--scale {scale} % on {profile}'s {rx}x{ry} gives {rx * scale / 100:.1f}x{ry * scale / 100:.1f} px, "
+                          f"not whole pixels; scales that do: {', '.join(str(s) + ' %' for s in ok)}")
     scene.render.resolution_x, scene.render.resolution_y = rx, ry
     scene.render.resolution_percentage = scale
     scene.cycles.samples = samples

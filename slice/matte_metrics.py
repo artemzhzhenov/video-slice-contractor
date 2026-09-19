@@ -13,6 +13,18 @@ class MatteError(ValueError):
     pass
 
 
+def iou_min_for(m, boundary_error_px, floor, ceiling):
+    """The IoU floor a silhouette's own framing implies (conventions → roundtrip.gate.iou_rule).
+    A flat iou_min is nearly free on a big silhouette and harsh on a small one, because the same
+    boundary error costs 1 − IoU in proportion to boundary / area; the gate states that boundary
+    error instead and resolves the threshold per frame. Already resolution-free: it does not scale
+    with the render percentage."""
+    a, b = m["silhouette_px"]["reference"], m["boundary_px"]
+    if a <= 0 or b <= 0:
+        raise MatteError("the reference silhouette has no area or no boundary — nothing to gate")
+    return float(min(max(1.0 - boundary_error_px * b / a, floor), ceiling))
+
+
 def edge_band(mask, band):
     """Pixels within `band` px (Chebyshev) of the mask's edge, without wrapping at the borders."""
     padded = np.pad(mask, band, mode="edge")
@@ -141,4 +153,8 @@ def metrics(cov, ref, exclude=None):
             "centroid_px": float(np.linalg.norm(centroid(ck) - centroid(rk))),
             "iou": float(((a & b) & keep).sum() / ((a | b) & keep).sum()),
             "mean_abs_coverage_in_band": float(np.abs(cov - ref)[band].mean()) if band.any() else 0.0,
-            "silhouette_px": {"reprojected": int((a & keep).sum()), "reference": int((b & keep).sum()), "excluded": int(exclude.sum())}}
+            "silhouette_px": {"reprojected": int((a & keep).sum()), "reference": int((b & keep).sum()), "excluded": int(exclude.sum())},
+            # The reference silhouette's boundary length in pixels. IoU is not a framing-free
+            # number — the same boundary error costs 1 − IoU in proportion to boundary / area —
+            # so the gate states its threshold as the boundary error it implies and needs this.
+            "boundary_px": int((boundary(b) & keep).sum())}
