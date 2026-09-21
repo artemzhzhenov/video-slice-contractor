@@ -241,5 +241,7 @@
     "SHOT_002": 1215,
     "SHOT_003": 1290
   },
-  "editorial_merge_rule": "narrowest window wins where windows overlap"
+  "editorial_merge_rule": "narrowest window wins where windows overlap",
+  "head_angular_velocity_threshold_deg_s": 140,
+  "head_angular_velocity_threshold_note": "PRELIMINARY — declared 2026-09-21 on SHOT_001 v01 (burst 2): MEDIUM windows ≤ 0.8·T = 112 °/s, fast_movement ≥ 1.5·T = 210 °/s. SHOT_001 measured: laughter 99.5 °/s, open_mouth 36.2 °/s. The animator proposed 125, which put the MEDIUM limit at 100 °/s against a measured 99.5 — the tight edge TASK §6 rule 3 forbids; 140 leaves 13 % over the fastest MEDIUM window and still puts fast_movement far under the ~390 °/s export ceiling. Final value after SHOT_003 (Q24.4), and every shot is re-checked against it"
 }
