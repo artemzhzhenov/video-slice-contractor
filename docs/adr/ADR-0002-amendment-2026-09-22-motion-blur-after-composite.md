@@ -27,13 +27,19 @@ Evidence: `slice/measurements/composite_seam_motion_blur_SHOT_001_v01.json` and
    when coverage and the plate behind it move differently during the shutter. No seam geometry and no
    shadow-pass change can fix it. Composite-side variants were measured and did nothing
    (0.867 → 0.865–0.869).
-2. **A second, independent seam defect: coincident geometry.** The default head's overlap band below
+2. ~~**A second, independent seam defect: coincident geometry.**~~ **STRUCK 2026-09-23** — this
+   paragraph is wrong and its rule is corrected in
+   `ADR-0002-correction-2026-09-23-seam-overlap-margin.md`. The band it describes was an artefact of
+   reading the socket curve as the vertices whose `SOCKET_BOUNDARY` weight exceeds 0.5, where that
+   weight is the ring order. With the curve read whole there is no head geometry below it, no body
+   geometry above it, and the two rings coincide to 0.000 mm. The original text follows, struck:
+   ~~**A second, independent seam defect: coincident geometry.** The default head's overlap band below
    the socket boundary lies **on** the body neck. As delivered, band-to-skin distance over all
    120 frames runs from exactly 0 to 6.7 mm outside. The head is rigid on the socket while the neck is
    skinned to head/neck/spine/shoulders, so the two fight for depth. Tucking the band ≥ 2 mm inside on
    every frame lowers the seam error on calm frames by a third to a half (1001: 0.954 → 0.971,
    1094: 0.948 → 0.970), and the silhouette gate still passes. It does not touch the motion-blur
-   defect (1090: 0.867 → 0.888).
+   defect (1090: 0.867 → 0.888).~~
 3. **Blur after compositing, done by layers, fixes the seam and stays close to the true blur.** Each
    sharp layer is warped along its **own** motion vectors to K instants of the shutter. The layers are
    composited at every instant, then averaged. Measured against a true 3D-blurred render (1024 spp) on
@@ -52,7 +58,7 @@ Evidence: `slice/measurements/composite_seam_motion_blur_SHOT_001_v01.json` and
 
 ## Decision (proposed)
 
-### A1. §D1 — seam overlap margin (new bullet)
+### A1. §D1 — seam overlap margin (new bullet) — **superseded 2026-09-23**, see the correction
 
 - **Overlap margin.** Head geometry that continues below the socket boundary curve (the band that
   closes cracks from inside) lies **inside** the body neck on every frame of every shot. Its signed

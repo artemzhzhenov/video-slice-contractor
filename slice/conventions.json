@@ -1253,16 +1253,18 @@
   "evidence": "slice/measurements/composite_seam_motion_blur_SHOT_001_v01.json"
  },
  "seam_margin": {
-  "criterion": "ADR-0002 D1 overlap margin (amendment 2026-09-22): head geometry continuing below the socket boundary curve must lie INSIDE the body neck on every frame. Measured on SHOT_001 v01: the band ran from exactly on the body skin to 6.7 mm outside it, because the head is rigid on the socket while the neck is skinned to head/neck/spine/shoulders; coincident surfaces fight for depth and the layered composite drew a line across the neck",
+  "criterion": "ADR-0002 D1 overlap margin (amendment 2026-09-22, corrected 2026-09-23): WHERE a head continues its shell below the socket boundary curve, that geometry must lie INSIDE the body neck on every frame, so the body wins the depth test below the curve. The slice\u2019s own head has none - it ends at the curve, welded to the body ring (0.000 mm) - and the gate passes vacuously on it. The band measured before the correction was an artefact of reading half the curve; see docs/adr/ADR-0002-correction-2026-09-23-seam-overlap-margin.md",
   "rule": "on every frame, every head-shell vertex below the boundary curve has signed distance to the body surface <= -margin_mm (+ = outside the skin), ramped from 0 at the curve to the full margin at ramp_mm below it; tolerance_mm of numerical slack",
   "collections": ["C_HEAD"],
   "body_collections": ["C_BODY"],
+  "ring_read": "the socket curve is read by MEMBERSHIP of the SOCKET_BOUNDARY vertex group, never by a weight threshold: the weight in that group is the ring ORDER (i/N; export_shot.py refuses non-distinct weights because the order defines the polyline). Reading it as weight > 0.5 keeps one contiguous half-arc — on the contractor's v03, 21 of 42 vertices spanning z 1.1972-1.2108 against the real 1.1813-1.2108 — and everything under that phantom curve looks like head geometry hanging below the seam (2026-09-23: 3622 phantom violations, and 21 of the 45 phantom band vertices were the welded ring itself, which cannot move inside without breaking rest_gap = 0)",
   "excluded": "C_HAIR is not measured: hair has free edges, legitimately falls over the shoulders and is replaced by the head technology (ADR-0002 D3). NECK_PROXY and COLLISION_PROXY are not surfaces",
   "margin_mm": 2.0,
   "ramp_mm": 2.0,
-  "radius_m": 0.08,
+  "radius_factor_of_ring": 1.5,
+  "radius_note": "the region of interest is measured from the curve itself - 1.5x its own radius - not as a fixed distance. A fixed 0.08 m was the real character's neck and excluded everything on the placeholder, whose ring radius is 0.099 m (2026-09-23). Its job is only to keep the chin and the ears out of the band",
   "tolerance_mm": 0.05,
-  "status": "PROVISIONAL \u2014 the first values are the ones measured on the slice on 2026-09-22: tucking the band to at least 2 mm inside on every frame lifted the calm-frame precomp reproduction from 0.954/0.948 to 0.971/0.970 with the silhouette gate still passing. Calibrate against head technologies in Phase 1",
+  "status": "PROVISIONAL \u2014 never calibrated against a head that actually has an overlap band: the slice\u2019s head has none, and the 2026-09-22 numbers that suggested these values were measured against a phantom band (corrected 2026-09-23). Calibrate in Phase 1 on the first candidate that brings one",
   "on_fail": "SEAM_MARGIN_ERROR, exit 2, worst offenders named with frame, vertex, signed and required distance",
   "evidence": "slice/measurements/composite_seam_motion_blur_SHOT_001_v01.json"
  }

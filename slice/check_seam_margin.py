@@ -1,29 +1,30 @@
-"""Seam overlap margin — the measured form of ADR-0002 §D1 "the head's overlap band lies inside
-the body neck" (amendment 2026-09-22).
+"""Seam overlap margin — the measured form of ADR-0002 §D1 (amendment 2026-09-22, corrected
+2026-09-23).
 
     blender -b <scene.blend> --python-exit-code 2 -P slice/check_seam_margin.py -- --out <dir>
 
-Head geometry that continues below the socket boundary curve exists to close cracks from inside.
-Measured on SHOT_001 v01 (burst 2): as delivered that band lies anywhere from exactly ON the body
-neck to 6.7 mm outside it, because the head is rigid on the socket while the neck is skinned to
-head / neck / spine / shoulders. Where the two surfaces coincide they fight for depth, and the
-layered composite draws a line across the neck. Tucking the band inside removed it on the calm
-frames (`slice/measurements/composite_seam_motion_blur_SHOT_001_v01.json`).
+A head technology MAY continue its shell below the socket boundary curve to close cracks from
+inside. Where it does, that geometry has to stay inside the body neck: otherwise the two surfaces
+fight for depth and a layered composite draws a line across the neck. So on EVERY frame of the
+shot — not in the rest pose, which is where such a defect hides — every band vertex sits at least
+`margin_mm` inside the body surface, ramped from 0 at the curve to the full margin `ramp_mm`
+below it.
 
-So, on EVERY frame of the shot — not in the rest pose, which is exactly where the defect hides —
-every band vertex must sit at least `margin_mm` inside the body surface, ramped from 0 at the
-boundary curve to the full margin `ramp_mm` below it (the band has to start at the curve, where
-head and body meet by construction).
+The slice's own head has no such geometry: it ends exactly at the curve, welded to the body ring
+(0.000 mm), so this gate passes vacuously on it and says so. It is written for the bake-off, where
+a candidate that does bring an overlap band must keep it inside. The thresholds are PROVISIONAL
+and have never been calibrated against a head that has one.
 
-Which vertices form the band is decided once in the rig's REST pose. Measured on the delivered
-SHOT_001 v01: classifying per frame calls the chin a band vertex the moment the head nods, and
-the gate then "fails" on geometry that is supposed to be outside the neck.
+Two readings of the asset are load-bearing here, and both were got wrong once (2026-09-23):
+  * the curve is the MEMBERSHIP of the SOCKET_BOUNDARY group, never a weight threshold — the
+    weight is the ring ORDER (`export_shot.py` refuses non-distinct weights because the order
+    defines the polyline). Reading `weight > 0.5` keeps one contiguous half-arc and invents a band
+    out of ordinary head skin;
+  * which vertices form the band is decided in the rig's REST pose: classified per frame, the chin
+    joins the band the moment the head nods.
 
 Hair is not the seam band (ADR-0002 D3: the head technology replaces it, it has free edges and it
 legitimately falls over the shoulders), so C_HAIR is not measured. Proxies are not surfaces.
-
-A head with no geometry below the curve passes vacuously — and the report says so, with
-`band_vertices: 0`, rather than reporting a margin nobody measured.
 
 Exit 0 with SEAM_MARGIN_OK; exit 2 with SEAM_MARGIN_ERROR and the worst offenders named."""
 import argparse
@@ -79,31 +80,39 @@ def body_surface(bodies, dg):
 
 
 def ring_of(body, dg):
-    """World positions of the SOCKET_BOUNDARY vertex group on the evaluated body."""
+    """World positions of the SOCKET_BOUNDARY vertex group on the evaluated body.
+
+    Membership is the group, NOT a weight threshold. The weight in this group carries the ring
+    ORDER (i/N — `export_shot.py` refuses non-distinct weights because that is what orders the
+    polyline). Reading it as `weight > 0.5` keeps the half of the ring whose order index is high,
+    which is one contiguous arc: on the contractor's v03 that is 21 of 42 vertices spanning
+    z 1.1972–1.2108 while the real curve runs 1.1813–1.2108. Everything below that phantom curve
+    then looks like head geometry hanging under the seam. Found by the contractor, 2026-09-23."""
     gi = body.vertex_groups.get(N["vertex_group_socket_boundary"])
     if gi is None:
         return None
     eb = body.evaluated_get(dg)
     mw = eb.matrix_world
-    idx = [v.index for v in body.data.vertices if any(g.group == gi.index and g.weight > 0.5 for g in v.groups)]
+    idx = [v.index for v in body.data.vertices if any(g.group == gi.index for g in v.groups)]
     if not idx:
         return None
     return [mw @ eb.data.vertices[i].co for i in idx]
 
 
 def ring_geometry(ring):
-    """Neck axis and a per-angle height of the boundary curve (the ring is not horizontal)."""
+    """Neck axis, the curve's own radius and a per-angle height (the ring is not horizontal)."""
     cx = sum(p.x for p in ring) / len(ring)
     cy = sum(p.y for p in ring) / len(ring)
+    radius = sum(math.hypot(p.x - cx, p.y - cy) for p in ring) / len(ring)
 
     def ring_z(p):
         a = math.atan2(p.x - cx, p.y - cy)
         return min(ring, key=lambda r: abs(math.remainder(math.atan2(r.x - cx, r.y - cy) - a, 2 * math.pi))).z
 
-    return cx, cy, ring_z
+    return cx, cy, ring_z, radius
 
 
-def band_indices(heads, ring_owner, radius, scene):
+def band_indices(heads, ring_owner, radius_factor, scene):
     """The overlap band, defined ONCE in the rig's REST pose: which head vertices continue below
     the boundary curve is a property of the shell, not of a pose. Measured the hard way on
     SHOT_001 v01: classifying per frame calls the chin a band vertex as soon as the head nods
@@ -120,7 +129,8 @@ def band_indices(heads, ring_owner, radius, scene):
         ring = ring_of(ring_owner, dg)
         if ring is None:
             raise SeamMarginError("the socket boundary group is empty in the rest pose")
-        cx, cy, ring_z = ring_geometry(ring)
+        cx, cy, ring_z, ring_radius = ring_geometry(ring)
+        reach = ring_radius * radius_factor
         out = {}
         for o in heads:
             eo = o.evaluated_get(dg)
@@ -130,7 +140,7 @@ def band_indices(heads, ring_owner, radius, scene):
             for v in me.vertices:
                 p = mw @ v.co
                 depth = ring_z(p) - p.z
-                if depth > 0 and math.hypot(p.x - cx, p.y - cy) <= radius:
+                if depth > 0 and math.hypot(p.x - cx, p.y - cy) <= reach:
                     found[v.index] = depth
             eo.to_mesh_clear()
             if found:
@@ -197,8 +207,9 @@ def main():
         if ring_owner is None:
             raise SeamMarginError(f"no body mesh carries the {N['vertex_group_socket_boundary']} vertex group")
 
-        margin, ramp, radius, tol = SM["margin_mm"], SM["ramp_mm"], SM["radius_m"], SM["tolerance_mm"]
-        band_def = band_indices(heads, ring_owner, radius, scene)
+        margin, ramp, tol = SM["margin_mm"], SM["ramp_mm"], SM["tolerance_mm"]
+        radius_factor = SM["radius_factor_of_ring"]
+        band_def = band_indices(heads, ring_owner, radius_factor, scene)
         per_frame, offenders, band_sizes, unreached_total = [], [], [], 0
         for f in frames:
             scene.frame_set(f)
@@ -224,8 +235,8 @@ def main():
             "gate": "seam_margin",
             "status": "FAIL" if offenders else "PASS",
             "rule": SM["rule"],
-            "thresholds": {"margin_mm": margin, "ramp_mm": ramp, "radius_m": radius, "tolerance_mm": tol,
-                           "status": SM["status"]},
+            "thresholds": {"margin_mm": margin, "ramp_mm": ramp, "radius_factor_of_ring": radius_factor,
+                           "tolerance_mm": tol, "status": SM["status"]},
             "scene": {"shot": scene.get("shot_id"), "frames": [frames[0], frames[-1]], "frame_count": len(frames),
                       "head_meshes": [o.name for o in heads], "body_meshes": [o.name for o in bodies]},
             "band": {"defined_in": "the rig's REST pose — which head vertices continue below the curve is a property of the shell, not of a pose",

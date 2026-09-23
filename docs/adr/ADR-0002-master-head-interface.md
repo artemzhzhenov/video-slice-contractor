@@ -12,6 +12,10 @@ Amended 2026-09-16: D7 round-trip measured on the real head — controls validat
 re-projection found to fail open-jaw frames (open defect of the test).
 Amended 2026-09-17: D7 re-projects the per-sample deformed default head (defect closed); D8
 channel combination rules.
+Corrected 2026-09-23 (owner approval): D1's overlap margin is conditional — the slice's head has no
+overlap band, and the one measured before was an artefact of reading half the socket curve
+(`ADR-0002-correction-2026-09-23-seam-overlap-margin.md`). The motion-blur half of the amendment
+below is unaffected and was re-confirmed at 100 % after the error was known.
 Amended 2026-09-22 (owner approval; full text, evidence and alternatives in
 `ADR-0002-amendment-2026-09-22-motion-blur-after-composite.md`): D1 seam overlap margin; D5/D7
 motion blur is applied after compositing from sharp layers with per-layer motion vectors, and the
@@ -58,15 +62,18 @@ that cannot has excluded itself — invariant 15.
   exists. The first envelope value is the default head's bounding box measured on the Phase 0.5
   slice and written into the package as `PROVISIONAL` (amendment 2026-09-14) — without a number,
   Phase 1's `EXCLUDED_BY_SCALE` has nothing to test against.
-- **Overlap margin** (amendment 2026-09-22, measured on the slice). Head geometry continuing
-  below the boundary curve — the band that closes cracks from inside — lies **inside** the body
-  neck on **every frame of every shot**: signed distance to the evaluated body surface ≤ −M,
-  ramped from 0 at the curve to M at depth R below it. Geometry coincident with the body skin
-  (distance 0) is a contract violation: the head is rigid on the socket while the neck is skinned,
-  so the two fight for depth and the composite draws a seam line. `PROVISIONAL`: **M = 2 mm,
-  R = 2 mm**. Binds the default head and every head technology that delivers geometry; for a
-  technology delivering only images the rule is vacuous and its seam is judged by the composite
-  gates. Evidence: `slice/measurements/composite_seam_motion_blur_SHOT_001_v01.json`.
+- **Overlap margin** (amendment 2026-09-22, **corrected 2026-09-23** —
+  `ADR-0002-correction-2026-09-23-seam-overlap-margin.md`). A head technology **may** continue its
+  shell below the boundary curve to close cracks from inside; the default head does not, and
+  neither is required to. **Where such geometry exists**, it lies inside the body neck on every
+  frame of every shot: signed distance to the evaluated body surface ≤ −M, ramped from 0 at the
+  curve to M at depth R below it, so the body wins the depth test below the curve at every sample.
+  `PROVISIONAL`: **M = 2 mm, R = 2 mm** — not yet calibrated against any head that has such a band.
+  A head that ends at the curve passes vacuously and the gate records that it measured nothing;
+  for a technology delivering only images the rule is vacuous too, and its seam is judged by the
+  composite gates. The original wording asserted a measured overlap band on the slice's own head:
+  that band was an artefact of reading half the socket curve, and the correction records what is
+  actually there (head and body both end at the curve, 0.000 mm apart).
 
 ### D2. The default head
 
