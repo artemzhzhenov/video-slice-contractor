@@ -1225,6 +1225,13 @@
    "max_samples": 96,
    "basis": "PROVISIONAL - at 3840x2160 frame 1090 has 57 px of path and K = 48 showed no stepping; below about one sample per 1.5 px the streaks become visible"
   },
+  "workers": {
+   "default": 1,
+   "rule": "processes over the shutter instants; 1 by default",
+   "measured": "2026-09-23 on a 10-core laptop, a 4K laugh-peak frame: 8 workers took 271 s against 107 s with one. The blur moves hundreds of megabytes per instant, so it is bound by memory bandwidth and the extra copies cost more than the cores buy. Re-measure per machine before raising it",
+   "determinism": "each worker sums its own instants and the parent adds the chunks in a fixed order, so the picture does not depend on how many workers ran (measured below 1e-6)",
+   "status": "PROVISIONAL"
+  },
   "hole_fill": "forward splatting leaves holes where a layer stretches; they are filled by normalised 3x3 averaging over at most 4 passes, and the count is reported",
   "depth_test_relative_tolerance": 0.02,
   "status": "PROVISIONAL - measured against a true 3D-blurred render on SHOT_001 1084-1096 (head error 0.0076 against 0.0175 for Blender's VecBlur and 0.0127 for no blur)",
