@@ -54,16 +54,19 @@ step "5 render video frames $VFRAMES ($SAMPLES spp, $SCALE %)"; run blender -b "
 for prof in $PROFILES; do
   step "6 split $prof"; run "${B[@]}" -P "$ROOT/slice/split_bundles.py" -- "$OUT/renders/$prof" --exports "$OUT/exports"
   step "7 composite $prof"; run "${B[@]}" -P "$ROOT/slice/composite.py" -- "$OUT/renders/$prof"
-  step "8 round-trip $prof"; run "${B[@]}" -P "$ROOT/slice/roundtrip.py" -- --exports "$OUT/exports" --renders "$OUT/renders/$prof"
   # The video profile is blurred after compositing (ADR-0002 D5 amendment 2026-09-22), so it owes
   # criterion 8: the same frames rendered WITH the shutter open are the ground truth the blur is
-  # measured against. The still profile has shutter 0 and nothing to compare.
+  # measured against. That reference is also the matte the round-trip integrates against now that
+  # the plates are sharp, so it is rendered BEFORE the round-trip. The still profile has shutter 0.
   if [ "$prof" = "video" ] && [ "${CHECK_ASSET_QUICK:-}" != "1" ]; then
     # A reduced scale shrinks the motion too: on a slow shot the gate then cannot tell the blur
     # from no blur, and says so instead of passing quietly (NOT_APPLICABLE, printed and recorded).
     [ "$SCALE" -ge 100 ] && MAYBE="" || MAYBE="--may-be-non-discriminating"
-    step "9 blur reference $VFRAMES"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --profile video --frames "$VFRAMES" --samples "$SAMPLES" --scale "$SCALE" --blur-reference --out "$OUT/blur_reference"
+    step "8 blur reference $VFRAMES"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --profile video --frames "$VFRAMES" --samples "$SAMPLES" --scale "$SCALE" --blur-reference --out "$OUT/blur_reference"
+    step "9 round-trip $prof"; run "${B[@]}" -P "$ROOT/slice/roundtrip.py" -- --exports "$OUT/exports" --renders "$OUT/renders/$prof" --blur-reference "$OUT/blur_reference/video"
     step "10 blur fidelity"; run "${B[@]}" -P "$ROOT/slice/check_blur_fidelity.py" -- --renders "$OUT/renders/video" --reference "$OUT/blur_reference/video" --out "$OUT/blur_fidelity" ${MAYBE:+$MAYBE}
+  else
+    step "9 round-trip $prof (centre sample only)"; run "${B[@]}" -P "$ROOT/slice/roundtrip.py" -- --exports "$OUT/exports" --renders "$OUT/renders/$prof"
   fi
 done
 if [ "$PROFILES" = "video" ]; then

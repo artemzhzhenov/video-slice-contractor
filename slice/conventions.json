@@ -239,7 +239,8 @@
   },
   "blur_reference": {
    "view_layers": [
-    "L_FULL"
+    "L_FULL",
+    "L_HEAD"
    ],
    "motion_blur": "ON, at the profile's shutter — the reference the blur-fidelity gate compares the post-composite blur against (ADR-0002 Validation criterion 8). Never a deliverable plate: split_bundles refuses this manifest",
    "extra_passes": "none — Cycles produces no Vector pass with the shutter open"

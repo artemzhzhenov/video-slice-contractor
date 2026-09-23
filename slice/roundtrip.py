@@ -262,6 +262,10 @@ def main(argv):
     p.add_argument("--exports", required=True)
     p.add_argument("--renders", required=True, help="renders/<profile> directory with a bundle_manifest")
     p.add_argument("--ignore-subframes", action="store_true", help="centre sample only, written as a separate report")
+    p.add_argument("--blur-reference", default=None,
+                   help="the --blur-reference render of the same frames. Since the 2026-09-22 amendment the plates are "
+                        "rendered sharp, so the matte to compare a shutter-integrated re-projection with lives there; "
+                        "without it this run tests the centre sample only and says so")
     args = p.parse_args(argv)
     ex, rd = Path(args.exports), Path(args.renders)
     manifests = sorted(rd.glob("bundle_manifest.*.json"))
@@ -300,14 +304,41 @@ def main(argv):
     if rest_dev > CONV["exports"]["default_head_deformed"]["rigid_tolerance_m"]:
         raise RoundTripError(f"default_head_deformed.npy at the rest sample differs from default_head_rest.obj by {rest_dev:.2e} m — the two do not share a vertex order or a frame")
     classes = {k: exman[k] for k in ("head_objects", "occluder_objects", "holdout_objects")}
-    integrate = prof["shutter_angle_deg"] > 0 and not args.ignore_subframes
+    # Compare like with like. The plates are sharp since the 2026-09-22 amendment (ADR-0002 D5),
+    # so integrating the re-projection across the shutter and comparing it with a sharp matte
+    # fails frames that are perfectly exported — measured on SHOT_001 v01 at 100 %: centroid
+    # 0.81 px and band 0.29 on the laugh peak. The motion-blurred matte now comes from the
+    # blur-reference render, which is also what the blur-fidelity gate uses.
+    ref_dir = Path(args.blur_reference) if args.blur_reference else None
+    ref_frames = {}
+    if ref_dir:
+        refman = sorted(ref_dir.glob("render_manifest.*.json")) or sorted(ref_dir.glob("*/render_manifest.*.json"))
+        if len(refman) != 1:
+            raise RoundTripError(f"expected one render_manifest under {ref_dir}, found {len(refman)}")
+        rman = json.loads(refman[0].read_text())
+        if rman.get("kind") != "blur_reference" or not rman["settings"].get("render_motion_blur"):
+            raise RoundTripError(f"{refman[0].name} is not a blur-reference render (shutter open) — see render_passes.py --blur-reference")
+        if rman["settings"]["resolution_percentage"] != scale or rman["shot_id"] != shot:
+            raise RoundTripError("the blur reference was rendered for another shot or scale")
+        ref_frames = {r["frame"]: refman[0].parent / "raw" / r["files"]["blur_reference"]["file"] for r in rman["frames"]}
+    plates_blurred = bool(rm["settings"].get("render_motion_blur"))
+    integrate = prof["shutter_angle_deg"] > 0 and not args.ignore_subframes and (plates_blurred or bool(ref_frames))
+    matte_source = ("the plates" if plates_blurred or not integrate else "the blur-reference render")
     offsets = list(np.linspace(want_offsets[0], want_offsets[-1], TIME_SAMPLES)) if integrate else [0.0]
     cam_by_frame = {f["frame"]: f for f in cam_rec["frames"]}
     sock_by_frame = {f["frame"]: f for f in sock_rec["frames"]}
     track_by_frame = {f["frame"]: max(abs(v) for v in f["channels"].values()) for f in track["frames"]}
     report = {"schema_note": "D7 round-trip report; conventions.json → roundtrip", "shot_id": shot, "profile": profile,
               "smoke_test_only": bm["smoke_test_only"], "resolution_percentage": scale,
-              "reference": RT["reference"], "head_geometry": exman["default_head_rest"], "head_geometry_deformed": dh, "time_offsets_frames": [float(o) for o in offsets],
+              "reference": RT["reference"], "matte_source": matte_source,
+              "plates_rendered_sharp": not plates_blurred,
+              "sub_frame_samples_tested": bool(integrate),
+              "sub_frame_note": ("the shutter-integrated re-projection is compared with the motion-blurred matte of the "
+                                 "blur-reference render" if integrate and not plates_blurred else
+                                 ("integrated against the plates' own blurred matte" if integrate else
+                                  "NOT tested by this run: the plates are sharp and no blur reference was given, so only "
+                                  "the centre sample is compared")),
+              "head_geometry": exman["default_head_rest"], "head_geometry_deformed": dh, "time_offsets_frames": [float(o) for o in offsets],
               "supersampling": SS, "gate_status_of_thresholds": RT["gate"]["status"],
               "exports": {"export_manifest_sha256": hashlib.sha256((ex / "export_manifest.json").read_bytes()).hexdigest()},  # identity by hash, never by path
               "frames": [], "negative_control": RT["negative_control"]}
@@ -319,6 +350,15 @@ def main(argv):
             raise RoundTripError(f"frame {frame} rendered but not exported")
         parts = read_parts(rd / "HEAD_RENDER_BUNDLE" / row["file"])
         ref = parts["HEAD_HOLDOUT"][0][..., 0]
+        if integrate and not plates_blurred:
+            if frame not in ref_frames:
+                raise RoundTripError(f"frame {frame} has no blur-reference render — render the same frames with "
+                                     "render_passes.py --blur-reference, or pass --ignore-subframes")
+            rp = read_parts(ref_frames[frame])
+            if "L_HEAD.Combined" not in rp:
+                raise RoundTripError(f"{ref_frames[frame].name}: L_HEAD.Combined missing — the blur reference must "
+                                     "render the head layer (conventions → render_groups.blur_reference)")
+            ref = rp["L_HEAD.Combined"][0][..., 3]
         h, w = ref.shape
         px = cam_by_frame[frame]["intrinsics"]["px_by_profile"][profile]
         if [round(v * scale / 100) for v in px["resolution_px"]] != [w, h]:
