@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from slice.cryptomatte import manifest_ids  # noqa: E402
 from slice.matte_metrics import edge_band  # noqa: E402
+from slice import motion_blur  # noqa: E402
 
 CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
 CC = CONV["compositor"]
@@ -202,7 +203,32 @@ def reproduction(d, head_layer, report):
     return comp
 
 
-def process_frame(frame_path, out_dir, raw_beauty):
+def blur_default_head(parts, d, head_layer, out_dir, frame, shutter_frames):
+    """The post-composite blur of ADR-0002 D5 (amendment 2026-09-22), run on the DEFAULT head so
+    the blur-fidelity gate has something to measure. In production the head layer is the order's
+    own, delivered sharp with its own vectors in the same convention; nothing else changes.
+
+    FRONT and BACK carry their own vectors and depth from the render; the head layer uses the head
+    layer's. Writes blurred_default_head.####.exr — a picture, not a delivery plate."""
+    need = ["FRONT_MOTION_VECTORS", "FRONT_DEPTH", "HEAD_MOTION_VECTORS", "HEAD_DEPTH",
+            "BACK_MOTION_VECTORS", "BACK_DEPTH"]
+    missing = [n for n in need if n not in parts]
+    if missing:
+        raise CompositeError(f"frame {frame}: per-layer vectors/depth missing {missing} — the plates were "
+                             "rendered before the 2026-09-22 amendment; re-render with render_passes.py")
+    def vd(prefix):
+        vec = parts[f"{prefix}_MOTION_VECTORS"][0].astype(np.float32)
+        dep = parts[f"{prefix}_DEPTH"][0].astype(np.float32)
+        return vec, (dep[..., 0] if dep.ndim == 3 else dep)
+    layers = [(d["front"], *vd("FRONT")), (head_layer, *vd("HEAD")), (d["back"], *vd("BACK"))]
+    img, report = motion_blur.blur(layers, shutter_frames)
+    dst = out_dir / f"blurred_default_head.{frame:04d}.exr"
+    write_parts(dst, [("BLURRED_DEFAULT_HEAD", img, ["R", "G", "B", "A"], "half", "PREMULTIPLIED")], d["colour"])
+    report["file"] = dst.name
+    return dst, report
+
+
+def process_frame(frame_path, out_dir, raw_beauty, shutter_frames=None):
     parts, d, report = derive(frame_path)
     # The default head layer for the reproduction test is L_HEAD.Combined from the raw render.
     raw = read_parts(raw_beauty)
@@ -211,6 +237,8 @@ def process_frame(frame_path, out_dir, raw_beauty):
     head_layer = raw["L_HEAD.Combined"][0].astype(np.float32)
     reproduction(d, head_layer, report)
     frame = report["frame"]
+    if shutter_frames:
+        _, report["post_composite_blur"] = blur_default_head(parts, d, head_layer, out_dir, frame, shutter_frames)
     dst = out_dir / f"derived.{frame:04d}.exr"
     planned = [
         ("HEAD_SHADOW_MULTIPLY", d["multiply"], ["R", "G", "B"], "half", "NOT_APPLICABLE"),
@@ -245,16 +273,30 @@ def main(profile_dir):
     bm = json.loads(bm_path.read_text())
     rm = json.loads((pd / bm["source_render_manifest"]).read_text())
     raw_by_frame = {row["frame"]: pd / "raw" / row["files"]["beauty"]["file"] for row in rm["frames"]}
+    # The shutter now describes the blur applied HERE, after the head is composited (ADR-0002 D5
+    # amendment 2026-09-22). Shutter 0 (still profile) means no blur, not a silent skip.
+    st = rm["settings"]
+    if st.get("render_motion_blur"):
+        raise CompositeError(f"{bm['source_render_manifest']}: the plates carry rendered motion blur; since the "
+                             "2026-09-22 amendment the layers are rendered sharp and blurred after compositing")
+    shutter_frames = st["shutter_angle_deg"] / 360.0
+    if st["shutter_position"] not in ("CENTRED", "NOT_APPLICABLE"):
+        raise CompositeError(f"shutter_position {st['shutter_position']} is not implemented by the post-composite "
+                             "blur, which is centred; conventions → post_composite_blur")
     out_dir = pd / "COMPOSITE_BUNDLE"
     derived_rows = []
     for row in bm["bundles"]["COMPOSITE_BUNDLE"]["frames"]:
-        dst, report = process_frame(out_dir / row["file"], out_dir, raw_by_frame[row["frame"]])
+        dst, report = process_frame(out_dir / row["file"], out_dir, raw_by_frame[row["frame"]], shutter_frames)
         derived_rows.append({"frame": row["frame"], "file": dst.name, "bytes": dst.stat().st_size,
                              "sha256": hashlib.sha256(dst.read_bytes()).hexdigest(), "report": f"precomp_report.{row['frame']:04d}.json",
                              "parts": [{"name": n, "pixel_type": DERIVED[n]["pixel_type"], "alpha": DERIVED[n]["alpha"]} for n in CONV["bundles"]["COMPOSITE_BUNDLE"]["derived_by_compositor"]],
-                             "precomp_reproduction": report["precomp_reproduction"], "multiply_clipped_fraction": report["multiply_clipped_fraction"]})
+                             "precomp_reproduction": report["precomp_reproduction"], "multiply_clipped_fraction": report["multiply_clipped_fraction"],
+                             **({"post_composite_blur": report["post_composite_blur"]} if "post_composite_blur" in report else {})})
         r = report["precomp_reproduction"]
         print(f"COMPOSITE_FRAME {row['frame']} {r['status']} outside_band_within_1e-3={r['within']['0.001']['outside_band']:.4f} inside_band_within_5e-2={r['within']['0.05']['inside_band']:.3f} band={r['band_fraction']:.4f} max_err={r['max_abs_error']:.4g}")
+        if "post_composite_blur" in report:
+            b = report["post_composite_blur"]
+            print(f"BLUR_FRAME {row['frame']} samples={b['samples']} path={b['longest_path_px']}px holes_filled={b['holes_filled']} {b['seconds']}s -> {b['file']}")
     bm["bundles"]["COMPOSITE_BUNDLE"]["derived"] = {"script": CC["script"], "frames": derived_rows, "static_precomp": CC["derived"]["STATIC_PRECOMP"]}
     bm_path.write_text(json.dumps(bm, indent=1) + "\n")
     print(f"COMPOSITE_OK {len(derived_rows)} frames -> {out_dir}")

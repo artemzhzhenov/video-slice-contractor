@@ -5,8 +5,14 @@ probe (ADR-0002 D5, D6, D9; proposal §1):
         --shot SHOT_001 --profile video --frames 1001-1120 --out <pkg>/shots/SHOT_001/renders [--probe] \
         [--samples N --scale PCT]   # smoke-test overrides; the manifest marks the output non-conformant
 
-Group "beauty": L_FULL, L_BODY, L_BODYSHADOW, L_HEAD, L_FG with the profile's shutter.
-Group "data":   L_DATA with motion blur off (Depth unfiltered, Vector available).
+Group "beauty": L_FULL, L_BODY, L_BODYSHADOW, L_HEAD, L_FG rendered SHARP, each carrying its own
+                Vector and Depth (ADR-0002 D5 amendment 2026-09-22: motion blur is applied after
+                compositing, from per-layer vectors — blurring the layers and compositing after
+                draws a line across the head/body seam under relative motion).
+Group "data":   L_DATA with motion blur and DoF off (Depth unfiltered, front-most Vector).
+--blur-reference renders L_FULL only, WITH the profile's shutter, as the reference the
+blur-fidelity gate compares the post-composite blur against (§Validation criterion 8). It is not a
+deliverable plate: split_bundles refuses that manifest.
 Output: <out>/<profile>/raw/beauty.####.exr, data.####.exr, lighting_probe.####.exr and
 render_manifest.<profile>.json (settings, device, per-frame seconds and bytes, sha256).
 The scene file is never saved from here. Bundle split: slice/split_bundles.py."""
@@ -68,7 +74,7 @@ def configure_device(scene):
     return "CPU"
 
 
-def apply_profile(scene, profile, samples, scale):
+def apply_profile(scene, profile, samples, scale, blur_reference=False):
     p = CONV["render_profiles"][profile]
     rx, ry = p["resolution"]
     # A smoke scale must give whole pixels on both axes. Blender truncates rx·pct/100 while every
@@ -83,14 +89,19 @@ def apply_profile(scene, profile, samples, scale):
     scene.render.resolution_percentage = scale
     scene.cycles.samples = samples
     angle = p["shutter_angle_deg"]
-    if angle > 0:
+    if angle < 0:
+        raise RenderError(f"profile {profile}: shutter_angle_deg {angle} is not a shutter")
+    # Deliverable plates are rendered sharp whatever the shutter says: since the 2026-09-22
+    # amendment the shutter describes the blur the compositor applies (conventions →
+    # post_composite_blur). Only the blur-fidelity reference is rendered with the shutter open.
+    if blur_reference:
+        if angle == 0:
+            raise RenderError(f"profile {profile}: shutter is 0, so a blur reference would equal the plate")
         scene.render.use_motion_blur = True
         scene.render.motion_blur_shutter = angle / 360.0
         scene.render.motion_blur_position = {"CENTRED": "CENTER", "START": "START", "END": "END"}[p["shutter_position"]]
-    elif angle == 0:
-        scene.render.use_motion_blur = False  # shutter 0 (ADR-0002 D9)
     else:
-        raise RenderError(f"profile {profile}: shutter_angle_deg {angle} is not a shutter")
+        scene.render.use_motion_blur = False
     # Determinism settings are the template's; assert and record them, never assume.
     det = CONV["determinism"]
     c = scene.cycles
@@ -102,6 +113,8 @@ def apply_profile(scene, profile, samples, scale):
         raise RenderError(f"exr codec {scene.render.image_settings.exr_codec} is not {CONV['exr']['compression']}")
     return {"resolution": [rx, ry], "resolution_percentage": scale, "samples": samples,
             "shutter_angle_deg": angle, "shutter_position": p["shutter_position"],
+            "render_motion_blur": bool(scene.render.use_motion_blur),
+            "blur": "rendered_reference" if blur_reference else p.get("motion_blur", "none — shutter 0"),
             "dof_camera_setting": bool(scene.camera.data.dof.use_dof), "determinism": actual,
             "exr_codec": scene.render.image_settings.exr_codec, "color_depth": scene.render.image_settings.color_depth,
             "conformant": samples == p["samples"] and scale == 100}
@@ -110,7 +123,9 @@ def apply_profile(scene, profile, samples, scale):
 def set_group(scene, group, dof_setting):
     """Enable the group's view layers. The data group renders with motion blur AND depth of
     field off (proposal §1 row 5: Depth is unfiltered, unusable under either); the beauty group
-    keeps the camera's own DoF setting."""
+    keeps the camera's own DoF setting and, since the 2026-09-22 amendment, carries Vector and
+    Depth on every layer — Cycles only produces Vector with motion blur off, which is now the
+    case for every deliverable plate."""
     layers = CONV["render_groups"][group]["view_layers"]
     for vl in scene.view_layers:
         vl.use = vl.name in layers
@@ -119,6 +134,17 @@ def set_group(scene, group, dof_setting):
         scene.camera.data.dof.use_dof = False
     else:
         scene.camera.data.dof.use_dof = dof_setting
+    if group == "beauty":
+        if scene.render.use_motion_blur:
+            raise RenderError("the beauty group must render sharp: Cycles produces no Vector pass with motion blur on")
+        for vl in scene.view_layers:
+            if vl.name in layers:
+                vl.use_pass_vector = True
+                vl.use_pass_z = True
+    elif group == "blur_reference":
+        for vl in scene.view_layers:
+            if vl.name in layers:
+                vl.use_pass_vector = False       # Cycles cannot produce it with the shutter open
     return {"motion_blur": scene.render.use_motion_blur, "dof": scene.camera.data.dof.use_dof}
 
 
@@ -199,6 +225,8 @@ def main():
     p.add_argument("--samples", type=int, default=None)
     p.add_argument("--scale", type=int, default=100)
     p.add_argument("--probe", action="store_true")
+    p.add_argument("--blur-reference", action="store_true",
+                   help="render L_FULL WITH the profile's shutter — the blur-fidelity reference, not a plate; use a separate --out")
     args = p.parse_args(argv)
     scene = bpy.data.scenes["SLICE"]
     if args.shot not in CONV["shots"] or scene.get("shot_id") != args.shot:
@@ -213,7 +241,8 @@ def main():
     raw.mkdir(parents=True, exist_ok=True)
     device = configure_device(scene)
     dof_setting = bool(scene.camera.data.dof.use_dof)
-    settings = apply_profile(scene, args.profile, samples, args.scale)
+    settings = apply_profile(scene, args.profile, samples, args.scale, args.blur_reference)
+    groups = ("blur_reference",) if args.blur_reference else ("beauty", "data")
     scene_path = Path(bpy.data.filepath)
     placeholders = sorted(o.name for o in bpy.data.objects if o.name.startswith("PLACEHOLDER_"))
     manifest = {"shot_id": args.shot, "profile": args.profile, "blender": bpy.app.version_string, "device": device,
@@ -222,20 +251,21 @@ def main():
                                  "slice_template_version": scene.get("slice_template_version"), "placeholder_objects": placeholders,
                                  "scene_kind": "placeholder template" if placeholders else "asset"},
                 "settings": settings, "smoke_test_only": not settings["conformant"],
-                "groups": {g: {"view_layers": CONV["render_groups"][g]["view_layers"]} for g in ("beauty", "data")},
+                "kind": "blur_reference" if args.blur_reference else "plates",
+                "groups": {g: {"view_layers": CONV["render_groups"][g]["view_layers"]} for g in groups},
                 "frames": [], "probe": None,
                 "file_hash_note": "sha256 is an integrity token for the file, not a reproducibility token: EXR headers carry render time and date; pixel hashes are in bundle_manifest"}
     for frame in frames:
         row = {"frame": frame, "files": {}, "seconds": {}}
-        for group in ("beauty", "data"):
-            apply_profile(scene, args.profile, samples, args.scale)
+        for group in groups:
+            apply_profile(scene, args.profile, samples, args.scale, args.blur_reference)
             state = set_group(scene, group, dof_setting)
             manifest["groups"][group].update(state)
             written, seconds = render_one(scene, str(raw / group), frame)
             row["files"][group] = {"file": written.name, "bytes": written.stat().st_size, "sha256": sha256(written)}
             row["seconds"][group] = seconds
         manifest["frames"].append(row)
-        print(f"RENDER_FRAME {args.profile} {frame} beauty={row['seconds']['beauty']}s data={row['seconds']['data']}s")
+        print(f"RENDER_FRAME {args.profile} {frame} " + " ".join(f"{g}={row['seconds'][g]}s" for g in groups))
     scene.camera.data.dof.use_dof = dof_setting
     if args.probe:
         probe_frame = CONV["shots"][args.shot]["frame_range"]["start"]  # lighting is per shot and asserted static
@@ -244,7 +274,8 @@ def main():
     for vl in scene.view_layers:
         vl.use = True
     (out / f"render_manifest.{args.profile}.json").write_text(json.dumps(manifest, indent=1) + "\n")
-    print(f"RENDER_OK {args.profile} {len(frames)} frames -> {out}")
+    kind = "blur reference (shutter open, L_FULL only)" if args.blur_reference else "plates (sharp, per-layer vectors)"
+    print(f"RENDER_OK {args.profile} {len(frames)} frames, {kind} -> {out}")
 
 
 if __name__ == "__main__":

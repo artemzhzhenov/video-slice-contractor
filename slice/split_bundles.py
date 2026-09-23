@@ -146,10 +146,12 @@ def build_bundle(bundle, sources, frame, out_dir, profile_settings):
             raise SplitError(f"{dst.name}: {p['name']} colour declaration is {w['attrs'].get('colorInteropID')!r}, expected {want_colour!r}")
         row = {"name": p["name"], "pixel_type": p["format"], "channels": w["channels"], "alpha": p["spec"]["alpha"],
                "pixel_sha1": pixel_sha1(w["pixels"]), "source": p["spec"]["from"]}
-        if p["name"] == "MOTION_VECTORS":
+        if p["name"].endswith("MOTION_VECTORS"):
             row["shutter_angle_deg"] = profile_settings["shutter_angle_deg"]
             row["shutter_position"] = profile_settings["shutter_position"]
-            row["consumer"] = "NONE" if profile_settings["shutter_angle_deg"] == 0 else "head technology (motion-blur matching), compositor"
+            # ADR-0002 D5 row 14 amendment 2026-09-22: the consumer is the post-composite blur,
+            # and it reads the per-layer vectors; with shutter 0 (still profile) nothing blurs.
+            row["consumer"] = "NONE" if profile_settings["shutter_angle_deg"] == 0 else "post-composite blur"
         rows.append(row)
     return dst, rows
 
@@ -192,6 +194,13 @@ def main(argv):
             raise SplitError(f"{manifests[0].name}: missing {key}")
     if "scene_kind" not in man["source_scene"]:
         raise SplitError(f"{manifests[0].name}: source_scene.scene_kind missing — provenance is not invented")
+    if man.get("kind") == "blur_reference":
+        raise SplitError(f"{manifests[0].name} is a blur-fidelity reference render (shutter open, L_FULL only), "
+                         "not a plate render: it is the gate's ground truth and must never be bundled or delivered "
+                         "(ADR-0002 D5 amendment 2026-09-22)")
+    if man["settings"].get("render_motion_blur"):
+        raise SplitError(f"{manifests[0].name}: the plates were rendered WITH motion blur; since the 2026-09-22 "
+                         "amendment the layers are rendered sharp and the blur is applied after compositing")
     raw = pd / "raw"
     out_manifest = {"shot_id": man["shot_id"], "profile": man["profile"], "smoke_test_only": man["smoke_test_only"],
                     "source_scene": man["source_scene"], "source_render_manifest": manifests[0].name,
