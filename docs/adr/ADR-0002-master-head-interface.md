@@ -11,7 +11,12 @@ Amended 2026-09-15: D5 row 2 holdout is the unoccluded silhouette (slice composi
 Amended 2026-09-16: D7 round-trip measured on the real head — controls validated, rest-head
 re-projection found to fail open-jaw frames (open defect of the test).
 Amended 2026-09-17: D7 re-projects the per-sample deformed default head (defect closed); D8
-channel combination rules. Contract version `master_contract_version = 1`.
+channel combination rules.
+Amended 2026-09-22 (owner approval; full text, evidence and alternatives in
+`ADR-0002-amendment-2026-09-22-motion-blur-after-composite.md`): D1 seam overlap margin; D5/D7
+motion blur is applied after compositing from sharp layers with per-layer motion vectors, and the
+head technology delivers its head layer sharp; §Validation criterion 3 evaluated on the sharp
+layers plus a new blur-fidelity criterion. Contract version `master_contract_version = 2`.
 Validated by the Phase 0.5 reference slice (§Validation); any item that fails validation reopens
 this ADR before any master production begins. Layer: Core (`../architecture/layering.md`).
 
@@ -53,6 +58,15 @@ that cannot has excluded itself — invariant 15.
   exists. The first envelope value is the default head's bounding box measured on the Phase 0.5
   slice and written into the package as `PROVISIONAL` (amendment 2026-09-14) — without a number,
   Phase 1's `EXCLUDED_BY_SCALE` has nothing to test against.
+- **Overlap margin** (amendment 2026-09-22, measured on the slice). Head geometry continuing
+  below the boundary curve — the band that closes cracks from inside — lies **inside** the body
+  neck on **every frame of every shot**: signed distance to the evaluated body surface ≤ −M,
+  ramped from 0 at the curve to M at depth R below it. Geometry coincident with the body skin
+  (distance 0) is a contract violation: the head is rigid on the socket while the neck is skinned,
+  so the two fight for depth and the composite draws a seam line. `PROVISIONAL`: **M = 2 mm,
+  R = 2 mm**. Binds the default head and every head technology that delivers geometry; for a
+  technology delivering only images the rule is vacuous and its seam is judged by the composite
+  gates. Evidence: `slice/measurements/composite_seam_motion_blur_SHOT_001_v01.json`.
 
 ### D2. The default head
 
@@ -125,7 +139,21 @@ full contract (`../architecture/master-spec.md`), including `read_granularity` a
 | 11 | `NECK_PROXY` and upper-body collision proxy (§D1, §D3) | head technology | HEAD_RENDER |
 | 12 | Performance track (§D8) | head technology | HEAD_RENDER |
 | 13 | `STATIC_PRECOMP` — everything composited except the head layer, once per master version, delivered as the ordered pair `PRECOMP_BACK` (behind the head) + `PRECOMP_FRONT` (occluders in front of the head, alpha-zero where none) so the per-order comp is two overs in every shot (amendment 2026-09-14) | per-order compositor | COMPOSITE |
-| 14 | Motion vectors — forward and backward screen displacement from a blur-off data layer, so they describe motion, not the rendered blur; consumed together with `shutter_angle_deg` and `shutter_position` (§D7). In the still profile they are delivered (§D9) with `consumer: NONE` recorded (amendment 2026-09-14) | head technology (motion-blur matching), compositor | COMPOSITE |
+| 14 | Motion vectors — forward and backward screen displacement, **per layer** (amendment 2026-09-22: one blur-off data layer describes only the front-most surface, and the neck under the head moves differently), full float, from the same shutter-0 render as the beauty layers; the sign convention of the two pairs is recorded in the package. Consumed by the post-composite blur together with `shutter_angle_deg` and `shutter_position` (§D7). In the still profile they are delivered (§D9) with `consumer: NONE` recorded (amendment 2026-09-14) | compositor (post-composite blur) | COMPOSITE |
+
+**Motion blur is applied after compositing, not rendered** (amendment 2026-09-22, from the
+slice measurement). Every beauty-type layer above — rows 1, 3, 4, 9 and the row-13 pair — is
+rendered with **shutter 0** in both profiles and carries its own row-14 vectors and row-5 depth.
+The per-order composite blurs afterwards: at each of K instants of the recorded shutter every
+layer is warped along its own vectors on a quadratic path through the previous/current/next
+positions, the layers are composited at that instant, and the K composites are averaged. K
+follows the longest path in the frame — at least one instant per ~1.5 px, measured: 57 px of path
+→ K = 48 at 3840 × 2160. The implementation is replaceable; the contract is the inputs, the
+vector convention and the fidelity criterion (§Validation). Reason: "over" of two time-averaged
+layers is not the time average of the composite when the head's coverage and the plate behind it
+move differently during the shutter, which drew a visible seam line across the neck whenever the
+body moved fast under the head. Consequently **the head technology delivers its head layer
+sharp, with its own vectors and depth** — it no longer matches the master's motion blur.
 
 Normals are **not** in the base set: no consumer is known before the head technology exists.
 They may be added as an incremental pass with a consumer.
@@ -157,7 +185,10 @@ Per frame, with sub-frame samples at the shutter's open/close (count recorded in
     camera: focal_length_mm, filmback_mm (w, h), principal_point, near, far,
             focus_distance_m, f_stop, shutter_angle_deg, shutter_position, extrinsic_matrix_4x4
             (shutter_position: where the shutter interval sits relative to the frame —
-             CENTRED | START | END — with the sub-frame sample count; amendment 2026-09-14)
+             CENTRED | START | END — with the sub-frame sample count; amendment 2026-09-14.
+             Amendment 2026-09-22: the shutter fields describe the blur the COMPOSITOR applies
+             after the head is in place, not a render setting — the layers are rendered sharp
+             (§D5) — and they stay the master's property, not the head technology's)
     socket: matrix_4x4, quaternion, position_m, scale, pivot_m
     joints: spine[], shoulder_l, shoulder_r (matrix_4x4 each)
 
@@ -237,7 +268,9 @@ land the director's beat on the same frame.
 
 Same scenes, same rig, same default head; shutter angle 0, sample count per TD, depth of field
 for the page, print resolution. **Identical pass set to the video profile** — a still profile
-that omits a pass is a defect. One still per shot is rendered on the slice.
+that omits a pass is a defect. One still per shot is rendered on the slice. Since the 2026-09-22
+amendment both profiles render sharp; the still profile simply has no blur applied afterwards
+(`shutter_angle_deg` 0), and its row-14 vectors keep `consumer: NONE`.
 
 ### D10. Dub-friendly staging
 
@@ -283,6 +316,13 @@ Every numeric tolerance in this ADR is `PROVISIONAL` until calibrated.
   slice's socket, passes and performance track, not on a portrait.
 - Hair simulation and hair shadow are explicitly per-child costs owned by the head technology;
   the master's obligation ends at the collision proxy and the separate shadow pass.
+- Amendment 2026-09-22: the per-order head renders **without** motion blur, which is cheaper,
+  while the post-composite blur becomes a per-order compute stage whose cost is `UNKNOWN` until a
+  production implementation is measured (CLAUDE.md §9 — measured before master production begins;
+  the numpy prototype's 3.7 min per 4K frame is not a production number). A 2D blur approximates
+  rotation about the view axis, fast deformation and semi-transparent hair edges; criterion 8
+  measures it per shot. In exchange the seam is consistent by construction for every head
+  technology — the property invariant 15 exists for.
 
 ## Does not solve
 
@@ -303,13 +343,20 @@ full §D5 pass set, both profiles, default head. Exit criteria, all recorded:
    `bytes_per_frame` per bundle;
 2. the §D7 round-trip test passes on all three shots;
 3. `STATIC_PRECOMP` + default head layer reproduces the full default-head render within the
-   stated tolerance;
+   stated tolerance — evaluated on the **sharp** layers (amendment 2026-09-22), same thresholds;
 4. a placeholder head (any technology, even the default head re-imported) composites
    end-to-end through the socket, holdout, shadow and skin-ID passes;
 5. one still per shot rendered and assembled into a test page at print resolution;
 6. `t_comp`, `S_frame` per bundle and `worker_warmup_minutes` measured and written to the
    bake-off record;
-7. a test-rebuild of one shot from archived source succeeds.
+7. a test-rebuild of one shot from archived source succeeds;
+8. **blur fidelity** (amendment 2026-09-22): per shot, on the frames with the fastest head and
+   relative motion, a true 3D motion-blurred default-head reference is rendered at a high sample
+   count and the post-composite blur of the default head matches it within a `PROVISIONAL`
+   threshold on a low-pass metric. The negative controls must fail it: no blur, and a doubled
+   shutter (invariant 12). The sharp layers must also be clean enough that the blur does not
+   streak render noise along the motion — samples or denoising per TD, recorded in the package.
+   The reference renders are a `MASTER_COST` line per master version, never per order.
 
 Cost: a `PLATFORM_COST` line under the bake-off `experiment_id`, `amortization_basis:
 PER_MASTER` (owner decision 2026-09-11 — the slice is the bake-off's input, not part of a

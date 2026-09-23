@@ -7,7 +7,8 @@
 #   the scene must be the named shot's scene, i.e. built with scene_template.py --shot SHOT)
 #
 # Steps: check_scene → check_silhouette (no see-through hole at the head↔body seam, in the rest
-# pose and at the slice's maximum head turn) → export the shot → check_exports → check_alembic →
+# pose and at the slice's maximum head turn) → check_seam_margin (the head's overlap band lies
+# inside the body neck on every frame — ADR-0002 D1 amendment 2026-09-22) → export the shot → check_exports → check_alembic →
 # smoke render of the video frames slice/pick_frames.py chooses from the exports (the first frame,
 # the fastest head turn, the widest open jaw) and the still (with the lighting probe) → split →
 # composite → round-trip.
@@ -38,6 +39,7 @@ echo "python: $PY; OCIO: $(basename "$OCIO")"
 run() { "$@" > "$OUT/last_step.log" 2>&1; rc=$?; grep -E "_OK|_ERROR|checks_failed|ROUNDTRIP_FRAME|COMPOSITE_FRAME|Traceback" "$OUT/last_step.log" | tail -n 6; if [ $rc -ne 0 ]; then echo "STEP FAILED (rc $rc) — full log: $OUT/last_step.log"; exit 2; fi; }
 step "1 check_scene"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/check_scene.py"
 step "1b check_silhouette"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/check_silhouette.py" -- --out "$OUT/silhouette"
+step "1c check_seam_margin"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/check_seam_margin.py" -- --out "$OUT/seam_margin"
 step "2 export $SHOT"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/export_shot.py" -- --shot "$SHOT" --out "$OUT/exports"
 step "3 check_exports"; run "$PY" "$ROOT/slice/check_exports.py" "$OUT/exports"
 step "4 check_alembic"; run "${B[@]}" -P "$ROOT/slice/check_alembic.py" -- --abc "$OUT/exports/proxies.abc" --meta "$OUT/exports/proxies.abc.meta.json"

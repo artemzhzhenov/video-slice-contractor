@@ -1152,5 +1152,19 @@
    "rule": "a rebuild on another machine is EQUAL WITHIN TOLERANCE when every number of every export file, every proxy vertex at every sub-frame sample and every field of the canonical scene content lies within numeric_abs of its counterpart and every non-numeric field is identical; byte-identical files are EQUAL; anything else DIFFERS and fails. The tolerance is never applied on the same machine (rebuild_shot.py) where exports must be byte-identical",
    "status": "PROVISIONAL — calibration set: contractor v01 vs its rebuild (one asset, one pair of machines)"
   }
+ },
+ "seam_margin": {
+  "criterion": "ADR-0002 D1 overlap margin (amendment 2026-09-22): head geometry continuing below the socket boundary curve must lie INSIDE the body neck on every frame. Measured on SHOT_001 v01: the band ran from exactly on the body skin to 6.7 mm outside it, because the head is rigid on the socket while the neck is skinned to head/neck/spine/shoulders; coincident surfaces fight for depth and the layered composite drew a line across the neck",
+  "rule": "on every frame, every head-shell vertex below the boundary curve has signed distance to the body surface <= -margin_mm (+ = outside the skin), ramped from 0 at the curve to the full margin at ramp_mm below it; tolerance_mm of numerical slack",
+  "collections": ["C_HEAD"],
+  "body_collections": ["C_BODY"],
+  "excluded": "C_HAIR is not measured: hair has free edges, legitimately falls over the shoulders and is replaced by the head technology (ADR-0002 D3). NECK_PROXY and COLLISION_PROXY are not surfaces",
+  "margin_mm": 2.0,
+  "ramp_mm": 2.0,
+  "radius_m": 0.08,
+  "tolerance_mm": 0.05,
+  "status": "PROVISIONAL \u2014 the first values are the ones measured on the slice on 2026-09-22: tucking the band to at least 2 mm inside on every frame lifted the calm-frame precomp reproduction from 0.954/0.948 to 0.971/0.970 with the silhouette gate still passing. Calibrate against head technologies in Phase 1",
+  "on_fail": "SEAM_MARGIN_ERROR, exit 2, worst offenders named with frame, vertex, signed and required distance",
+  "evidence": "slice/measurements/composite_seam_motion_blur_SHOT_001_v01.json"
  }
 }
