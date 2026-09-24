@@ -60,18 +60,26 @@ def meshes(collection):
 
 
 def body_surface(bodies, dg):
-    """One BVH tree over every evaluated body mesh, in world space."""
+    """One BVH tree over every evaluated body mesh, in world space — built WITHOUT writing into any mesh.
+
+    The first version wrote the world-space coordinates back into the mesh `to_mesh()` returned
+    and read them from there. For an object with no modifiers Blender hands back the object's own
+    mesh, not a copy, so every call moved the original again: on 2026-09-24, over the 120 frames
+    of a shot the brow mesh drifted until the hair seemed 0.01 mm from it and then left the scene,
+    while a single-frame run said 21.69 mm. The transform now happens on a private bmesh copy."""
     bm = bmesh.new()
     for o in bodies:
         eo = o.evaluated_get(dg)
         me = eo.to_mesh()
-        tmp = bmesh.new()
-        tmp.from_mesh(me)
-        tmp.transform(eo.matrix_world)
-        tmp.to_mesh(me)                      # bake the transform, then merge
-        bm.from_mesh(me)
-        tmp.free()
+        part = bmesh.new()
+        part.from_mesh(me)                   # a copy: the mesh itself is never written
         eo.to_mesh_clear()
+        part.transform(eo.matrix_world)
+        scratch = bpy.data.meshes.new("_body_surface_scratch")
+        part.to_mesh(scratch)
+        part.free()
+        bm.from_mesh(scratch)
+        bpy.data.meshes.remove(scratch)
     if not bm.faces:
         bm.free()
         raise SeamMarginError("the body collections carry no faces")
