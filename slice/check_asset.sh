@@ -11,8 +11,9 @@
 # inside the body neck on every frame — ADR-0002 D1 amendment 2026-09-22) → export the shot → check_exports → check_alembic →
 # smoke render of the video frames slice/pick_frames.py chooses from the exports (the first frame,
 # the fastest head turn, the widest open jaw) and the still (with the lighting probe) → split →
-# composite (which applies the post-composite blur) → round-trip → blur-fidelity reference render
-# and gate (video only).
+# composite (which applies the post-composite blur) → plan and render the blur-fidelity reference
+# (its samples follow the fastest head's blur ramps) → round-trip against it → blur fidelity (video
+# only).
 #
 # CHECK_ASSET_QUICK=1 — an intermediate run for the animator between deliveries: the shot's first
 # video frame only, no still, no blur-fidelity reference render (one static frame cannot test a blur). It ends with ASSET_CHECK_QUICK_OK, never ASSET_CHECK_OK: the full
@@ -37,7 +38,7 @@ blender --version 2>/dev/null | head -n 1
 "$PY" -c "import jsonschema, numpy" 2>/dev/null || { echo "Python deps missing for $PY — run:  python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   (or: python3 -m pip install -r requirements-dev.txt)"; exit 2; }
 [ -f "$OCIO" ] || { echo "vendored OCIO config missing at $OCIO"; exit 2; }
 echo "python: $PY; OCIO: $(basename "$OCIO")"
-run() { "$@" > "$OUT/last_step.log" 2>&1; rc=$?; grep -E "_OK|_ERROR|_NOT_APPLICABLE|checks_failed|ROUNDTRIP_FRAME|COMPOSITE_FRAME|BLUR_FIDELITY_FRAME|Traceback" "$OUT/last_step.log" | tail -n 6; if [ $rc -ne 0 ]; then echo "STEP FAILED (rc $rc) — full log: $OUT/last_step.log"; exit 2; fi; }
+run() { "$@" > "$OUT/last_step.log" 2>&1; rc=$?; grep -E "_OK|_ERROR|_NOT_APPLICABLE|checks_failed|ROUNDTRIP_FRAME|COMPOSITE_FRAME|BLUR_FIDELITY_FRAME|PLAN_FRAME|BLUR_REFERENCE_SAMPLES|Traceback" "$OUT/last_step.log" | tail -n 6; if [ $rc -ne 0 ]; then echo "STEP FAILED (rc $rc) — full log: $OUT/last_step.log"; exit 2; fi; }
 step "1 check_scene"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/check_scene.py"
 step "1b check_silhouette"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/check_silhouette.py" -- --out "$OUT/silhouette"
 step "1c check_seam_margin"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/check_seam_margin.py" -- --out "$OUT/seam_margin"
@@ -62,7 +63,13 @@ for prof in $PROFILES; do
     # A reduced scale shrinks the motion too: on a slow shot the gate then cannot tell the blur
     # from no blur, and says so instead of passing quietly (NOT_APPLICABLE, printed and recorded).
     [ "$SCALE" -ge 100 ] && MAYBE="" || MAYBE="--may-be-non-discriminating"
-    step "8 blur reference $VFRAMES"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --profile video --frames "$VFRAMES" --samples "$SAMPLES" --scale "$SCALE" --blur-reference --out "$OUT/blur_reference"
+    # The reference's alpha is a Monte Carlo estimate quantized to 1/samples: across a fast head's
+    # blur ramp that alone can fail a correct export's IoU (SHOT_002 1209 at 100 %: 64 samples fail,
+    # 256 pass). The plan reads the head's ramps from the exports and sets the samples it needs.
+    step "8 plan the blur reference"; run "${B[@]}" -P "$ROOT/slice/roundtrip.py" -- --exports "$OUT/exports" --renders "$OUT/renders/$prof" --plan-reference-samples --min-samples "$SAMPLES"
+    REF_SAMPLES="$(sed -n 's/^BLUR_REFERENCE_SAMPLES //p' "$OUT/last_step.log" | tail -n 1)"
+    [ -n "$REF_SAMPLES" ] || { echo "the plan printed no sample count — full log: $OUT/last_step.log"; exit 2; }
+    step "8 blur reference $VFRAMES ($REF_SAMPLES spp, planned)"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --profile video --frames "$VFRAMES" --samples "$REF_SAMPLES" --scale "$SCALE" --blur-reference --out "$OUT/blur_reference"
     step "9 round-trip $prof"; run "${B[@]}" -P "$ROOT/slice/roundtrip.py" -- --exports "$OUT/exports" --renders "$OUT/renders/$prof" --blur-reference "$OUT/blur_reference/video"
     step "10 blur fidelity"; run "${B[@]}" -P "$ROOT/slice/check_blur_fidelity.py" -- --renders "$OUT/renders/video" --reference "$OUT/blur_reference/video" --out "$OUT/blur_fidelity" ${MAYBE:+$MAYBE}
   else

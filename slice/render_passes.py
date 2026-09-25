@@ -19,10 +19,12 @@ The scene file is never saved from here. Bundle split: slice/split_bundles.py.""
 import argparse
 import hashlib
 import json
+import math
 import os
 import platform
 import sys
 import time
+from fractions import Fraction
 from pathlib import Path
 
 import bpy
@@ -74,6 +76,30 @@ def configure_device(scene):
     return "CPU"
 
 
+def time_stretch(angle):
+    """(frame_map_old, frame_map_new) that stretch the animation by 720 / shutter angle, so that
+    frame ±1 of the stretched timeline is the shutter's open / close instant of the original — where
+    every Vector pass must point since the ADR-0002 amendment of 2026-09-25 (×4 at 180°). The picture
+    of the stretched frame is the original frame's (measured: p99 difference 0 on SHOT_002 1209)."""
+    f = Fraction(720, angle).limit_denominator(900)
+    if f.numerator > 900 or f.denominator > 900 or abs(float(f) - 720 / angle) > 1e-9:
+        raise RenderError(f"shutter angle {angle}° needs a time stretch of {720 / angle} that Blender's time remapping (1..900) cannot express exactly")
+    return f.denominator, f.numerator
+
+
+def set_stretch(scene, old_new):
+    scene.render.frame_map_old, scene.render.frame_map_new = old_new
+
+
+def blur_reference_steps(n_samples):
+    """Cycles motion steps whose time points are the exports' sub-frame samples: Blender samples
+    2^(steps-1)+1 instants across the shutter, open to close."""
+    steps = 1 + math.log2(n_samples - 1) if n_samples > 1 else None
+    if steps is None or steps != int(steps):
+        raise RenderError(f"{n_samples} sub-frame samples cannot be matched by Cycles motion steps (2^(steps-1)+1 instants)")
+    return int(steps)
+
+
 def apply_profile(scene, profile, samples, scale, blur_reference=False):
     p = CONV["render_profiles"][profile]
     rx, ry = p["resolution"]
@@ -94,14 +120,35 @@ def apply_profile(scene, profile, samples, scale, blur_reference=False):
     # Deliverable plates are rendered sharp whatever the shutter says: since the 2026-09-22
     # amendment the shutter describes the blur the compositor applies (conventions →
     # post_composite_blur). Only the blur-fidelity reference is rendered with the shutter open.
+    vectors = {"vector_reach_frames": None, "vectors_point_at": "NOT_APPLICABLE — no shutter, no blur", "time_stretch": None}
+    motion_steps = None
     if blur_reference:
         if angle == 0:
             raise RenderError(f"profile {profile}: shutter is 0, so a blur reference would equal the plate")
         scene.render.use_motion_blur = True
         scene.render.motion_blur_shutter = angle / 360.0
         scene.render.motion_blur_position = {"CENTRED": "CENTER", "START": "START", "END": "END"}[p["shutter_position"]]
+        set_stretch(scene, (100, 100))
+        # the reference samples the shutter at the exports' own instants, so the round-trip compares
+        # like with like (ADR-0002 amendment 2026-09-25: three samples could not describe a laugh pulse)
+        motion_steps = blur_reference_steps(len(CONV["exports"]["sub_frame_offsets_frames"]))
+        for o in bpy.data.objects:
+            o.cycles.motion_steps = motion_steps          # every object, or the render stops: never a silent default
+        vectors["vectors_point_at"] = "NOT_APPLICABLE — the reference carries no Vector pass"
+        # an object with its own motion blur off is sharp in the ground truth: recorded, never hidden
+        vectors["objects_without_motion_blur"] = sorted(o.name for o in bpy.data.objects if o.type in ("MESH", "CURVES", "CURVE") and
+                                                        not (o.cycles.use_motion_blur and o.cycles.use_deform_motion))
     else:
         scene.render.use_motion_blur = False
+        if angle > 0 and p["shutter_position"] == "CENTRED":
+            stretch = time_stretch(angle)
+            set_stretch(scene, stretch)
+            vectors = {"vector_reach_frames": angle / 720.0, "vectors_point_at": "the shutter's open and close instants (ADR-0002 amendment 2026-09-25)",
+                       "time_stretch": list(stretch)}
+        elif angle > 0:
+            raise RenderError(f"profile {profile}: shutter position {p['shutter_position']} — shutter-end vectors are defined for a centred shutter only")
+        else:
+            set_stretch(scene, (100, 100))
     # Determinism settings are the template's; assert and record them, never assume.
     det = CONV["determinism"]
     c = scene.cycles
@@ -117,7 +164,8 @@ def apply_profile(scene, profile, samples, scale, blur_reference=False):
             "blur": "rendered_reference" if blur_reference else p.get("motion_blur", "none — shutter 0"),
             "dof_camera_setting": bool(scene.camera.data.dof.use_dof), "determinism": actual,
             "exr_codec": scene.render.image_settings.exr_codec, "color_depth": scene.render.image_settings.color_depth,
-            "conformant": samples == p["samples"] and scale == 100}
+            "conformant": samples == p["samples"] and scale == 100, **vectors,
+            "motion_steps": motion_steps, "shutter_time_points": (2 ** (motion_steps - 1) + 1) if motion_steps else None}
 
 
 def set_group(scene, group, dof_setting):
@@ -149,7 +197,10 @@ def set_group(scene, group, dof_setting):
 
 
 def render_one(scene, filepath_stem, frame):
-    scene.frame_set(frame)
+    """Render the shot's `frame` (the file carries that number); with a time stretch in force the
+    stretched timeline's frame is set, so the Vector passes point at the shutter's ends."""
+    at = frame * scene.render.frame_map_new / scene.render.frame_map_old
+    scene.frame_set(int(math.floor(at)), subframe=at - math.floor(at))
     # write_still does not substitute '#' padding (verified on 5.2.1): name the file explicitly.
     scene.render.filepath = f"{filepath_stem}.{frame:04d}"
     t = time.time()
@@ -165,6 +216,8 @@ def render_probe(scene, out_dir, frame, device_note):
     """Chrome + grey balls at the socket position, hero collections excluded, on a temporary
     view layer; nothing is saved to the scene file."""
     pc = CONV["lighting_probe"]
+    stretch = (scene.render.frame_map_old, scene.render.frame_map_new)
+    set_stretch(scene, (100, 100))                     # the probe sits where the socket is at the shot's own frame
     coll = bpy.data.collections.new("C_PROBE_TMP")
     scene.collection.children.link(coll)
     sock = bpy.data.objects["SOCKET_HEAD"]
@@ -208,6 +261,7 @@ def render_probe(scene, out_dir, frame, device_note):
         bpy.data.meshes.remove(mesh)
         bpy.data.materials.remove(m)
     bpy.data.collections.remove(coll)
+    set_stretch(scene, stretch)
     return written, seconds
 
 
@@ -241,6 +295,11 @@ def main():
     raw.mkdir(parents=True, exist_ok=True)
     device = configure_device(scene)
     dof_setting = bool(scene.camera.data.dof.use_dof)
+    if scene.render.frame_map_old != scene.render.frame_map_new:
+        # apply_profile sets the stretch with absolute values (and again before every group): a
+        # scene's own remap would be overwritten silently — checked once, on the scene as loaded
+        raise RenderError(f"the scene remaps time itself ({scene.render.frame_map_old} → {scene.render.frame_map_new}); the exports "
+                          "refuse it too — remove it from the scene")
     settings = apply_profile(scene, args.profile, samples, args.scale, args.blur_reference)
     groups = ("blur_reference",) if args.blur_reference else ("beauty", "data")
     scene_path = Path(bpy.data.filepath)

@@ -68,6 +68,28 @@ def boundary(mask):
     return mask & ~interior
 
 
+def reference_quantization_px(cov, n_samples, exclude=None, g_min=1e-3):
+    """How far a Monte Carlo reference matte rendered with n_samples per pixel can place its 0.5
+    contour against this coverage — the apparent boundary error its quantization adds to the ≥0.5
+    masks. A stratified estimate of alpha is k/n (every ramp pixel of Cycles' blur reference is,
+    measured 2026-09-25), so where the coverage ramps with gradient g per px its 0.5 contour is known
+    only to about 1/(n·g) px; on a sharp edge (g ≈ 0.5) that is nothing, across a motion-blur ramp
+    it is the whole budget. The mean over the boundary pixels of cov's ≥0.5 mask of 1/(n·max(g,
+    g_min)), in px — comparable with the IoU rule's boundary error. Fitted on SHOT_002 1209 at 4K
+    against references of 64 and 256 samples: the measured IoU boundary error is this plus a
+    constant ~0.08 px (0.309 / 0.133 px measured, 0.228 / 0.057 + 0.08 predicted)."""
+    if n_samples <= 0:
+        raise MatteError(f"reference samples {n_samples}")
+    b = boundary(cov >= 0.5)
+    if exclude is not None:
+        b &= ~exclude
+    if not b.any():
+        return 0.0
+    gy, gx = np.gradient(cov.astype(np.float64))
+    g = np.maximum(np.hypot(gx, gy)[b], g_min)
+    return float(np.mean(1.0 / (n_samples * g)))
+
+
 def upsample(cov, factor):
     """Bilinear upsampling of a coverage image so the 0.5 iso-contour is located to 1/factor px
     (review 2026-09-15: on binary masks the boundary distance took only the values 0, 1, √2 …

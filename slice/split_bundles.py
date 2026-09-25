@@ -152,6 +152,10 @@ def build_bundle(bundle, sources, frame, out_dir, profile_settings):
             # ADR-0002 D5 row 14 amendment 2026-09-22: the consumer is the post-composite blur,
             # and it reads the per-layer vectors; with shutter 0 (still profile) nothing blurs.
             row["consumer"] = "NONE" if profile_settings["shutter_angle_deg"] == 0 else "post-composite blur"
+            # ADR-0002 amendment 2026-09-25: the time base travels with the sign convention — the
+            # vectors reach the shutter's open and close instants, not frame ±1.
+            row["vector_reach_frames"] = profile_settings.get("vector_reach_frames")
+            row["vectors_point_at"] = profile_settings.get("vectors_point_at")
         rows.append(row)
     return dst, rows
 
@@ -201,6 +205,10 @@ def main(argv):
     if man["settings"].get("render_motion_blur"):
         raise SplitError(f"{manifests[0].name}: the plates were rendered WITH motion blur; since the 2026-09-22 "
                          "amendment the layers are rendered sharp and the blur is applied after compositing")
+    if man["settings"]["shutter_angle_deg"] > 0 and man["settings"].get("vector_reach_frames") is None:
+        raise SplitError(f"{manifests[0].name}: shutter {man['settings']['shutter_angle_deg']}° but no settings.vector_reach_frames — "
+                         "the plates' vectors point at frame ±1 (rendered before the ADR-0002 amendment of 2026-09-25) and the "
+                         "package cannot state their time base; re-render with the current render_passes.py")
     raw = pd / "raw"
     out_manifest = {"shot_id": man["shot_id"], "profile": man["profile"], "smoke_test_only": man["smoke_test_only"],
                     "source_scene": man["source_scene"], "source_render_manifest": manifests[0].name,

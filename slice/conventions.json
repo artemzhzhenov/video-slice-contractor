@@ -4,7 +4,7 @@
  "experiment_id": "01J7B000000000000000BAKEXP",
  "master_id": "01J7B000000000000000BAKEM1",
  "master_version": 1,
- "master_contract_version": 3,
+ "master_contract_version": 4,
  "fps": 24,
  "frame_numbering": "1001-based",
  "units": {
@@ -64,15 +64,7 @@
    "shutter_position": "NOT_APPLICABLE"
   }
  },
- "sub_frame_samples": {
-  "count": 3,
-  "at": [
-   "open",
-   "centre",
-   "close"
-  ],
-  "status": "PROVISIONAL (proposal §3)"
- },
+ "sub_frame_samples": {"count": 9, "at": "evenly across the shutter, open to close — every 1/16 frame at 180°", "amendment": "ADR-0002 amendment 2026-09-25 (approved): three samples (open, centre, close) could not describe a laugh pulse shorter than a frame — every blurred reference sat 0.41-0.64 px from their integration along the motion on SHOT_002 1209/1210; nine exact samples against a nine-instant reference: 0.055 / 0.106 px", "status": "PROVISIONAL (proposal §3; nine since 2026-09-25)"},
  "colour": {
   "working_space": "ACEScg",
   "ocio_config": "ASWF OpenColorIO-Config-ACES studio config — exact file, version and sha256 in toolchain.lock.json once pinned",
@@ -198,11 +190,7 @@
    "basis": "the rest head failed a correct export at jaw_open 0.87 (contractor v01, frame 1100, 2026-09-16); rigid_tolerance_m equals rebuild.cross_platform_tolerance.numeric_abs, ~100x above the measured float noise of a socket child"
   },
   "camera_local_convention": "Blender camera: looks down local -Z, +Y up; exported as camera-to-world in socket space",
-  "sub_frame_offsets_frames": [
-   -0.25,
-   0.0,
-   0.25
-  ],
+  "sub_frame_offsets_frames": [-0.25, -0.1875, -0.125, -0.0625, 0.0, 0.0625, 0.125, 0.1875, 0.25],
   "sub_frame_basis": "shutter 180° centred → ±shutter_angle/720 frames (proposal §1 row 7)",
   "transform_conventions": {
    "socket": "similarity C·root⁻¹·T·C⁻¹ — the socket's local frame becomes socket-oriented (identity at rest; head asset authored Y-up, Z-forward)",
@@ -243,7 +231,7 @@
     "L_HEAD"
    ],
    "motion_blur": "ON, at the profile's shutter — the reference the blur-fidelity gate compares the post-composite blur against (ADR-0002 Validation criterion 8). Never a deliverable plate: split_bundles refuses this manifest",
-   "extra_passes": "none — Cycles produces no Vector pass with the shutter open"
+   "extra_passes": "none — Cycles produces no Vector pass with the shutter open", "motion_steps": "every object's Cycles motion steps set so that its 2^(steps-1)+1 time points are the exports' sub-frame samples (4 for nine; render_passes.blur_reference_steps, recorded as settings.motion_steps) — the round-trip integrates the same instants (ADR-0002 amendment 2026-09-25)"
   }
  },
  "bundles": {
@@ -588,7 +576,7 @@
   "reference": "HEAD_HOLDOUT — the head+hair silhouette with C_HAND_FG occluders shadow-only (ADR-0002 D5 row 2); cut by C_BODY / C_ENV where they are in front of the head (see body_over_head); mattes, not beauty, so this tests the transform contract and not shading",
   "reprojection": "the default head as rendered — default_head_deformed.npy for the C_HEAD vertices (interpolated linearly between the exported sub-frame samples), default_head_rest.obj for the faces and the rigid hair — placed by socket.json, seen by camera.json, rasterised with the profile's pixel intrinsics (px_by_profile) scaled by the render's resolution_percentage; 4×4 supersampled box coverage",
   "time_integration": {
-   "video": "9 uniform samples across the shutter; position and scale linear, rotation slerp between the three exported sub-frame samples",
+   "video": "the exports' nine sub-frame samples themselves (exports.sub_frame_offsets_frames), trapezoid weights — the continuous average of the path through them — against a blur reference rendered at the same nine instants (render_groups.blur_reference.motion_steps); ADR-0002 amendment 2026-09-25. Before it: 9 samples interpolated between three exported ones with equal weights, which a laugh pulse shorter than a frame defeated (0.41-0.64 px along the motion on SHOT_002 1209/1210)",
    "still": "centre sample only (shutter 0)"
   },
   "metrics": {
@@ -648,6 +636,10 @@
   },
   "report": "renders/<profile>/roundtrip_report.<profile>.json; bundle_manifest.<profile>.json → roundtrip {report, status}",
   "deformation_rule": "since 2026-09-17 the re-projected head carries the frame's facial deformation (exports.default_head_deformed), so a deformed frame is gated with the same thresholds and the test measures the transform only. History: the rest head re-projected against deformed renders FAILED a correct export at jaw_open 0.87 (contractor v01 frame 1100: p95 2.57 px, centroid 0.57 px, band 0.069, 605 of 649 missing pixels at the chin) and passed at jaw_open 0.19; loosening the thresholds on deformed frames was rejected (it hides transform errors of the same size), and the old flag (max |channel| > 0.2) marked blinks and mouth corners that leave the silhouette unchanged. The rest head is still re-projected on every frame and reported as rest_head_comparison (never gated)",
+  "reference_quantization": {"target_px": 0.04, "samples_step": 64, "samples_max": 2048,
+   "model": "a Monte Carlo reference's alpha is k/n for n samples (every ramp pixel of Cycles' blur reference is, measured 2026-09-25), so where the head's shutter-integrated coverage ramps with gradient g per px its 0.5 contour is known only to ~1/(n·g) px: matte_metrics.reference_quantization_px is the mean of that over the contour, in px — the same unit as the IoU rule's boundary error. roundtrip.py --plan-reference-samples computes it from the exports before the reference exists and check_asset.sh renders the reference with enough samples to bring it to target_px (rounded up to samples_step, never below the plates' samples); the round-trip records it per frame and, when a frame fails on IoU or p95 within it, says so instead of blaming the export",
+   "basis": "SHOT_002 v01 1209 at 4K, a laugh nod 34-74 px during the shutter: against a 64-sample reference the correct export failed the IoU (0.99929 < 0.9995, 0.309 px of implied boundary error against 0.15) with the centroid at 0.054 px; the same exports, plates and code against a 256-sample reference passed (0.99970, 0.133 px; p95 0.50 -> 0.25). The estimate fits both with a constant residual of ~0.08 px (0.228 + 0.08, 0.057 + 0.08); target_px 0.04 keeps the reference's share at half of what the residual leaves of the budget",
+   "status": "PROVISIONAL — one frame, two sample counts; re-check on SHOT_003's fast turn"},
   "body_over_head": "C_BODY and C_ENV hold the head out in L_HEAD (only C_HAND_FG occluders are shadow-only), so HEAD_HOLDOUT is cut where the body or the environment is in front of the head. The round-trip drops pixels where such an object's cryptomatte coverage ≥ 0.5 meets the re-projected head (dilated 1 px, so the fractional-coverage halo goes with them) from every sum; contour points inside them are not QUERIED while every contour point stays a TARGET — dropping targets too made a kept point next to a dropped stretch measure the distance to the stretch's far end (176 px on a 5 px perturbation, measured); the price is that a spurious re-projected contour inside the exclusion stays a target. The fraction is reported; a shot where that fraction is not ~0 is a shot-design finding, recorded per frame. The exclusion is bounded: a frame whose excluded fraction exceeds gate.body_over_head_excluded_fraction_max (half the head) FAILS before any metric is computed — a wrong export that places the head over the wall or the body would otherwise be excluded instead of failed (found by the plain-vs-posed negative test, 2026-09-15). Object classes come from export_manifest (head_objects / occluder_objects / holdout_objects) matched to cryptomatte manifest names exactly; instanced or library-path names are not handled and would be an explicit error on the real asset, to be extended then",
   "hair_transparency": "OPEN — the reference matte is HEAD_HOLDOUT's alpha and the re-projection is solid mesh coverage, so alpha-cut hair cards would read as holes vs solids and fail the gate for a reason that is not the transform. The slice's default hair is solid sculpted strands with an opaque HERO_HAIR (contractor Q4, 2026-09-15). How a head technology's hair handles transparency is its bake-off exam, not the slice's; before a card-based default hair is accepted the round-trip must compare the C_HEAD shell alone against the head object's cryptomatte, or carry the cards' alpha"
  },
@@ -1230,11 +1222,12 @@
  "post_composite_blur": {
   "criterion": "ADR-0002 D5 amendment 2026-09-22: motion blur is applied after the head is composited, because 'over' of time-averaged layers is not the time average of the composite — under relative motion it drew a visible line across the neck",
   "model": "time-sampled layered blur: at each of K instants of the shutter every layer is forward-warped along its OWN vectors, the layers are composited at that instant (FRONT over (HEAD over BACK)), and the K composites are averaged",
-  "motion_path": "quadratic through the previous / current / next positions: p(t) = t*(Dn - Dp)/2 + t^2*(Dn + Dp)/2. Measured 2026-09-22: a straight line over-blurs at the turning points of a laugh bounce (~6 frames per cycle) and lost to no blur at all on 4 of 13 frames",
+  "motion_path": "quadratic through the positions the vectors point at and the current one: p(u) = u*(Dn - Dp)/2 + u^2*(Dn + Dp)/2 with u = t / vector_reach_frames (since 2026-09-25 u = -1 / +1 at the shutter's open / close). Measured 2026-09-22: a straight line over-blurs at the turning points of a laugh bounce (~6 frames per cycle) and lost to no blur at all on 4 of 13 frames",
   "vector_convention": {
+   "time_base": "the shutter's open and close instants: the first pair points at the shutter-open position, the second at the shutter-close position (ADR-0002 amendment 2026-09-25, approved). The plates are rendered with the time stretched by 720 / shutter angle (render_passes.time_stretch, recorded as settings.time_stretch), which leaves the picture unchanged and moves the Vector pass from frame ±1 to the shutter's ends; the render manifest records settings.vector_reach_frames (0.25 at 180°), every blur call takes it, and plates without it are refused. Basis: SHOT_002 v01 1209 — a path through frame ±1 missed the true shutter ends by 6.2 px median at 4K and failed the fidelity gate at 0.057; through shutter-end vectors the same code reads 0.018",
    "previous_pair_signs": [1, -1],
    "next_pair_signs": [-1, 1],
-   "meaning": "displacement toward that frame in array coordinates (x right, y down) = (sx*v[0], sy*v[1]) for the previous pair and (sx*v[2], sy*v[3]) for the next pair",
+   "meaning": "displacement toward that instant (the shutter's open / close since 2026-09-25, see time_base) in array coordinates (x right, y down) = (sx*v[0], sy*v[1]) for the previous pair and (sx*v[2], sy*v[3]) for the next pair",
    "basis": "measured on Blender 5.2.1 by warping a frame onto its rendered neighbours: these signs cut the error to 0.139 against 0.356 with no warp, while assuming the same signs for both pairs was worse than not warping at all (0.367). Re-measure on a DCC or version change - it is not documented behaviour"
   },
   "samples": {
@@ -1264,11 +1257,11 @@
    "head_mean_max": 0.02,
    "discrimination_min_ratio": 1.25,
    "discriminating_min_path_px": 8.0,
-   "note": "every measured frame must be within head_mean_max of the true blur. On a frame whose longest path is at least discriminating_min_path_px the blur must ALSO be discrimination_min_ratio times closer to the truth than both negative controls - without that the gate would pass a blur that does nothing. A frame that moves less cannot tell the difference and is reported as non-discriminating, and a run in which NO frame discriminates fails: it proved nothing",
+   "note": "every measured frame must be within head_mean_max of the true blur. On a frame whose HEAD moves at least discriminating_min_path_px during the shutter (the 90th percentile over the head layer's opaque pixels of the distance between its shutter-open and shutter-close positions — since 2026-09-25; the frame's longest path over every layer made a blinking eyelid count, SHOT_002 1185) the blur must ALSO be discrimination_min_ratio times closer to the truth than both negative controls, which are built from the same seam-extended back as the blur - without that the gate would pass a blur that does nothing. A frame that moves less cannot tell the difference and is reported as non-discriminating, and a run in which NO frame discriminates fails: it proved nothing",
    "discriminating_min_path_px_basis": "PROVISIONAL - measured 2026-09-23 on SHOT_001 v01 at 25 %: frame 1090 travels 14.2 px and separates the blur from no blur by 1.52x, frame 1094 travels 4.8 px and separates by 1.22x, frame 1001 travels 0.3 px and separates by 1.00x. Scale-dependent: the same frames at 100 % travel four times as far"
   },
-  "negative_controls": ["no blur at all (the sharp recomposite)", "a doubled shutter"],
-  "status": "PROVISIONAL - measured 2026-09-22 on SHOT_001 1084-1096 at 25 %: the blur scores 0.0076 in the head region, no blur 0.0127, Blender's VecBlur 0.0175; the noise floor of the comparison is about 0.004. Re-calibrate on the real asset and at 100 %",
+  "negative_controls": ["no blur at all (the sharp recomposite)", "a doubled shutter — the same path twice as long, every layer's vectors ×2 (since 2026-09-25 the vectors reach only the shutter's ends, so a longer shutter is modelled by scaling the path, not by extrapolating the quadratic past the instants it was fitted to)"],
+  "status": "PROVISIONAL - measured 2026-09-22 on SHOT_001 1084-1096 at 25 %: the blur scores 0.0076 in the head region, no blur 0.0127, Blender's VecBlur 0.0175; the noise floor of the comparison is about 0.004. Re-calibrate on the real asset and at 100 %. Measured 2026-09-25: that floor was a reference rendered with the plates' own sample count, sharing their Monte Carlo pattern (static SHOT_002 1121 at 25 %: 0.003 from the plates); a reference with more samples — which the round-trip now needs on fast frames (roundtrip.reference_quantization) — sits 0.010 from the 64-sample plates and from the same-count reference alike, so the honest floor at the video profile's 64 samples is ~0.0075-0.010 of the 0.02 bound (slice/measurements/sub_frame_motion_2026-09-25.json)",
   "evidence": "slice/measurements/composite_seam_motion_blur_SHOT_001_v01.json"
  },
  "seam_margin": {

@@ -35,7 +35,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from slice import motion_blur  # noqa: E402
-from slice.composite import derive, read_parts  # noqa: E402
+from slice.composite import CompositeError, derive, read_parts, seam_context, extend_back, vector_reach  # noqa: E402
 
 CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
 BF = CONV["blur_fidelity"]
@@ -78,11 +78,39 @@ def error_against(truth, img, regions):
 
 
 def layers_of(parts, d, head_layer):
+    """The same layers composite.py blurs: FRONT, the head, and the SEAM-EXTENDED back with its
+    extended vectors and depth (ADR-0002 amendment 2026-09-24) — the negative controls must be
+    built exactly like the blur they are compared with, or they carry an error the blur does not."""
     def vd(prefix):
         vec = parts[f"{prefix}_MOTION_VECTORS"][0].astype(np.float32)
         dep = parts[f"{prefix}_DEPTH"][0].astype(np.float32)
         return vec, (dep[..., 0] if dep.ndim == 3 else dep)
-    return [(d["front"], *vd("FRONT")), (head_layer, *vd("HEAD")), (d["back"], *vd("BACK"))]
+    return [(d["front"], *vd("FRONT")), (head_layer, *vd("HEAD")), (d["back_extended"], d["back_vec_extended"], d["back_dep_extended"])]
+
+
+def doubled_path(layers):
+    """The negative control "a doubled shutter": the same path twice as long — every layer's vectors
+    ×2. Since the ADR-0002 amendment of 2026-09-25 the vectors reach only the shutter's ends, so a
+    longer shutter is modelled by scaling the path, not by extrapolating the quadratic past the
+    instants it was fitted to (which would add a shape error the control is not about)."""
+    return [(img, vec * 2.0, dep) for img, vec, dep in layers]
+
+
+def head_path_px(parts, head_layer, shutter_frames, reach_frames, q=90):
+    """How far the HEAD moves during the shutter: the q-th percentile over the head layer's opaque
+    pixels of the distance between its shutter-open and shutter-close positions. The frame's
+    longest path is a maximum over every layer and pixel — a blinking eyelid or a hand makes a
+    frame "fast" while the head the metric measures stands still (SHOT_002 1185: 10.3 px longest
+    path, every variant within 0.002 of the truth, and the ratio test failed on noise).
+    reach_frames: how far the vectors point (render manifest settings.vector_reach_frames)."""
+    vec = parts["HEAD_MOTION_VECTORS"][0].astype(np.float32)
+    u = shutter_frames / 2 / reach_frames
+    x0, y0 = motion_blur.displacement(vec, -u)
+    x1, y1 = motion_blur.displacement(vec, u)
+    opaque = head_layer[..., 3] > 0.5
+    if not opaque.any():
+        return 0.0
+    return float(np.percentile(np.hypot(x1 - x0, y1 - y0)[opaque], q))
 
 
 def main():
@@ -161,6 +189,11 @@ def main():
             print(f"BLUR_FIDELITY_NOT_APPLICABLE {why} — the blur was NOT exercised by this run "
                   f"-> {out / 'blur_fidelity_report.json'}")
             return
+        try:
+            reach = vector_reach(rm["settings"], shutter_frames, bm["source_render_manifest"])
+        except CompositeError as e:
+            raise FidelityError(str(e)) from None
+        seam_ctx = seam_context(pd, bm["profile"], rm["settings"]["resolution_percentage"])
         rows, failed = [], []
         for row in bm["bundles"]["COMPOSITE_BUNDLE"]["frames"]:
             frame = row["frame"]
@@ -170,6 +203,7 @@ def main():
             if not blurred_path.exists():
                 raise FidelityError(f"{blurred_path.name} missing — composite.py must run with a shutter > 0")
             parts, d, _ = derive(comp_dir / row["file"])
+            extend_back(parts, d, seam_ctx, frame, with_blur=True)
             raw = read_parts(raw_by_frame[frame])
             head_layer = raw["L_HEAD.Combined"][0].astype(np.float32)
             truth_parts = read_parts(ref_files[frame])
@@ -177,8 +211,8 @@ def main():
                 raise FidelityError(f"{ref_files[frame].name}: L_FULL.Combined missing")
             truth = truth_parts["L_FULL.Combined"][0].astype(np.float32)
             blurred = read_parts(blurred_path)["BLURRED_DEFAULT_HEAD"][0].astype(np.float32)
-            sharp = motion_blur.over(d["front"], motion_blur.over(head_layer, d["back"]))
-            doubled, dbl_report = motion_blur.blur(layers_of(parts, d, head_layer), shutter_frames * 2)
+            sharp = motion_blur.over(d["front"], motion_blur.over(head_layer, d["back_extended"]))
+            doubled, dbl_report = motion_blur.blur(doubled_path(layers_of(parts, d, head_layer)), shutter_frames, reach)
 
             regions = {"head": dilate(head_layer[..., 3] > 0.05, 10), "frame": np.ones(truth.shape[:2], bool)}
             e_blur = error_against(truth, blurred, regions)
@@ -186,7 +220,8 @@ def main():
             e_double = error_against(truth, doubled, regions)
             blur_row = blur_by_frame.get(frame) or {}
             path = blur_row.get("longest_path_px", 0.0)
-            discriminating = path >= rule["discriminating_min_path_px"]
+            head_path = round(head_path_px(parts, head_layer, shutter_frames, reach), 2)
+            discriminating = head_path >= rule["discriminating_min_path_px"]
             ratio = lambda e: round(e["head"] / e_blur["head"], 3) if e_blur["head"] else None  # noqa: E731
             checks = {
                 "head_mean_max": {"value": e_blur["head"], "limit": rule["head_mean_max"],
@@ -200,23 +235,34 @@ def main():
             }
             bad = [k for k, v in checks.items() if not v["ok"]]
             rows.append({"frame": frame, "status": "FAIL" if bad else "PASS", "failed": bad,
-                         "longest_path_px": path, "discriminating": discriminating,
+                         "longest_path_px": path, "head_path_p90_px": head_path, "discriminating": discriminating,
                          "error_vs_true_blur": {"post_composite_blur": e_blur, "negative_control_no_blur": e_sharp,
                                                 "negative_control_doubled_shutter": e_double},
                          "checks": checks, "blur": blur_row, "doubled_shutter_samples": dbl_report["samples"]})
             if bad:
                 failed.append(frame)
             print(f"BLUR_FIDELITY_FRAME {frame} {'FAIL' if bad else 'PASS'} "
-                  f"{'discriminating' if discriminating else 'too slow to discriminate'} path={path}px "
+                  f"{'discriminating' if discriminating else 'too slow to discriminate'} path={path}px head_path_p90={head_path}px "
                   f"head_err={e_blur['head']} (no blur {e_sharp['head']}, doubled {e_double['head']}) frame_err={e_blur['frame']}")
         discriminating = [r["frame"] for r in rows if r["discriminating"]]
+        not_discriminating = None
+        if not discriminating:
+            not_discriminating = (f"no measured frame's HEAD moves {rule['discriminating_min_path_px']} px during the shutter "
+                                  f"(head p90 paths {[r['head_path_p90_px'] for r in rows]}): this run cannot tell the blur from no blur")
+            print(f"BLUR_FIDELITY_NOT_DISCRIMINATING {not_discriminating}")
         report = {"gate": "blur_fidelity", "status": "FAIL" if failed else "PASS", "criterion": BF["criterion"],
                   "discriminating_frames": discriminating,
                   "metric": BF["metric"], "pass_rule": rule, "thresholds_status": BF["status"],
-                  "negative_controls": BF["negative_controls"], "shutter_frames": shutter_frames,
+                  "negative_controls": BF["negative_controls"], "shutter_frames": shutter_frames, "vector_reach_frames": reach,
                   "scale_percent": rm["settings"]["resolution_percentage"], "samples": rm["settings"]["samples"],
                   "reference_samples": ref_man["settings"]["samples"], "frames": rows}
+        if not_discriminating:
+            report["not_discriminating"] = not_discriminating
+            if not args.may_be_non_discriminating:
+                report["status"] = "FAIL"
         (out / "blur_fidelity_report.json").write_text(json.dumps(report, indent=1) + "\n")
+        if not_discriminating and not args.may_be_non_discriminating:
+            fail(not_discriminating + ": pick a frame whose head moves fast (slice/pick_frames.py does) or render at a larger scale")
         if failed:
             fail(f"the post-composite blur does not reproduce the rendered blur on frames {failed} "
                  f"({BF['status'].split(' - ')[0]}) -> {out / 'blur_fidelity_report.json'}")

@@ -24,6 +24,13 @@ the silhouette by 5 px; a 3° yaw is reported VALIDATED / NOT_VALIDATED. The pos
 compares the shutter-integrated result with the centre sample and reports DISCRIMINATING or
 NOT_DISCRIMINATING per frame (a frame that does not move across the shutter cannot
 discriminate).
+
+The shutter is integrated over the exports' own sub-frame samples (nine since the ADR-0002
+amendment of 2026-09-25) with trapezoid weights, against a blur reference rendered at the same
+instants — the reference's render manifest must say so. When the blurred matte comes from that
+reference, the centre sample is ALSO gated against the plates' own sharp HEAD_HOLDOUT: the plates
+are rendered with the time stretched so their vectors reach the shutter's ends, and nothing else
+compares their head with the exports.
 The bundle manifest's roundtrip status is set to ERROR before the first frame and to the result
 after the last, so an aborted run never leaves a stale PASS. Writes roundtrip_report.<profile>.json."""
 import argparse
@@ -40,11 +47,10 @@ sys.path.insert(0, str(ROOT))
 from slice.camera_model import project  # noqa: E402
 from slice.composite import coverage, crypto_manifest, read_parts  # noqa: E402
 from slice.cryptomatte import float_id_from_hex  # noqa: E402
-from slice.matte_metrics import SS, MatteError, iou_min_for, metrics, rasterize  # noqa: E402
+from slice.matte_metrics import SS, MatteError, iou_min_for, metrics, rasterize, reference_quantization_px  # noqa: E402
 
 CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
 RT = CONV["roundtrip"]
-TIME_SAMPLES = 9    # uniform samples across the shutter (conventions.roundtrip.time_integration)
 
 
 class RoundTripError(RuntimeError):
@@ -136,13 +142,59 @@ def head_at(samples_xyz, rest_verts, sample_offsets):
     return at
 
 
-def coverage_for_frame(verts, faces, sock_samples, cam_samples, fx_fy, cx_cy, w, h, offsets):
-    """verts: an (N, 3) array, or a function offset → (N, 3) array (head_at)."""
-    acc = np.zeros((h, w), np.float32)
-    for off in offsets:
+def coverage_for_frame(verts, faces, sock_samples, cam_samples, fx_fy, cx_cy, w, h, offsets, weights=None):
+    """verts: an (N, 3) array, or a function offset → (N, 3) array (head_at). `weights` (default
+    equal) average the instants — trapezoid over the exported sub-frame samples since the ADR-0002
+    amendment of 2026-09-25: the continuous average of the path through them, as the renderer's
+    shutter integrates between its own time points."""
+    wts = np.ones(len(offsets)) if weights is None else np.asarray(weights, np.float64)
+    acc = np.zeros((h, w), np.float64)
+    for off, wt in zip(offsets, wts):
         v = verts(off) if callable(verts) else verts
-        acc += reproject(v, faces, sample_at(sock_samples, off), sample_at(cam_samples, off), fx_fy, cx_cy, w, h)
-    return acc / len(offsets)
+        acc += wt * reproject(v, faces, sample_at(sock_samples, off), sample_at(cam_samples, off), fx_fy, cx_cy, w, h)
+    return (acc / wts.sum()).astype(np.float32)
+
+
+def trapezoid_weights(n):
+    w = np.ones(n)
+    if n > 1:
+        w[0] = w[-1] = 0.5
+    return w
+
+
+def samples_for_quantization(q_at_one_sample, floor_samples):
+    """Reference samples that bring the contour quantization to conventions → roundtrip.
+    reference_quantization.target_px: the estimate scales as 1/n (matte_metrics), rounded up to the
+    step and never below floor_samples."""
+    qr = RT["reference_quantization"]
+    return max(int(floor_samples), int(math.ceil(q_at_one_sample / qr["target_px"] / qr["samples_step"])) * qr["samples_step"])
+
+
+def plan_reference_samples(frames, cam_by_frame, sock_by_frame, deformed, first, verts, faces, offsets, profile, scale, floor_samples):
+    """How many samples the blur reference needs so that ITS quantization does not decide the
+    round-trip: per frame, the shutter-integrated re-projection's own ramps (no reference needed —
+    it does not exist yet) give the quantization at one sample; the run needs the largest. Found on
+    SHOT_002 1209 at 4K (2026-09-25): at 64 samples the reference alone cost the IoU 0.23 of its
+    0.15 px budget and a correct export failed; at 256 it passed."""
+    rows, need = [], int(floor_samples)
+    weights = trapezoid_weights(len(offsets))
+    for frame in frames:
+        px = cam_by_frame[frame]["intrinsics"]["px_by_profile"][profile]
+        f = scale / 100.0
+        w, h = [round(v * f) for v in px["resolution_px"]]
+        cov = coverage_for_frame(head_at(deformed[frame - first], verts, offsets), faces, samples_of(sock_by_frame[frame], "matrix_4x4"),
+                                 samples_of(cam_by_frame[frame], "extrinsic_matrix_4x4"), [v * f for v in px["focal_length_px"]],
+                                 [v * f for v in px["principal_point_px"]], w, h, offsets, weights)
+        q1 = reference_quantization_px(cov, 1)
+        n = samples_for_quantization(q1, floor_samples)
+        rows.append({"frame": frame, "quantization_px_at_one_sample": round(q1, 3), "samples_needed": n})
+        need = max(need, n)
+    cap = RT["reference_quantization"]["samples_max"]
+    if need > cap:
+        raise RoundTripError(f"the blur reference would need {need} samples on frames {[r['frame'] for r in rows if r['samples_needed'] > cap]} "
+                             f"(cap {cap}, conventions → roundtrip.reference_quantization): motion this wide cannot be resolved by a "
+                             "reference render at this scale — measure it at a lower scale or raise the cap deliberately")
+    return need, rows
 
 
 def thresholds_for(shot, frame, scale):
@@ -229,13 +281,13 @@ def perturb_rotation(samples, yaw_deg):
     return out
 
 
-def body_over_head(comp_path, classes, reproj_mask):
-    """Pixels where an object that holds the head out in L_HEAD (export_manifest →
-    holdout_objects: C_BODY ∪ C_ENV) covers the re-projected head — HEAD_HOLDOUT is cut there by
-    the renderer and cannot be reproduced from the exports, so they are excluded and counted.
-    Uses the object cryptomatte of the COMPOSITE bundle. Every geometry name in the cryptomatte
-    manifest must be classified by the export (head / occluder / holdout); an unclassified name
-    with coverage is an error, not a guess."""
+def holdout_coverage(comp_path, classes):
+    """The summed cryptomatte coverage of the objects that hold the head out in L_HEAD
+    (export_manifest → holdout_objects: C_BODY ∪ C_ENV), from the object cryptomatte of the
+    COMPOSITE bundle. Where it covers the re-projected head (≥ 0.5 both) HEAD_HOLDOUT is cut by the
+    renderer and cannot be reproduced from the exports, so those pixels are excluded and counted.
+    Every geometry name in the cryptomatte manifest must be classified by the export (head /
+    occluder / holdout); an unclassified name with coverage is an error, not a guess."""
     parts = read_parts(comp_path)
     attrs = parts["CRYPTO_OBJECT00"][1]
     names = [v for k, v in attrs.items() if k.startswith("cryptomatte/") and k.endswith("/name") and "Object" in v]
@@ -243,7 +295,7 @@ def body_over_head(comp_path, classes, reproj_mask):
         raise RoundTripError(f"expected one object cryptomatte manifest on CRYPTO_OBJECT00, found {names}")
     manifest = crypto_manifest(attrs, names[0])
     known = set(classes["head_objects"]) | set(classes["occluder_objects"]) | set(classes["holdout_objects"])
-    cov = np.zeros(reproj_mask.shape, np.float32)
+    cov = np.zeros(parts["CRYPTO_OBJECT00"][0].shape[:2], np.float32)
     unclassified = []
     for name, hex_id in manifest.items():
         c = coverage(parts, "OBJECT", float_id_from_hex(hex_id))
@@ -253,8 +305,7 @@ def body_over_head(comp_path, classes, reproj_mask):
             if float(c.max()) > 0:
                 raise RoundTripError(f"cryptomatte object {name!r} has coverage but is not classified by the export (head / occluder / holdout)")
             unclassified.append(name)  # lights and empties: no coverage, no class
-    exclude = (cov >= 0.5) & reproj_mask
-    return exclude, {"holdout_objects": sorted(n for n in manifest if n in classes["holdout_objects"]), "unclassified_without_coverage": sorted(unclassified)}
+    return cov, {"holdout_objects": sorted(n for n in manifest if n in classes["holdout_objects"]), "unclassified_without_coverage": sorted(unclassified)}
 
 
 def main(argv):
@@ -262,6 +313,11 @@ def main(argv):
     p.add_argument("--exports", required=True)
     p.add_argument("--renders", required=True, help="renders/<profile> directory with a bundle_manifest")
     p.add_argument("--ignore-subframes", action="store_true", help="centre sample only, written as a separate report")
+    p.add_argument("--plan-reference-samples", action="store_true",
+                   help="before the blur reference exists: print BLUR_REFERENCE_SAMPLES <n>, the samples it needs so that its "
+                        "quantization does not decide the comparison (conventions → roundtrip.reference_quantization); "
+                        "writes reference_plan.<profile>.json and leaves the bundle manifest alone")
+    p.add_argument("--min-samples", type=int, default=None, help="with --plan-reference-samples: the floor (default: the plates' samples)")
     p.add_argument("--blur-reference", default=None,
                    help="the --blur-reference render of the same frames. Since the 2026-09-22 amendment the plates are "
                         "rendered sharp, so the matte to compare a shutter-integrated re-projection with lives there; "
@@ -272,7 +328,7 @@ def main(argv):
     if len(manifests) != 1:
         raise RoundTripError(f"expected one bundle_manifest in {rd}, found {len(manifests)} — run split_bundles.py first")
     bm = json.loads(manifests[0].read_text())
-    if not args.ignore_subframes:
+    if not args.ignore_subframes and not args.plan_reference_samples:
         # First thing after the manifest is read: an aborted run (missing export, bad OBJ, a frame
         # that raises) must leave ERROR behind, never the previous run's status.
         bm["roundtrip"] = {"status": "ERROR", "note": "run started and did not finish", "script": RT["script"]}
@@ -288,9 +344,12 @@ def main(argv):
         raise RoundTripError(f"exports are for {exman['shot_id']}, renders for {shot}")
     prof = CONV["render_profiles"][profile]
     vp = CONV["render_profiles"]["video"]
-    want_offsets = [-vp["shutter_angle_deg"] / 720, 0.0, vp["shutter_angle_deg"] / 720]
+    want_offsets = CONV["exports"]["sub_frame_offsets_frames"]
+    ends = [-vp["shutter_angle_deg"] / 720, vp["shutter_angle_deg"] / 720]
+    if [want_offsets[0], want_offsets[-1]] != ends or 0.0 not in want_offsets or want_offsets != sorted(want_offsets):
+        raise RoundTripError(f"conventions' sub-frame offsets {want_offsets} do not run from shutter open to close {ends} through the centre")
     if cam_rec["sub_frame_offsets_frames"] != want_offsets or sock_rec["sub_frame_offsets_frames"] != want_offsets:
-        raise RoundTripError(f"exported sub-frame offsets {cam_rec['sub_frame_offsets_frames']} do not match the video shutter {vp['shutter_angle_deg']}° ({want_offsets})")
+        raise RoundTripError(f"exported sub-frame offsets {cam_rec['sub_frame_offsets_frames']} are not the conventions' {want_offsets} — re-export with the current export_shot.py")
     verts, faces = load_obj(ex / "default_head_rest.obj")
     dh = exman.get("default_head_deformed")
     if dh is None or not (ex / dh["file"]).exists():
@@ -304,6 +363,20 @@ def main(argv):
     if rest_dev > CONV["exports"]["default_head_deformed"]["rigid_tolerance_m"]:
         raise RoundTripError(f"default_head_deformed.npy at the rest sample differs from default_head_rest.obj by {rest_dev:.2e} m — the two do not share a vertex order or a frame")
     classes = {k: exman[k] for k in ("head_objects", "occluder_objects", "holdout_objects")}
+    if args.plan_reference_samples:
+        if prof["shutter_angle_deg"] <= 0:
+            raise RoundTripError(f"profile {profile} has no shutter: there is no blur reference to plan")
+        frames = [r["frame"] for r in bm["bundles"]["HEAD_RENDER_BUNDLE"]["frames"]]
+        floor = args.min_samples if args.min_samples is not None else rm["settings"]["samples"]
+        need, rows = plan_reference_samples(frames, {f["frame"]: f for f in cam_rec["frames"]}, {f["frame"]: f for f in sock_rec["frames"]},
+                                            deformed, first, verts, faces, want_offsets, profile, scale, floor)
+        plan = {"schema_note": "blur-reference sample plan; conventions.json → roundtrip.reference_quantization", "shot_id": shot, "profile": profile,
+                "resolution_percentage": scale, "floor_samples": floor, "samples": need, "frames": rows, "rule": RT["reference_quantization"]}
+        (rd / f"reference_plan.{profile}.json").write_text(json.dumps(plan, indent=1) + "\n")
+        for r in rows:
+            print(f"PLAN_FRAME {r['frame']} quantization_at_one_sample={r['quantization_px_at_one_sample']}px needs={r['samples_needed']}")
+        print(f"BLUR_REFERENCE_SAMPLES {need}")
+        return
     # Compare like with like. The plates are sharp since the 2026-09-22 amendment (ADR-0002 D5),
     # so integrating the re-projection across the shutter and comparing it with a sharp matte
     # fails frames that are perfectly exported — measured on SHOT_001 v01 at 100 %: centroid
@@ -320,11 +393,16 @@ def main(argv):
             raise RoundTripError(f"{refman[0].name} is not a blur-reference render (shutter open) — see render_passes.py --blur-reference")
         if rman["settings"]["resolution_percentage"] != scale or rman["shot_id"] != shot:
             raise RoundTripError("the blur reference was rendered for another shot or scale")
+        if rman["settings"].get("shutter_time_points") != len(want_offsets):
+            raise RoundTripError(f"the blur reference samples the shutter at {rman['settings'].get('shutter_time_points')} instants and the exports at "
+                                 f"{len(want_offsets)} — compare like with like: re-render it with render_passes.py --blur-reference (motion steps follow the exports)")
         ref_frames = {r["frame"]: refman[0].parent / "raw" / r["files"]["blur_reference"]["file"] for r in rman["frames"]}
+        ref_samples = rman["settings"]["samples"]
     plates_blurred = bool(rm["settings"].get("render_motion_blur"))
     integrate = prof["shutter_angle_deg"] > 0 and not args.ignore_subframes and (plates_blurred or bool(ref_frames))
     matte_source = ("the plates" if plates_blurred or not integrate else "the blur-reference render")
-    offsets = list(np.linspace(want_offsets[0], want_offsets[-1], TIME_SAMPLES)) if integrate else [0.0]
+    offsets = list(want_offsets) if integrate else [0.0]
+    weights = list(trapezoid_weights(len(offsets)))
     cam_by_frame = {f["frame"]: f for f in cam_rec["frames"]}
     sock_by_frame = {f["frame"]: f for f in sock_rec["frames"]}
     track_by_frame = {f["frame"]: max(abs(v) for v in f["channels"].values()) for f in track["frames"]}
@@ -338,7 +416,7 @@ def main(argv):
                                  ("integrated against the plates' own blurred matte" if integrate else
                                   "NOT tested by this run: the plates are sharp and no blur reference was given, so only "
                                   "the centre sample is compared")),
-              "head_geometry": exman["default_head_rest"], "head_geometry_deformed": dh, "time_offsets_frames": [float(o) for o in offsets],
+              "head_geometry": exman["default_head_rest"], "head_geometry_deformed": dh, "time_offsets_frames": [float(o) for o in offsets], "time_weights": [float(x) for x in weights],
               "supersampling": SS, "gate_status_of_thresholds": RT["gate"]["status"],
               "exports": {"export_manifest_sha256": hashlib.sha256((ex / "export_manifest.json").read_bytes()).hexdigest()},  # identity by hash, never by path
               "frames": [], "negative_control": RT["negative_control"]}
@@ -371,8 +449,9 @@ def main(argv):
         cam_s = samples_of(cam_by_frame[frame], "extrinsic_matrix_4x4")
         sock_s = samples_of(sock_by_frame[frame], "matrix_4x4")
         head = head_at(deformed[frame - first], verts, want_offsets)
-        cov = coverage_for_frame(head, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, offsets)
-        exclude, classified = body_over_head(rd / "COMPOSITE_BUNDLE" / comp_rows[frame]["file"], classes, cov >= 0.5)
+        cov = coverage_for_frame(head, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, offsets, weights)
+        hold, classified = holdout_coverage(rd / "COMPOSITE_BUNDLE" / comp_rows[frame]["file"], classes)
+        exclude = (hold >= 0.5) & (cov >= 0.5)
         excl_frac = float(exclude.sum() / max(int((cov >= 0.5).sum()), 1))
         th = thresholds_for(shot, frame, scale)
         if excl_frac > th["body_over_head_excluded_fraction_max"]:
@@ -392,9 +471,21 @@ def main(argv):
             return metrics(c, ref, exclude)
         m = measure(cov)
         failed = gate(m, th)
+        cov_c = coverage_for_frame(head, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, [0.0]) if integrate else None
+        plate = None
+        if integrate and not plates_blurred:
+            # The plates' own sharp matte against the centre sample: the only comparison of the
+            # stretched render's head with the exports (ADR-0002 amendment 2026-09-25).
+            m_p = metrics(cov_c, parts["HEAD_HOLDOUT"][0][..., 0], (hold >= 0.5) & (cov_c >= 0.5))
+            p_failed = gate(m_p, th)
+            plate = {"metrics": m_p, "gate_failed": p_failed, "status": "PASS" if not p_failed else "FAIL",
+                     "time_stretch": rm["settings"].get("time_stretch"),
+                     "note": "the centre sample against the plates' own sharp HEAD_HOLDOUT — the plates are rendered with the time stretched "
+                             "so their vectors reach the shutter's ends, and the head must still be where the exports put it"}
+            failed = failed + [f"plate_centre:{k}" for k in p_failed]
         nc = RT["negative_control"]
         shifted, shift_m = perturb_translation(sock_s, cam_s, fx_fy[0], nc["translation"]["screen_shift_px"])
-        m_t = measure(coverage_for_frame(head, faces, shifted, cam_s, fx_fy, cx_cy, w, h, offsets))
+        m_t = measure(coverage_for_frame(head, faces, shifted, cam_s, fx_fy, cx_cy, w, h, offsets, weights))
         # Scale control: a pure size error of +growth px on the effective radius, about the
         # silhouette's own centre — fx, fy scaled and the principal point moved so the centre
         # stays put (review round 2: scaling about the principal point moved an off-axis head by
@@ -405,12 +496,12 @@ def main(argv):
         wsum = float(cov.sum())
         centre = (float((xs_ * cov).sum() / wsum), float((ys_ * cov).sum() / wsum))
         cx_cy_s = [centre[0] - focal_scale * (centre[0] - cx_cy[0]), centre[1] - focal_scale * (centre[1] - cx_cy[1])]
-        m_s = measure(coverage_for_frame(head, faces, sock_s, cam_s, [v * focal_scale for v in fx_fy], cx_cy_s, w, h, offsets))
-        m_r = measure(coverage_for_frame(head, faces, perturb_rotation(sock_s, nc["rotation"]["yaw_deg"]), cam_s, fx_fy, cx_cy, w, h, offsets))
+        m_s = measure(coverage_for_frame(head, faces, sock_s, cam_s, [v * focal_scale for v in fx_fy], cx_cy_s, w, h, offsets, weights))
+        m_r = measure(coverage_for_frame(head, faces, perturb_rotation(sock_s, nc["rotation"]["yaw_deg"]), cam_s, fx_fy, cx_cy, w, h, offsets, weights))
         # The rest head on the same frame: what the test measured before 2026-09-17. Reported,
         # never gated — where it fails and the deformed head passes, the frame's facial
         # deformation is visible in the silhouette and the deformed geometry is what saved it.
-        m_rest = measure(coverage_for_frame(verts, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, offsets))
+        m_rest = measure(coverage_for_frame(verts, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, offsets, weights))
         t_failed, s_failed, r_failed = gate(m_t, th), gate(m_s, th), gate(m_r, th)
         rec = {"frame": frame, "metrics": m, "thresholds": {**th, "iou_min_resolved": iou_min_of(m, th)}, "failed": failed, "status": "PASS" if not failed else "FAIL",
                "performance_track_max_abs_channel": track_by_frame[frame],
@@ -420,8 +511,18 @@ def main(argv):
                "controls": {"translation": {"shift_m": shift_m, "screen_shift_px": nc["translation"]["screen_shift_px"], "metrics": m_t, "gate_failed": t_failed, "status": "VALIDATED" if t_failed else "NOT_VALIDATED"},
                             "scale": {"focal_scale": focal_scale, "screen_growth_px": nc["scale"]["screen_growth_px"], "principal_point_px_used": cx_cy_s, "metrics": m_s, "gate_failed": s_failed, "status": "VALIDATED" if s_failed else "NOT_VALIDATED"},
                             "rotation": {"yaw_deg": nc["rotation"]["yaw_deg"], "metrics": m_r, "gate_failed": r_failed, "status": "VALIDATED" if r_failed else "NOT_VALIDATED"}}}
+        if plate is not None:
+            rec["plate_centre_sample"] = plate
+            # what the reference's own sample count can resolve on this frame's blurred contour
+            q = reference_quantization_px(cov, ref_samples, exclude)
+            rec["reference_quantization_px"] = {"value": q, "reference_samples": ref_samples, "target_px": RT["reference_quantization"]["target_px"]}
+            if {"iou", "p95_boundary_px"} & set(failed) and q > RT["reference_quantization"]["target_px"]:
+                n = samples_for_quantization(q * ref_samples, ref_samples)
+                rec["failure_hint"] = (f"within the blur reference's own resolution: its {ref_samples} samples place this blurred contour only to "
+                                       f"~{q:.2f} px (target {RT['reference_quantization']['target_px']} px) — re-render it with >= {n} samples "
+                                       "(check_asset.sh plans this with --plan-reference-samples)")
         if integrate:
-            m_c = measure(coverage_for_frame(head, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, [0.0]))
+            m_c = measure(cov_c)
             delta = max(abs(m_c["centroid_px"] - m["centroid_px"]), abs(m_c["mean_abs_coverage_in_band"] - m["mean_abs_coverage_in_band"]))
             disc = delta > RT["positive_control"]["min_difference"]
             rec["positive_control_centre_only"] = {"metrics": m_c, "gate_failed": gate(m_c, th), "difference": delta,
@@ -434,7 +535,7 @@ def main(argv):
         if not t_failed or not s_failed:
             ctrl_not_failed.append(frame)
         rot_validated.append(bool(r_failed))
-        print(f"ROUNDTRIP_FRAME {frame} {rec['status']} p95={m['p95_boundary_px']:.2f}px centroid={m['centroid_px']:.3f}px iou={m['iou']:.4f} band_mean_abs={m['mean_abs_coverage_in_band']:.4f} excluded={rec['body_over_head_excluded']['fraction_of_reprojected']:.4f} rest_head={'fails' if rec['rest_head_comparison']['gate_failed'] else 'passes'} | ctrl translation={'fails' if t_failed else 'DOES NOT FAIL'} scale={'fails' if s_failed else 'DOES NOT FAIL'} rotation={'fails' if r_failed else 'does not fail'}")
+        print(f"ROUNDTRIP_FRAME {frame} {rec['status']} p95={m['p95_boundary_px']:.2f}px centroid={m['centroid_px']:.3f}px iou={m['iou']:.4f} band_mean_abs={m['mean_abs_coverage_in_band']:.4f} excluded={rec['body_over_head_excluded']['fraction_of_reprojected']:.4f} rest_head={'fails' if rec['rest_head_comparison']['gate_failed'] else 'passes'}{(' plate_centre=' + plate['status']) if plate else ''} | ctrl translation={'fails' if t_failed else 'DOES NOT FAIL'} scale={'fails' if s_failed else 'DOES NOT FAIL'} rotation={'fails' if r_failed else 'does not fail'}")
     report["status"] = "PASS" if not all_failed and not ctrl_not_failed else "FAIL"
     report["failed_frames"] = all_failed
     report["control_not_failing_frames"] = ctrl_not_failed
@@ -455,6 +556,9 @@ def main(argv):
                            "exports": report["exports"]}
         manifests[0].write_text(json.dumps(bm, indent=1) + "\n")
     if all_failed:
+        hints = [r for r in report["frames"] if r["frame"] in all_failed and r.get("failure_hint")]
+        if len(hints) == len(all_failed):
+            raise RoundTripError(f"round-trip FAIL on frames {all_failed} — " + "; ".join(f"{r['frame']}: {r['failure_hint']}" for r in hints))
         raise RoundTripError(f"round-trip FAIL on frames {all_failed} — the export does not place the head where the render did")
     if ctrl_not_failed:
         raise RoundTripError(f"negative control did not fail on frames {ctrl_not_failed} — the metric is NOT VALIDATED at this resolution")

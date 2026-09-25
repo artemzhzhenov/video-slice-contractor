@@ -85,6 +85,9 @@ def assert_scene_conventions(scene):
         raise ExportError(f"scene units are not 1 unit = 1 m ({scene.unit_settings.system}, scale {scene.unit_settings.scale_length})")
     if scene.render.fps != CONV["fps"] or scene.render.fps_base != 1.0:
         raise ExportError(f"fps {scene.render.fps}/{scene.render.fps_base} is not {CONV['fps']}")
+    if scene.render.frame_map_old != scene.render.frame_map_new:
+        raise ExportError(f"the scene remaps time ({scene.render.frame_map_old} → {scene.render.frame_map_new}): the shot's frames would not be "
+                          "its own — render_passes.py stretches time itself for the vectors (ADR-0002 amendment 2026-09-25)")
     vp = CONV["render_profiles"]["video"]
     want_shutter = vp["shutter_angle_deg"] / 360.0
     if not scene.render.use_motion_blur or abs(scene.render.motion_blur_shutter - want_shutter) > 1e-9:

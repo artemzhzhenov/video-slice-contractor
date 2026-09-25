@@ -9,10 +9,15 @@ precomp gate failed 5 of the 13 laugh-peak frames and at 100 % the seam ring was
 So: each sharp layer is forward-warped along its OWN vectors to K instants of the shutter, the
 layers are composited at every instant, and the K composites are averaged.
 
-Two details are measured, not assumed, and live in conventions.json → post_composite_blur:
-the sign convention of Cycles' two vector pairs, and a quadratic motion path through the
-previous / current / next positions (a straight line over-blurs at the turning points of a laugh
-bounce and lost to no blur at all on 4 of 13 frames).
+Three details are measured, not assumed, and live in conventions.json → post_composite_blur:
+the sign convention of Cycles' two vector pairs; a quadratic motion path through the two
+positions the vectors point at and the current one (a straight line over-blurs at the turning
+points of a laugh bounce and lost to no blur at all on 4 of 13 frames); and WHERE the vectors
+point — since the ADR-0002 amendment of 2026-09-25 at the shutter's own open and close instants,
+not at the previous and next frame: a laugh nod shorter than a frame put the true shutter ends
+6 px away from a path through frame ±1 (SHOT_002 1209 at 4K), and the gate failed at 0.057 where
+the same code through shutter-end vectors reads 0.018. Every call states the vectors' reach — how
+far in frames they point — so plates of either kind are never mixed up silently.
 
 Plain numpy: this is the reference implementation the gates measure, not a production renderer.
 Cost is reported per frame so the per-order number is never a guess."""
@@ -34,27 +39,34 @@ class BlurError(RuntimeError):
     pass
 
 
-def displacement(vec, t, conv=None):
-    """Pixel displacement (dx right, dy down, array coordinates) at shutter time t in frames,
-    0 = the frame's centre. `vec` is the Cycles Vector pass: the first pair points at the previous
-    frame, the second at the next, with the sign conventions measured on Blender 5.2.1."""
+def displacement(vec, u, conv=None):
+    """Pixel displacement (dx right, dy down, array coordinates) at path parameter u: 0 = the
+    frame's centre, -1 and +1 = the two instants the vectors point at (u = t / reach, t in frames).
+    `vec` is the Cycles Vector pass: the first pair points at the earlier instant, the second at the
+    later one, with the sign conventions measured on Blender 5.2.1."""
     c = conv or PB["vector_convention"]
     sxp, syp = c["previous_pair_signs"]
     sxn, syn = c["next_pair_signs"]
     dpx, dpy = vec[..., 0] * sxp, vec[..., 1] * syp
     dnx, dny = vec[..., 2] * sxn, vec[..., 3] * syn
-    # p(t) through the three known positions: p(-1) = Dp, p(0) = 0, p(+1) = Dn
-    return (t * (dnx - dpx) / 2 + t * t * (dnx + dpx) / 2,
-            t * (dny - dpy) / 2 + t * t * (dny + dpy) / 2)
+    # p(u) through the three known positions: p(-1) = Dp, p(0) = 0, p(+1) = Dn
+    return (u * (dnx - dpx) / 2 + u * u * (dnx + dpx) / 2,
+            u * (dny - dpy) / 2 + u * u * (dny + dpy) / 2)
 
 
-def longest_path_px(layers, shutter_frames):
+def _reach(reach_frames):
+    if not (isinstance(reach_frames, (int, float)) and reach_frames > 0):
+        raise BlurError(f"vector reach {reach_frames!r} frames: state how far the vectors point (render manifest settings.vector_reach_frames)")
+    return float(reach_frames)
+
+
+def longest_path_px(layers, shutter_frames, reach_frames):
     """The longest distance any pixel travels during the shutter, over all layers."""
     worst = 0.0
-    half = shutter_frames / 2
+    half = shutter_frames / 2 / _reach(reach_frames)
     for _, vec, _ in layers:
-        for t in (-half, half):
-            dx, dy = displacement(vec, t)
+        for u in (-half, half):
+            dx, dy = displacement(vec, u)
             worst = max(worst, float(np.hypot(dx, dy).max()))
     return worst * 2  # the path runs from one end of the shutter to the other
 
@@ -164,12 +176,12 @@ def over(front, back):
     return front + back * (1 - front[..., 3:4])
 
 
-def composite_at(layers, t):
-    """The picture at one instant of the shutter: every layer warped along its own vectors, then
-    composited in order. Returns (image, holes filled, empty-layer passes)."""
+def composite_at(layers, u):
+    """The picture at one instant of the shutter (path parameter u): every layer warped along its
+    own vectors, then composited in order. Returns (image, holes filled, empty-layer passes)."""
     comp, holes, empty = None, 0, 0
     for img, vec, dep in reversed(layers):              # BACK first, then over
-        dx, dy = displacement(vec, t)
+        dx, dy = displacement(vec, u)
         win = active_window(img, dx, dy)
         if win is None:                                 # a layer with no coverage adds nothing
             empty += 1
@@ -210,17 +222,20 @@ def worker_count(shape, k, workers=None):
     return int(PB["workers"].get("default", 1))
 
 
-def blur(layers, shutter_frames, samples=None, workers=None):
-    """layers: [(rgba_premultiplied, vector, depth)] ordered FRONT first, as they composite.
-    Returns (image, report). The shutter is centred: t runs over ±shutter_frames/2."""
+def blur(layers, shutter_frames, reach_frames, samples=None, workers=None):
+    """layers: [(rgba_premultiplied, vector, depth)] ordered FRONT first, as they composite; their
+    vectors point reach_frames away (0.25 at a 180° shutter since 2026-09-25: the shutter's ends;
+    1.0 for plates whose vectors point at the previous and next frame). Returns (image, report). The
+    shutter is centred: t runs over ±shutter_frames/2, the path parameter over ±t/reach."""
     if not layers:
         raise BlurError("no layers to blur")
     if shutter_frames <= 0:
         raise BlurError(f"shutter_frames {shutter_frames} is not an exposure — a sharp frame is not blurred here")
-    path = longest_path_px(layers, shutter_frames)
+    reach = _reach(reach_frames)
+    path = longest_path_px(layers, shutter_frames, reach)
     k = samples or samples_for(path)
     t0 = time.time()
-    ts = [(-0.5 + (i + 0.5) / k) * shutter_frames for i in range(k)]
+    ts = [(-0.5 + (i + 0.5) / k) * shutter_frames / reach for i in range(k)]
     n = worker_count(layers[0][0].shape, k, workers)
     accum, holes, empty = None, 0, 0
     if n > 1:
@@ -242,7 +257,7 @@ def blur(layers, shutter_frames, samples=None, workers=None):
             empty += e
             accum = comp.astype(np.float64) if accum is None else accum + comp
     img = (accum / len(ts)).astype(np.float32)
-    report = {"samples": k, "longest_path_px": round(path, 2), "shutter_frames": shutter_frames,
+    report = {"samples": k, "longest_path_px": round(path, 2), "shutter_frames": shutter_frames, "vector_reach_frames": reach,
               "px_per_sample": round(path / k, 3) if k else None,
               "samples_rule": PB["samples"]["rule"], "samples_status": PB["samples"]["status"] if "status" in PB["samples"] else PB["status"],
               "holes_filled": holes, "empty_layer_passes_skipped": empty, "workers": n,

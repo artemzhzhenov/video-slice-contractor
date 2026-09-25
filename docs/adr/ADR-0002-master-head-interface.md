@@ -27,6 +27,13 @@ extends the back under the head's lower edge at the seam before the over (`SEAM_
 the head and the body meet vertex to vertex and the body plate shows the open neck there, a dark
 line on every layered composite since the first real asset; §Validation criterion 3 gains a seam
 criterion on the signed error. Contract version `master_contract_version = 3`.
+Amended 2026-09-25 (owner approval the same day; full text, evidence and alternatives in
+`ADR-0002-amendment-2026-09-25-sub-frame-motion.md`): D5 row 14 — every per-layer motion vector
+points at the shutter's **open and close instants**, not at the previous and next frame (the plates
+are rendered with the time stretched by 720 / shutter angle, which leaves the picture unchanged);
+D7 — **nine** sub-frame samples across the shutter instead of three; §Validation criteria 2 and 8
+sample time at those nine instants. Found on the contractor's SHOT_002 v01 laugh, a head pulse
+shorter than a frame. Contract version `master_contract_version = 4`.
 Validated by the Phase 0.5 reference slice (§Validation); any item that fails validation reopens
 this ADR before any master production begins. Layer: Core (`../architecture/layering.md`).
 
@@ -152,14 +159,16 @@ full contract (`../architecture/master-spec.md`), including `read_granularity` a
 | 11 | `NECK_PROXY` and upper-body collision proxy (§D1, §D3) | head technology | HEAD_RENDER |
 | 12 | Performance track (§D8) | head technology | HEAD_RENDER |
 | 13 | `STATIC_PRECOMP` — everything composited except the head layer, once per master version, delivered as the ordered pair `PRECOMP_BACK` (behind the head) + `PRECOMP_FRONT` (occluders in front of the head, alpha-zero where none) so the per-order comp is two overs in every shot (amendment 2026-09-14) | per-order compositor | COMPOSITE |
-| 14 | Motion vectors — forward and backward screen displacement, **per layer** (amendment 2026-09-22: one blur-off data layer describes only the front-most surface, and the neck under the head moves differently), full float, from the same shutter-0 render as the beauty layers; the sign convention of the two pairs is recorded in the package. Consumed by the post-composite blur together with `shutter_angle_deg` and `shutter_position` (§D7). In the still profile they are delivered (§D9) with `consumer: NONE` recorded (amendment 2026-09-14) | compositor (post-composite blur) | COMPOSITE |
+| 14 | Motion vectors — forward and backward screen displacement, **per layer** (amendment 2026-09-22: one blur-off data layer describes only the front-most surface, and the neck under the head moves differently), full float, from the same shutter-0 render as the beauty layers; the sign convention of the two pairs is recorded in the package. The two pairs point at the shutter's **open and close instants** — ±¼ frame at 180° — not at the previous and next frame, and that time base (`vector_reach_frames`) is recorded beside the sign convention (amendment 2026-09-25: a head pulse shorter than a frame put the frame-vector path 6.2 px median off the shutter's true ends at 4K). The head technology delivers its head layer's vectors in the same convention. Consumed by the post-composite blur together with `shutter_angle_deg` and `shutter_position` (§D7). In the still profile they are delivered (§D9) with `consumer: NONE` recorded (amendment 2026-09-14) | compositor (post-composite blur) | COMPOSITE |
 
 **Motion blur is applied after compositing, not rendered** (amendment 2026-09-22, from the
 slice measurement). Every beauty-type layer above — rows 1, 3, 4, 9 and the row-13 pair — is
 rendered with **shutter 0** in both profiles and carries its own row-14 vectors and row-5 depth.
 The per-order composite blurs afterwards: at each of K instants of the recorded shutter every
-layer is warped along its own vectors on a quadratic path through the previous/current/next
-positions, the layers are composited at that instant, and the K composites are averaged. K
+layer is warped along its own vectors on a quadratic path through the shutter-open, current and
+shutter-close positions (the positions the vectors point at since the amendment of 2026-09-25;
+before it, the previous and next frame), the layers are composited at that instant, and the K
+composites are averaged. K
 follows the longest path in the frame — at least one instant per ~1.5 px, measured: 57 px of path
 → K = 48 at 3840 × 2160. The implementation is replaceable; the contract is the inputs, the
 vector convention and the fidelity criterion (§Validation). Reason: "over" of two time-averaged
@@ -208,7 +217,9 @@ recorded in the master package, never left implicit.
 
 ### D7. Transform and camera contract
 
-Per frame, with sub-frame samples at the shutter's open/close (count recorded in the package):
+Per frame, with sub-frame samples at the shutter's open/close (count recorded in the package) —
+**nine**, evenly across the shutter from open to close through the centre, every 1⁄16 frame at 180°
+(amendment 2026-09-25: three could not describe a head pulse shorter than a frame):
 
     camera: focal_length_mm, filmback_mm (w, h), principal_point, near, far,
             focus_distance_m, f_stop, shutter_angle_deg, shutter_position, extrinsic_matrix_4x4
@@ -369,7 +380,11 @@ full §D5 pass set, both profiles, default head. Exit criteria, all recorded:
 
 1. every pass in §D5 present in both profiles, with `read_granularity` and measured
    `bytes_per_frame` per bundle;
-2. the §D7 round-trip test passes on all three shots;
+2. the §D7 round-trip test passes on all three shots — against the motion-blurred matte by
+   integrating the nine exported sub-frame samples with trapezoid weights, the reference rendered
+   at the same nine instants and with enough samples that its own Monte Carlo quantization does not
+   decide the comparison (planned from the head's blur ramps; found while validating the
+   amendment), and at the centre sample against the plates' own sharp matte (amendment 2026-09-25);
 3. `STATIC_PRECOMP` + default head layer reproduces the full default-head render within the
    stated tolerance — evaluated on the **sharp** layers (amendment 2026-09-22), same thresholds,
    through the same `SEAM_EXTEND` as every order, and with a **seam criterion** (amendment
@@ -386,7 +401,9 @@ full §D5 pass set, both profiles, default head. Exit criteria, all recorded:
    relative motion, a true 3D motion-blurred default-head reference is rendered at a high sample
    count and the post-composite blur of the default head matches it within a `PROVISIONAL`
    threshold on a low-pass metric. The negative controls must fail it: no blur, and a doubled
-   shutter (invariant 12). The sharp layers must also be clean enough that the blur does not
+   shutter (invariant 12) — the same path twice as long, since the vectors reach only the
+   shutter's ends (amendment 2026-09-25). The reference samples the shutter at the exports' nine
+   instants. The sharp layers must also be clean enough that the blur does not
    streak render noise along the motion — samples or denoising per TD, recorded in the package.
    The reference renders are a `MASTER_COST` line per master version, never per order.
 

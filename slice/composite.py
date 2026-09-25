@@ -276,26 +276,45 @@ def extend_back(parts, d, seam_ctx, frame, with_blur):
     d["seam_extend_stats"] = {**stats, "zone_px_param": SE["zone_px"], "extend_px_param": SE["extend_px"]}
 
 
-def blur_default_head(parts, d, head_layer, out_dir, frame, shutter_frames):
+def blur_default_head(parts, d, head_layer, out_dir, frame, shutter_frames, reach_frames):
     """The post-composite blur of ADR-0002 D5 (amendment 2026-09-22), run on the DEFAULT head so
     the blur-fidelity gate has something to measure. In production the head layer is the order's
     own, delivered sharp with its own vectors in the same convention; nothing else changes.
 
     FRONT and BACK carry their own vectors and depth from the render; the head layer uses the head
     layer's. BACK is the seam-extended back with its vectors and depth extended the same way
-    (process_frame), so the blur moves what the composite shows. Writes
-    blurred_default_head.####.exr — a picture, not a delivery plate."""
+    (process_frame), so the blur moves what the composite shows. reach_frames: how far the
+    vectors point — the shutter's ends since the ADR-0002 amendment of 2026-09-25 (render manifest
+    settings.vector_reach_frames). Writes blurred_default_head.####.exr — a picture, not a
+    delivery plate."""
     require_blur_parts(parts, frame)
     layers = [(d["front"], *layer_vd(parts, "FRONT")), (head_layer, *layer_vd(parts, "HEAD")),
               (d["back_extended"], d["back_vec_extended"], d["back_dep_extended"])]
-    img, report = motion_blur.blur(layers, shutter_frames)
+    img, report = motion_blur.blur(layers, shutter_frames, reach_frames)
     dst = out_dir / f"blurred_default_head.{frame:04d}.exr"
     write_parts(dst, [("BLURRED_DEFAULT_HEAD", img, ["R", "G", "B", "A"], "half", "PREMULTIPLIED")], d["colour"])
     report["file"] = dst.name
     return dst, report
 
 
-def process_frame(frame_path, out_dir, raw_beauty, seam_ctx, shutter_frames=None):
+def vector_reach(settings, shutter_frames, manifest_name):
+    """How far the plates' vectors point, from the render manifest. Since the ADR-0002 amendment of
+    2026-09-25 they reach the shutter's open and close instants, half the shutter either side; plates
+    rendered before it carry vectors to frame ±1 and no such field — their blur missed the shutter's
+    ends by 6.2 px median on SHOT_002 1209 at 4K, so they are refused, not blurred on a guess."""
+    if not shutter_frames:
+        return None
+    reach = settings.get("vector_reach_frames")
+    if reach is None:
+        raise CompositeError(f"{manifest_name}: no settings.vector_reach_frames — the plates' vectors point at frame ±1 "
+                             "(rendered before the ADR-0002 amendment of 2026-09-25); re-render them with the current render_passes.py")
+    if abs(reach - shutter_frames / 2) > 1e-9:
+        raise CompositeError(f"{manifest_name}: vectors reach {reach} frames, the shutter's ends are ±{shutter_frames / 2} — "
+                             "conventions → post_composite_blur.vector_convention.time_base")
+    return reach
+
+
+def process_frame(frame_path, out_dir, raw_beauty, seam_ctx, shutter_frames=None, reach_frames=None):
     parts, d, report = derive(frame_path)
     # The default head layer for the reproduction test is L_HEAD.Combined from the raw render.
     raw = read_parts(raw_beauty)
@@ -306,7 +325,7 @@ def process_frame(frame_path, out_dir, raw_beauty, seam_ctx, shutter_frames=None
     extend_back(parts, d, seam_ctx, frame, with_blur=bool(shutter_frames))
     reproduction(d, head_layer, report)
     if shutter_frames:
-        _, report["post_composite_blur"] = blur_default_head(parts, d, head_layer, out_dir, frame, shutter_frames)
+        _, report["post_composite_blur"] = blur_default_head(parts, d, head_layer, out_dir, frame, shutter_frames, reach_frames)
     dst = out_dir / f"derived.{frame:04d}.exr"
     planned = [
         ("HEAD_SHADOW_MULTIPLY", d["multiply"], ["R", "G", "B"], "half", "NOT_APPLICABLE"),
@@ -351,11 +370,12 @@ def main(profile_dir):
     if st["shutter_position"] not in ("CENTRED", "NOT_APPLICABLE"):
         raise CompositeError(f"shutter_position {st['shutter_position']} is not implemented by the post-composite "
                              "blur, which is centred; conventions → post_composite_blur")
+    reach_frames = vector_reach(st, shutter_frames, bm["source_render_manifest"])
     out_dir = pd / "COMPOSITE_BUNDLE"
     seam_ctx = seam_context(pd, bm["profile"], st["resolution_percentage"])
     derived_rows = []
     for row in bm["bundles"]["COMPOSITE_BUNDLE"]["frames"]:
-        dst, report = process_frame(out_dir / row["file"], out_dir, raw_by_frame[row["frame"]], seam_ctx, shutter_frames)
+        dst, report = process_frame(out_dir / row["file"], out_dir, raw_by_frame[row["frame"]], seam_ctx, shutter_frames, reach_frames)
         derived_rows.append({"frame": row["frame"], "file": dst.name, "bytes": dst.stat().st_size,
                              "sha256": hashlib.sha256(dst.read_bytes()).hexdigest(), "report": f"precomp_report.{row['frame']:04d}.json",
                              "parts": [{"name": n, "pixel_type": DERIVED[n]["pixel_type"], "alpha": DERIVED[n]["alpha"]} for n in CONV["bundles"]["COMPOSITE_BUNDLE"]["derived_by_compositor"]],
