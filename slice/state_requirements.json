@@ -13,6 +13,10 @@
  },
  "freeze_rule": {"max_frames_without_change": 12, "channel_epsilon": 1e-4, "socket_position_epsilon_m": 1e-4, "socket_quaternion_epsilon": 1e-4,
                  "note": "a run of more than this many consecutive frames in which no channel and neither the socket position nor its rotation changes is a freeze (burst-2 ACCEPTANCE item 3); measured per shot over every frame"},
+ "jump_rule": {"ratio_over_both_neighbours_max": 3.0, "floor_px": 3.0, "profile": "video",
+               "measure": "the step between consecutive frames is the median, over every vertex of default_head_rest.obj, of the vertex's screen displacement when the head is placed by the socket's centre sample of the earlier and of the later frame, both seen through the LATER frame's camera at the video profile's pixel intrinsics — the head's own motion, not the camera's",
+               "rule": "a step is a single-frame jump when it is more than ratio_over_both_neighbours_max times BOTH neighbouring steps and more than floor_px. A short smooth move (two or more large steps in a row) and a laugh bounce are not jumps; a pose that changes by a whole step in one frame between calm frames is",
+               "status": "PROVISIONAL — calibrated 2026-09-24 on the contractor's SHOT_001 v01 and SHOT_002 v01 (slice/measurements/shot_002_v01_acceptance_2026-09-24.json): the four real jumps (discontinuous per-window pose formulas — SHOT_002 1153, 1177, 1195; SHOT_001 1019) measure 4.1–5.5×, every other step of both shots, both laughs and SHOT_001's 4-frame glance-follow included, at most 2.08×. The floor is a noise guard for near-static frames (1.5 px at 1080p), not a visibility threshold. A designed single-frame accent is declared in QUESTIONS.md with its frame and decided by the owner"},
  "blink_peak": 0.95,
  "states": {
   "front_neutral": {"all_frames": {"abs_channels_max": 0.15, "head_angle_deg_max": 15}},
