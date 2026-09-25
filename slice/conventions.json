@@ -4,7 +4,7 @@
  "experiment_id": "01J7B000000000000000BAKEXP",
  "master_id": "01J7B000000000000000BAKEM1",
  "master_version": 1,
- "master_contract_version": 1,
+ "master_contract_version": 3,
  "fps": 24,
  "frame_numbering": "1001-based",
  "units": {
@@ -493,7 +493,24 @@
    },
    "STATIC_PRECOMP": "the ordered pair PRECOMP_BACK + PRECOMP_FRONT (ADR-0002 D5 row 13 amendment)"
   },
-  "per_order_composite": "PRECOMP_FRONT over (HEAD_LAYER over PRECOMP_BACK), premultiplied overs in scene-linear; HEAD_LAYER comes from the head technology, with its own body shadow multiply replacing HEAD_SHADOW_MULTIPLY in PRECOMP_BACK = BODY_BEAUTY × M_child",
+  "per_order_composite": "PRECOMP_FRONT over (HEAD_LAYER over SEAM_EXTEND(PRECOMP_BACK)), premultiplied overs in scene-linear; HEAD_LAYER comes from the head technology, with its own body shadow multiply replacing HEAD_SHADOW_MULTIPLY in PRECOMP_BACK = BODY_BEAUTY × M_child; SEAM_EXTEND per seam_extend (ADR-0002 amendment 2026-09-24)",
+  "seam_extend": {
+   "criterion": "ADR-0002 amendment 2026-09-24, A1 (approved by the owner 2026-09-25): FINAL = FRONT over (HEAD over SEAM_EXTEND(BACK)) — in the precomp-reproduction test with the default head (criterion 3) and in every per-order composite, so the test tests what production does",
+   "why": "the head and the body meet vertex to vertex at the socket ring (D1), so the body plate under the head's lower edge shows the open neck (the torso interior) and the head's partial-coverage edge pixels let it through — a dark line along the neck, measured on every frame of SHOT_001 v01 and SHOT_002 v01",
+   "operation": "inside the head holdout (HEAD_HOLDOUT >= holdout_known_max) and within zone_px of the projected rings, the back plate (and, for the post-composite blur, its vectors and depth) is replaced by the body grown from the pixels outside the head, one ring of 8-neighbour means per step, extend_px steps; everything else is untouched; slice/seam_extend.py",
+   "rings": "socket_boundary.json: head_ring_rest carried rigidly by the socket (socket.json centre samples, rest_frame -> frame) and body_ring_per_frame, both projected through camera.json's centre sample at the profile's pixel intrinsics scaled to the render (HEAD_RENDER_BUNDLE plus files); a ring that dips is followed",
+   "zone_px": 6,
+   "extend_px": 6,
+   "holdout_known_max": 0.01,
+   "ring_facing_grazing_sin": 0.1,
+   "ring_weld_mm": 0.1,
+   "welded": "only where the seam is closed: the head ring's point (carried by the socket) and the body ring's corresponding point lie within ring_weld_mm; where they are apart the master's own seam is open, the full render shows the gap, and painting over it would hide a master defect — those points are left alone and reported per frame (OPEN_SEAM). Measured 2026-09-25: the contractor's asset 0.000 mm on all 240 frames of SHOT_001 and SHOT_002; the template's placeholder (a rigid, unskinned body) opens as its head turns",
+   "seam_mixed_coverage": [0.01, 0.99],
+   "visible_side": "only ring segments whose both ends face the camera make zone: the outward radial normal (from the ring's centroid, in its best-fit plane) points towards the camera, or within ring_facing_grazing_sin of perpendicular at the neck's silhouette; the closed ring's back arc, hidden behind the neck, adds nothing (geometry, not the depth pass: no depth convention assumed)",
+   "seam_mixed_pixels": "A2 is taken over the boundary band inside the zone where HEAD_HOLDOUT lies strictly within seam_mixed_coverage — the pixels where HEAD over BACK lets the back through; the whole band diluted the line about threefold (SHOT_002 1210 at 25 %: -0.040 over 783 px, -0.097 over its ~320 mixed ones)",
+   "units": "render pixels at every scale — the edge that mixes with the back is the reconstruction filter's width, a pixel quantity",
+   "status": "PROVISIONAL — the 2026-09-24 trial (slice/measurements/precomp_seam_edge_extend_trial.py) grew 4 rings into a 3-px dilation of the material-cryptomatte seam band (about 5 px from the ring) and removed the darkening on 16 frames of both shots; zone 6 px covers the 2-px band plus projection tolerance, 6 rings reach every zone pixel from the neck"
+  },
   "precomp_reproduction_test": {
    "criterion": "ADR-0002 §Validation 3",
    "head_layer_default": "L_HEAD.Combined — head + hair with body and environment held out and the occluder shadow-only (unoccluded silhouette)",
@@ -513,8 +530,10 @@
     "metrics": {
      "outside_band_within_1e-3_min": 0.995,
      "inside_band_within_5e-2_min": 0.9,
-     "band_fraction_max": 0.05
+     "band_fraction_max": 0.05,
+     "seam_signed_mean_abs_max": 0.04
     },
+    "seam_criterion": "ADR-0002 amendment 2026-09-24, A2: the signed mean of (composite - full render) over the seam band — the boundary band inside compositor.seam_extend's zone — must lie within +-seam_signed_mean_abs_max; a systematic darkening is a line and fails on its own instead of hiding in the band fraction. PROVISIONAL: -0.084 .. -0.225 without SEAM_EXTEND on all 16 measured frames, -0.026 .. +0.006 with it (2026-09-24). A frame with no seam band in view passes vacuously and says so",
     "status": "PROVISIONAL — placeholder smoke (64 spp, 10 %): outside 1.0, inside@5e-2 0.923, band 0.017; at 8 spp inside@5e-2 = 0.855 (FAIL) — the gate needs the smoke sample count or more; calibrated on the real asset at the conformant sample count",
     "on_fail": "COMPOSITE_ERROR, exit 2 — criterion 3 is a gate, not a report; the inside-band floor and the band cap keep an edge-localised regression from hiding inside the exclusion set"
    },
@@ -523,7 +542,7 @@
   "head_layer_contract": "HEAD_LAYER (default: L_HEAD.Combined; per order: the head technology's layer) is the UNOCCLUDED head+hair, premultiplied; occluders never cut it — PRECOMP_FRONT does",
   "per_order": {
    "script": "slice/composite_order.py (Blender's Python: numpy + OpenImageIO)",
-   "formula": "FINAL = PRECOMP_FRONT over (HEAD_LAYER over (BODY_BEAUTY × SHADOW_MULTIPLY_ORDER)) — premultiplied overs in scene-linear ACEScg",
+   "formula": "FINAL = PRECOMP_FRONT over (HEAD_LAYER over SEAM_EXTEND(BODY_BEAUTY × SHADOW_MULTIPLY_ORDER)) — premultiplied overs in scene-linear ACEScg; SEAM_EXTEND per compositor.seam_extend",
    "inputs": {
     "bundle": "renders/<profile> with COMPOSITE_BUNDLE, derived parts and a PASSing precomp reproduction and round-trip (prerequisite gates, CLAUDE.md §6)",
     "head_layer": "<dir>/head.####.exr — one RGBA part, premultiplied, colorInteropID lin_ap1_scene declared by the head technology (no declaration → error, never assumed)",

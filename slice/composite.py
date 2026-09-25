@@ -10,7 +10,14 @@ HEAD_SHADOW_MULTIPLY, SKIN_ID, SKIN_ID_HEAD, SKIN_ID_BODY, PRECOMP_BACK, PRECOMP
 precomp_report.####.json; then appends a "derived" section to bundle_manifest.<profile>.json.
 Every derived value has a declared formula; nothing is clamped silently — the one clamp
 (the multiply factor to [0, 1]) is part of its declared formula and the clipped fraction is
-reported."""
+reported.
+
+The precomp test composites FRONT over (HEAD over SEAM_EXTEND(BACK)) — the back plate under the
+head's lower edge extended at the seam (ADR-0002 amendment 2026-09-24, slice/seam_extend.py) —
+exactly as every per-order composite does, and gates the seam's signed error on its own (A2). The
+seam zone is read from the socket boundary rings in HEAD_RENDER_BUNDLE's plus files, so the split
+must carry them. PRECOMP_BACK is written as rendered; the extension is an operation of the
+composite, recorded per frame, not a plate."""
 import hashlib
 import json
 import sys
@@ -24,10 +31,35 @@ sys.path.insert(0, str(ROOT))
 from slice.cryptomatte import manifest_ids  # noqa: E402
 from slice.matte_metrics import edge_band  # noqa: E402
 from slice import motion_blur  # noqa: E402
+from slice import seam_extend  # noqa: E402
 
 CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
 CC = CONV["compositor"]
 DERIVED = CC["derived"]
+SE = CC["seam_extend"]
+
+
+def seam_context(profile_dir, profile, scale_percent):
+    """The exports SEAM_EXTEND reads, from HEAD_RENDER_BUNDLE's plus files (never a guess)."""
+    hr = Path(profile_dir) / "HEAD_RENDER_BUNDLE"
+    need = ("socket_boundary.json", "socket.json", "camera.json")
+    missing = [n for n in need if not (hr / n).exists()]
+    if missing:
+        raise CompositeError(f"SEAM_EXTEND needs {missing} in {hr} — split with the exports (plus files); the seam zone is never guessed")
+    by_frame = lambda name: {f["frame"]: f for f in json.loads((hr / name).read_text())["frames"]}  # noqa: E731
+    return {"boundary": json.loads((hr / "socket_boundary.json").read_text()), "sock": by_frame("socket.json"), "cam": by_frame("camera.json"),
+            "profile": profile, "scale": scale_percent}
+
+
+def seam_zone_for(ctx, frame, shape):
+    """(zone, ring info): the seam zone of this frame — visible, welded ring segments only — and
+    the rings' summary for the report (open visible points, largest gap)."""
+    try:
+        polys, info = seam_extend.ring_polylines_px(ctx["boundary"], ctx["sock"], ctx["cam"], frame, ctx["profile"], ctx["scale"],
+                                                     SE["ring_facing_grazing_sin"], SE["ring_weld_mm"] / 1000.0)
+    except seam_extend.SeamError as e:
+        raise CompositeError(str(e)) from e
+    return seam_extend.zone_mask(polys, shape, SE["zone_px"]), info
 
 
 class CompositeError(RuntimeError):
@@ -167,11 +199,14 @@ def derive(frame_path):
 
 
 def reproduction(d, head_layer, report):
-    """FRONT over (HEAD over BACK) vs DEFAULT_HEAD_BEAUTY (conventions → precomp_reproduction_test).
-    HEAD is the unoccluded head layer (head_layer_contract); the band is the union of the head
-    and occluder edges; the pass rule is a gate — a failing frame raises."""
+    """FRONT over (HEAD over SEAM_EXTEND(BACK)) vs DEFAULT_HEAD_BEAUTY (conventions →
+    precomp_reproduction_test). HEAD is the unoccluded head layer (head_layer_contract); the band
+    is the union of the head and occluder edges; BACK is extended at the seam (d["back_extended"],
+    ADR-0002 amendment 2026-09-24) and the seam band's signed error is gated on its own (A2); the
+    same composite without the extension is reported, never gated, so every run shows what the
+    extension removes. The pass rule is a gate — a failing frame raises."""
     rt = CC["precomp_reproduction_test"]
-    comp = over(d["front"], over(head_layer, d["back"]))
+    comp = over(d["front"], over(head_layer, d["back_extended"]))
     err = np.abs(comp[..., :3] - d["full"][..., :3]).max(axis=-1)
     band = rt["boundary_band_px"]
     edge = edge_band(d["holdout"] > 0.5, band) | edge_band(d["front"][..., 3] > 0.5, band)
@@ -190,9 +225,14 @@ def reproduction(d, head_layer, report):
         diff = np.abs(d["back"][away, :3] - d["full"][away, :3]).max(axis=-1)
         res["same_seed_layer_agreement_away_from_head"] = {"pixels": int(away.sum()), "fraction_bit_exact": float((diff == 0).mean()), "max_abs": float(diff.max())}
     rule = rt["pass_rule"]["metrics"]
+    seam = seam_extend.seam_criterion(comp, d["full"], edge, d["seam_zone"], d["holdout"], tuple(SE["seam_mixed_coverage"]))
+    raw = over(d["front"], over(head_layer, d["back"]))
+    res["seam"] = {**seam, "without_extend": seam_extend.seam_criterion(raw, d["full"], edge, d["seam_zone"], d["holdout"], tuple(SE["seam_mixed_coverage"])), "extend": d["seam_extend_stats"],
+                   "rings": d["seam_rings"], "vacuous": seam["seam_band_px"] == 0}
     values = {"outside_band_within_1e-3_min": res["within"]["0.001"]["outside_band"],
               "inside_band_within_5e-2_min": res["within"]["0.05"]["inside_band"] if res["within"]["0.05"]["inside_band"] is not None else 1.0,
-              "band_fraction_max": res["band_fraction"]}
+              "band_fraction_max": res["band_fraction"],
+              "seam_signed_mean_abs_max": abs(seam["signed_mean"]) if seam["seam_band_px"] else 0.0}  # no seam in view: vacuous, recorded above
     failed = [k for k, v in values.items() if (v < rule[k] if k.endswith("_min") else v > rule[k])]
     res["pass_rule"] = {"thresholds": rule, "values": values, "failed": failed, "status_of_thresholds": rt["pass_rule"]["status"]}
     res["status"] = "PASS" if not failed else "FAIL"
@@ -203,24 +243,51 @@ def reproduction(d, head_layer, report):
     return comp
 
 
+BLUR_PARTS = ["FRONT_MOTION_VECTORS", "FRONT_DEPTH", "HEAD_MOTION_VECTORS", "HEAD_DEPTH", "BACK_MOTION_VECTORS", "BACK_DEPTH"]
+
+
+def require_blur_parts(parts, frame):
+    missing = [n for n in BLUR_PARTS if n not in parts]
+    if missing:
+        raise CompositeError(f"frame {frame}: per-layer vectors/depth missing {missing} — the plates were "
+                             "rendered before the 2026-09-22 amendment; re-render with render_passes.py")
+
+
+def layer_vd(parts, prefix):
+    vec = parts[f"{prefix}_MOTION_VECTORS"][0].astype(np.float32)
+    dep = parts[f"{prefix}_DEPTH"][0].astype(np.float32)
+    return vec, (dep[..., 0] if dep.ndim == 3 else dep)
+
+
+def extend_back(parts, d, seam_ctx, frame, with_blur):
+    """SEAM_EXTEND on this frame's back plate (and, when the frame is blurred, on the back's own
+    vectors and depth, so the blur carries the extended plate). Sets d["seam_zone"],
+    d["back_extended"] (+ vectors/depth) and d["seam_extend_stats"]."""
+    d["seam_zone"], d["seam_rings"] = seam_zone_for(seam_ctx, frame, d["holdout"].shape)
+    carry = [d["back"]]
+    if with_blur:
+        require_blur_parts(parts, frame)
+        vec, dep = layer_vd(parts, "BACK")
+        carry += [vec, dep[..., None]]
+    ext, stats = seam_extend.extend(carry, d["holdout"], d["seam_zone"], SE["extend_px"], SE["holdout_known_max"])
+    d["back_extended"] = ext[0]
+    if with_blur:
+        d["back_vec_extended"], d["back_dep_extended"] = ext[1], ext[2][..., 0]
+    d["seam_extend_stats"] = {**stats, "zone_px_param": SE["zone_px"], "extend_px_param": SE["extend_px"]}
+
+
 def blur_default_head(parts, d, head_layer, out_dir, frame, shutter_frames):
     """The post-composite blur of ADR-0002 D5 (amendment 2026-09-22), run on the DEFAULT head so
     the blur-fidelity gate has something to measure. In production the head layer is the order's
     own, delivered sharp with its own vectors in the same convention; nothing else changes.
 
     FRONT and BACK carry their own vectors and depth from the render; the head layer uses the head
-    layer's. Writes blurred_default_head.####.exr — a picture, not a delivery plate."""
-    need = ["FRONT_MOTION_VECTORS", "FRONT_DEPTH", "HEAD_MOTION_VECTORS", "HEAD_DEPTH",
-            "BACK_MOTION_VECTORS", "BACK_DEPTH"]
-    missing = [n for n in need if n not in parts]
-    if missing:
-        raise CompositeError(f"frame {frame}: per-layer vectors/depth missing {missing} — the plates were "
-                             "rendered before the 2026-09-22 amendment; re-render with render_passes.py")
-    def vd(prefix):
-        vec = parts[f"{prefix}_MOTION_VECTORS"][0].astype(np.float32)
-        dep = parts[f"{prefix}_DEPTH"][0].astype(np.float32)
-        return vec, (dep[..., 0] if dep.ndim == 3 else dep)
-    layers = [(d["front"], *vd("FRONT")), (head_layer, *vd("HEAD")), (d["back"], *vd("BACK"))]
+    layer's. BACK is the seam-extended back with its vectors and depth extended the same way
+    (process_frame), so the blur moves what the composite shows. Writes
+    blurred_default_head.####.exr — a picture, not a delivery plate."""
+    require_blur_parts(parts, frame)
+    layers = [(d["front"], *layer_vd(parts, "FRONT")), (head_layer, *layer_vd(parts, "HEAD")),
+              (d["back_extended"], d["back_vec_extended"], d["back_dep_extended"])]
     img, report = motion_blur.blur(layers, shutter_frames)
     dst = out_dir / f"blurred_default_head.{frame:04d}.exr"
     write_parts(dst, [("BLURRED_DEFAULT_HEAD", img, ["R", "G", "B", "A"], "half", "PREMULTIPLIED")], d["colour"])
@@ -228,15 +295,16 @@ def blur_default_head(parts, d, head_layer, out_dir, frame, shutter_frames):
     return dst, report
 
 
-def process_frame(frame_path, out_dir, raw_beauty, shutter_frames=None):
+def process_frame(frame_path, out_dir, raw_beauty, seam_ctx, shutter_frames=None):
     parts, d, report = derive(frame_path)
     # The default head layer for the reproduction test is L_HEAD.Combined from the raw render.
     raw = read_parts(raw_beauty)
     if "L_HEAD.Combined" not in raw:
         raise CompositeError(f"{raw_beauty.name}: L_HEAD.Combined missing")
     head_layer = raw["L_HEAD.Combined"][0].astype(np.float32)
-    reproduction(d, head_layer, report)
     frame = report["frame"]
+    extend_back(parts, d, seam_ctx, frame, with_blur=bool(shutter_frames))
+    reproduction(d, head_layer, report)
     if shutter_frames:
         _, report["post_composite_blur"] = blur_default_head(parts, d, head_layer, out_dir, frame, shutter_frames)
     dst = out_dir / f"derived.{frame:04d}.exr"
@@ -284,16 +352,21 @@ def main(profile_dir):
         raise CompositeError(f"shutter_position {st['shutter_position']} is not implemented by the post-composite "
                              "blur, which is centred; conventions → post_composite_blur")
     out_dir = pd / "COMPOSITE_BUNDLE"
+    seam_ctx = seam_context(pd, bm["profile"], st["resolution_percentage"])
     derived_rows = []
     for row in bm["bundles"]["COMPOSITE_BUNDLE"]["frames"]:
-        dst, report = process_frame(out_dir / row["file"], out_dir, raw_by_frame[row["frame"]], shutter_frames)
+        dst, report = process_frame(out_dir / row["file"], out_dir, raw_by_frame[row["frame"]], seam_ctx, shutter_frames)
         derived_rows.append({"frame": row["frame"], "file": dst.name, "bytes": dst.stat().st_size,
                              "sha256": hashlib.sha256(dst.read_bytes()).hexdigest(), "report": f"precomp_report.{row['frame']:04d}.json",
                              "parts": [{"name": n, "pixel_type": DERIVED[n]["pixel_type"], "alpha": DERIVED[n]["alpha"]} for n in CONV["bundles"]["COMPOSITE_BUNDLE"]["derived_by_compositor"]],
                              "precomp_reproduction": report["precomp_reproduction"], "multiply_clipped_fraction": report["multiply_clipped_fraction"],
                              **({"post_composite_blur": report["post_composite_blur"]} if "post_composite_blur" in report else {})})
         r = report["precomp_reproduction"]
-        print(f"COMPOSITE_FRAME {row['frame']} {r['status']} outside_band_within_1e-3={r['within']['0.001']['outside_band']:.4f} inside_band_within_5e-2={r['within']['0.05']['inside_band']:.3f} band={r['band_fraction']:.4f} max_err={r['max_abs_error']:.4g}")
+        sm = r["seam"]
+        seam_txt = "seam=vacuous (no welded seam in view)" if sm["vacuous"] else f"seam_signed={sm['signed_mean']:+.4f} (without extend {sm['without_extend']['signed_mean']:+.4f}) replaced={sm['extend']['replaced_px']}px"
+        if sm["rings"]["visible_open_points"]:
+            seam_txt += f" OPEN_SEAM {sm['rings']['visible_open_points']}/{sm['rings']['visible_points']} visible ring points apart (max {sm['rings']['max_gap_mm_visible']:.2f} mm) — the master's seam, not extended"
+        print(f"COMPOSITE_FRAME {row['frame']} {r['status']} outside_band_within_1e-3={r['within']['0.001']['outside_band']:.4f} inside_band_within_5e-2={r['within']['0.05']['inside_band']:.3f} band={r['band_fraction']:.4f} max_err={r['max_abs_error']:.4g} {seam_txt}")
         if "post_composite_blur" in report:
             b = report["post_composite_blur"]
             print(f"BLUR_FRAME {row['frame']} samples={b['samples']} path={b['longest_path_px']}px holes_filled={b['holes_filled']} {b['seconds']}s -> {b['file']}")

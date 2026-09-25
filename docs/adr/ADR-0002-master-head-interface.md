@@ -21,6 +21,12 @@ Amended 2026-09-22 (owner approval; full text, evidence and alternatives in
 motion blur is applied after compositing from sharp layers with per-layer motion vectors, and the
 head technology delivers its head layer sharp; §Validation criterion 3 evaluated on the sharp
 layers plus a new blur-fidelity criterion. Contract version `master_contract_version = 2`.
+Amended 2026-09-25 (owner approval of the proposal of 2026-09-24; full text, evidence and
+alternatives in `ADR-0002-amendment-2026-09-24-back-under-head-edge.md`): D5 — every composite
+extends the back under the head's lower edge at the seam before the over (`SEAM_EXTEND`), because
+the head and the body meet vertex to vertex and the body plate shows the open neck there, a dark
+line on every layered composite since the first real asset; §Validation criterion 3 gains a seam
+criterion on the signed error. Contract version `master_contract_version = 3`.
 Validated by the Phase 0.5 reference slice (§Validation); any item that fails validation reopens
 this ADR before any master production begins. Layer: Core (`../architecture/layering.md`).
 
@@ -161,6 +167,21 @@ layers is not the time average of the composite when the head's coverage and the
 move differently during the shutter, which drew a visible seam line across the neck whenever the
 body moved fast under the head. Consequently **the head technology delivers its head layer
 sharp, with its own vectors and depth** — it no longer matches the master's motion blur.
+
+**The back under the head's lower edge is extended at the seam** (amendment 2026-09-24, approved
+2026-09-25). The composite is `FRONT over (HEAD over SEAM_EXTEND(BACK))` — in the per-order
+composite and in the precomp-reproduction test alike. The head and the body meet vertex to vertex
+at the socket ring (D1), so the body plate under the head holdout shows the open neck, and the
+head's partial-coverage edge pixels would let it through as a dark line along the neck.
+`SEAM_EXTEND` replaces the back plate only inside the head holdout and only within the seam zone —
+the pixels near the visible side of the projected socket boundary rings, the head ring carried by
+the socket and the body ring per frame, where the two rings coincide (a seam the master itself opens
+is the master's defect, shown as rendered and reported, never painted over) — with the body grown
+from outside the head; when the frame is blurred, the
+back's vectors and depth are extended the same way. Behind the rest of the silhouette the plate is
+untouched. The zone width and the growth are render pixels, `PROVISIONAL`
+(`slice/conventions.json → compositor.seam_extend`). The head technology changes nothing for it:
+its head meets the same ring.
 
 Normals are **not** in the base set: no consumer is known before the head technology exists.
 They may be added as an incremental pass with a consumer.
@@ -350,7 +371,11 @@ full §D5 pass set, both profiles, default head. Exit criteria, all recorded:
    `bytes_per_frame` per bundle;
 2. the §D7 round-trip test passes on all three shots;
 3. `STATIC_PRECOMP` + default head layer reproduces the full default-head render within the
-   stated tolerance — evaluated on the **sharp** layers (amendment 2026-09-22), same thresholds;
+   stated tolerance — evaluated on the **sharp** layers (amendment 2026-09-22), same thresholds,
+   through the same `SEAM_EXTEND` as every order, and with a **seam criterion** (amendment
+   2026-09-24): the signed mean error over the seam's mixed pixels (the boundary band inside the
+   seam zone where the head's coverage is fractional) lies within a `PROVISIONAL` bound, so a
+   systematic line cannot hide inside the band-wide fraction;
 4. a placeholder head (any technology, even the default head re-imported) composites
    end-to-end through the socket, holdout, shadow and skin-ID passes;
 5. one still per shot rendered and assembled into a test page at print resolution;
