@@ -1,0 +1,315 @@
+{
+ "what": "attainability of hand_over_head.fraction_min: the whole hand's projected area against the head silhouette (head + hair)",
+ "date": "2026-09-26",
+ "shot": "SHOT_003",
+ "source": "SHOT_003_v01.blend (contractor's early checkpoint, 2026-09-25)",
+ "render": "25 %, 16 samples, every frame of hand_over_face 1305-1332",
+ "tool": "slice/measurements/hand_area_vs_head.py",
+ "frames": [
+  {
+   "frame": 1305,
+   "head_px": 42385,
+   "forearm": 0.006,
+   "hand": 0.0,
+   "covered": 0.006,
+   "whole_hand": 0.138,
+   "hand_share_on_head": 0.0
+  },
+  {
+   "frame": 1306,
+   "head_px": 42411,
+   "forearm": 0.0303,
+   "hand": 0.0,
+   "covered": 0.0303,
+   "whole_hand": 0.1341,
+   "hand_share_on_head": 0.0
+  },
+  {
+   "frame": 1307,
+   "head_px": 42469,
+   "forearm": 0.0604,
+   "hand": 0.0,
+   "covered": 0.0604,
+   "whole_hand": 0.1316,
+   "hand_share_on_head": 0.0
+  },
+  {
+   "frame": 1308,
+   "head_px": 42486,
+   "forearm": 0.0896,
+   "hand": 0.001,
+   "covered": 0.0906,
+   "whole_hand": 0.129,
+   "hand_share_on_head": 0.008
+  },
+  {
+   "frame": 1309,
+   "head_px": 42528,
+   "forearm": 0.0879,
+   "hand": 0.0229,
+   "covered": 0.1108,
+   "whole_hand": 0.127,
+   "hand_share_on_head": 0.18
+  },
+  {
+   "frame": 1310,
+   "head_px": 42597,
+   "forearm": 0.0791,
+   "hand": 0.0544,
+   "covered": 0.1335,
+   "whole_hand": 0.1248,
+   "hand_share_on_head": 0.436
+  },
+  {
+   "frame": 1311,
+   "head_px": 42635,
+   "forearm": 0.0713,
+   "hand": 0.0815,
+   "covered": 0.1526,
+   "whole_hand": 0.1224,
+   "hand_share_on_head": 0.666
+  },
+  {
+   "frame": 1312,
+   "head_px": 42643,
+   "forearm": 0.0643,
+   "hand": 0.0965,
+   "covered": 0.1608,
+   "whole_hand": 0.1196,
+   "hand_share_on_head": 0.807
+  },
+  {
+   "frame": 1313,
+   "head_px": 42659,
+   "forearm": 0.0587,
+   "hand": 0.1041,
+   "covered": 0.1627,
+   "whole_hand": 0.1173,
+   "hand_share_on_head": 0.887
+  },
+  {
+   "frame": 1314,
+   "head_px": 42648,
+   "forearm": 0.0533,
+   "hand": 0.1058,
+   "covered": 0.1591,
+   "whole_hand": 0.1126,
+   "hand_share_on_head": 0.939
+  },
+  {
+   "frame": 1315,
+   "head_px": 42628,
+   "forearm": 0.049,
+   "hand": 0.1057,
+   "covered": 0.1546,
+   "whole_hand": 0.1083,
+   "hand_share_on_head": 0.976
+  },
+  {
+   "frame": 1316,
+   "head_px": 42604,
+   "forearm": 0.0459,
+   "hand": 0.1043,
+   "covered": 0.1501,
+   "whole_hand": 0.1048,
+   "hand_share_on_head": 0.995
+  },
+  {
+   "frame": 1317,
+   "head_px": 42561,
+   "forearm": 0.0434,
+   "hand": 0.1001,
+   "covered": 0.1435,
+   "whole_hand": 0.1001,
+   "hand_share_on_head": 1.0
+  },
+  {
+   "frame": 1318,
+   "head_px": 42501,
+   "forearm": 0.042,
+   "hand": 0.0957,
+   "covered": 0.1377,
+   "whole_hand": 0.0957,
+   "hand_share_on_head": 1.0
+  },
+  {
+   "frame": 1319,
+   "head_px": 42448,
+   "forearm": 0.0412,
+   "hand": 0.0915,
+   "covered": 0.1327,
+   "whole_hand": 0.0915,
+   "hand_share_on_head": 1.0
+  },
+  {
+   "frame": 1320,
+   "head_px": 42374,
+   "forearm": 0.0412,
+   "hand": 0.0902,
+   "covered": 0.1313,
+   "whole_hand": 0.0902,
+   "hand_share_on_head": 1.0
+  },
+  {
+   "frame": 1321,
+   "head_px": 42274,
+   "forearm": 0.0418,
+   "hand": 0.0936,
+   "covered": 0.1354,
+   "whole_hand": 0.0936,
+   "hand_share_on_head": 1.0
+  },
+  {
+   "frame": 1322,
+   "head_px": 42180,
+   "forearm": 0.0437,
+   "hand": 0.0981,
+   "covered": 0.1417,
+   "whole_hand": 0.0981,
+   "hand_share_on_head": 1.0
+  },
+  {
+   "frame": 1323,
+   "head_px": 42086,
+   "forearm": 0.0463,
+   "hand": 0.1016,
+   "covered": 0.1478,
+   "whole_hand": 0.1018,
+   "hand_share_on_head": 0.998
+  },
+  {
+   "frame": 1324,
+   "head_px": 41973,
+   "forearm": 0.0489,
+   "hand": 0.1041,
+   "covered": 0.1529,
+   "whole_hand": 0.1057,
+   "hand_share_on_head": 0.985
+  },
+  {
+   "frame": 1325,
+   "head_px": 41859,
+   "forearm": 0.053,
+   "hand": 0.1042,
+   "covered": 0.1571,
+   "whole_hand": 0.1086,
+   "hand_share_on_head": 0.96
+  },
+  {
+   "frame": 1326,
+   "head_px": 41733,
+   "forearm": 0.0584,
+   "hand": 0.1045,
+   "covered": 0.1629,
+   "whole_hand": 0.1143,
+   "hand_share_on_head": 0.914
+  },
+  {
+   "frame": 1327,
+   "head_px": 41575,
+   "forearm": 0.0649,
+   "hand": 0.0993,
+   "covered": 0.1642,
+   "whole_hand": 0.1174,
+   "hand_share_on_head": 0.846
+  },
+  {
+   "frame": 1328,
+   "head_px": 41420,
+   "forearm": 0.0726,
+   "hand": 0.0881,
+   "covered": 0.1607,
+   "whole_hand": 0.1229,
+   "hand_share_on_head": 0.717
+  },
+  {
+   "frame": 1329,
+   "head_px": 41272,
+   "forearm": 0.0837,
+   "hand": 0.058,
+   "covered": 0.1416,
+   "whole_hand": 0.128,
+   "hand_share_on_head": 0.453
+  },
+  {
+   "frame": 1330,
+   "head_px": 41110,
+   "forearm": 0.0961,
+   "hand": 0.0141,
+   "covered": 0.1101,
+   "whole_hand": 0.136,
+   "hand_share_on_head": 0.104
+  },
+  {
+   "frame": 1331,
+   "head_px": 40950,
+   "forearm": 0.0673,
+   "hand": 0.0,
+   "covered": 0.0673,
+   "whole_hand": 0.1463,
+   "hand_share_on_head": 0.0
+  },
+  {
+   "frame": 1332,
+   "head_px": 40741,
+   "forearm": 0.0189,
+   "hand": 0.0,
+   "covered": 0.0189,
+   "whole_hand": 0.1584,
+   "hand_share_on_head": 0.0
+  }
+ ],
+ "hand_entirely_on_the_head": {
+  "frames": [
+   1316,
+   1317,
+   1318,
+   1319,
+   1320,
+   1321,
+   1322,
+   1323
+  ],
+  "hand": [
+   0.1043,
+   0.1001,
+   0.0957,
+   0.0915,
+   0.0902,
+   0.0936,
+   0.0981,
+   0.1016
+  ],
+  "forearm": [
+   0.0459,
+   0.0434,
+   0.042,
+   0.0412,
+   0.0412,
+   0.0418,
+   0.0437,
+   0.0463
+  ],
+  "covered": [
+   0.1501,
+   0.1435,
+   0.1377,
+   0.1327,
+   0.1313,
+   0.1354,
+   0.1417,
+   0.1478
+  ]
+ },
+ "whole_hand_max": {
+  "frame": 1332,
+  "head_px": 40741,
+  "forearm": 0.0189,
+  "hand": 0.0,
+  "covered": 0.0189,
+  "whole_hand": 0.1584,
+  "hand_share_on_head": 0.0
+ },
+ "finding": "where the whole hand lies on the head it covers 0.09-0.10 of the silhouette and the forearm adds ~0.04; the whole hand never exceeds ~0.16 (turned towards the camera as it leaves). One child's hand cannot reach 0.2 of the head with hair; the task's 'a fifth to a half' was an eyeball estimate of the face, turned into a pixel gate on 2026-09-25 without this check",
+ "decision": "owner, 2026-09-26 (option 1): the hand covers the near eye entirely, fingers across the bridge towards the far eye, on every frame of the window — judged by the owner on the GPU preview; the measure keeps 0.1-0.5 on every frame against a token hand"
+}

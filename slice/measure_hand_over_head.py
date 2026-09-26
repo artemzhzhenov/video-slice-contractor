@@ -1,6 +1,6 @@
-"""How much of the head the hand and the forearm cover — ACCEPTANCE item 4 of burst 2 ("the hand covers a
-fifth to a half of the head silhouette", slice/state_requirements.json → hand_over_head), measured on the
-render instead of bounding boxes: on the SHOT_003 early checkpoint (2026-09-25) boxes said 28 % where the
+"""How much of the head the hand and the forearm cover — ACCEPTANCE item 4 of burst 2 (the hand over the eyes,
+0.1–0.5 of the head silhouette on every frame, slice/state_requirements.json → hand_over_head; the owner judges
+the eyes on the preview), measured on the render instead of bounding boxes: on the SHOT_003 early checkpoint (2026-09-25) boxes said 28 % where the
 render shows 16 %. Per rendered frame of a split video render:
 
   head      the default head's full silhouette (head + hair), re-projected from the exports at the centre
@@ -11,7 +11,8 @@ render shows 16 %. Per rendered frame of a split video render:
 
 The range holds on every frame of the hand_over_face window, not only at the peak (Q40, 2026-09-25: the hand
 at the eyes is a hold — the SHOT_003 v02 work in progress had 0.255 / 0.107 / 0.081, in range at the peak
-only). Render every frame of the window first — any scale, a few samples are enough for mattes; acceptance
+only). The floor is 0.1, not the task's eyeball "a fifth": one child's hand lying entirely on the head covers
+0.09–0.10 of it with hair, 0.13–0.15 with the forearm (slice/measurements/hand_over_head_attainable_2026-09-26.json). Render every frame of the window first — any scale, a few samples are enough for mattes; acceptance
 measures every frame, so a self-check on every other frame must include both edges of the window:
 
     blender -b SHOT_003_vNN.blend --python-exit-code 2 -P slice/render_passes.py -- --shot SHOT_003 \\
