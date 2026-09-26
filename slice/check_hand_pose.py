@@ -3,8 +3,16 @@ it on 2026-09-26 (option 1): the hand comes from below and in front, the elbow d
 palm on the eyes. SHOT_003 v02 checkpoint 2 solved the pose numerically against the eye alone and got an
 arm that no arm can do: the elbow 206 mm above the shoulder, the wrist bent 85°, the forearm through the
 head and the hand 15 mm under the skin — and the foreground hand plate, cut by the head, lost 23 % of the
-hand. Per frame of the window (state_map hand_over_face unless --frames), from the .blend, the file never
-saved:
+hand. From the .blend, the file never saved, on two sets of frames:
+
+  the hold      the hand_over_face window (state_map, or --frames): every rule below;
+  every frame   of the shot (conventions → shots, or --transit): the collision rules alone — no hand vertex
+                inside the skin, the forearm outside the head, no hand pixel behind the head or the hair. The
+                approach and the release move the arm between poses the hold rules do not describe, and they
+                can still run it through the head (SHOT_003 v03 in progress: 137 hand and forearm points inside
+                the skin on 1303, an approach the first two gate versions never looked at). A frame whose hand
+                is out of shot has nothing to cut from the plate and passes the render rule vacuously.
+
 
   geometry (the arm that holds C_HAND_FG — the side whose wrist is nearest the hand mesh), in the body's
   frame — up along the spine, out towards that arm's shoulder, forward calibrated by the camera:
@@ -49,6 +57,7 @@ from mathutils.bvhtree import BVHTree
 
 ROOT = Path(__file__).resolve().parents[1]
 REQ = json.loads((ROOT / "slice" / "state_requirements.json").read_text())["hand_pose"]
+CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
 ARM = {"shoulder": "upperarm01.{s}", "elbow": "lowerarm01.{s}", "wrist": "wrist.{s}"}
 
 
@@ -66,6 +75,28 @@ def frames_of(shot, spec):
         raise HandPoseError(f"{shot}: expected one hand_over_face window in state_map.json, found {len(win)}")
     (f0, f1), = win[0]["frames"]
     return list(range(f0, f1 + 1))
+
+
+def shot_frames(shot, spec):
+    if spec:
+        f0, f1 = (int(x) for x in spec.split("-"))
+        return list(range(f0, f1 + 1))
+    if shot not in CONV["shots"]:
+        raise HandPoseError(f"{shot}: not in conventions.json → shots")
+    r = CONV["shots"][shot]["frame_range"]
+    return list(range(r["start"], r["end"] + 1))
+
+
+def collision_failures(row, geo, req):
+    """The rules that hold on every frame of the shot, the approach and the release included."""
+    bad = []
+    if row["behind_head"] > req["behind_head_fraction_max"]:
+        bad.append(f"behind_head {row['behind_head']:.3f} > {req['behind_head_fraction_max']}")
+    if row["clearance_mm"] < req["clearance_mm_range"][0]:
+        bad.append(f"clearance {row['clearance_mm']} mm — the hand inside the skin")
+    if geo["status"] == "MEASURED" and geo["forearm_inside_head_of_21"]:
+        bad.append(f"forearm inside the head on {geo['forearm_inside_head_of_21']}/21 samples")
+    return bad
 
 
 def meshes(coll, exclude=()):
@@ -195,8 +226,6 @@ def geometry_failures(geo, req):
         bad.append(f"elbow angle {geo['elbow_angle_deg']} outside {lo}-{hi}")
     if geo["wrist_bend_deg"] > req["wrist_bend_deg_max"]:
         bad.append(f"wrist bend {geo['wrist_bend_deg']} > {req['wrist_bend_deg_max']}")
-    if geo["forearm_inside_head_of_21"]:
-        bad.append(f"forearm inside the head on {geo['forearm_inside_head_of_21']}/21 samples")
     return bad
 
 
@@ -210,7 +239,8 @@ def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("--shot", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--frames", default=None)
+    ap.add_argument("--frames", default=None, help="the hold: every rule (default: state_map hand_over_face)")
+    ap.add_argument("--transit", default=None, help="the collision rules alone (default: the shot's frame range)")
     ap.add_argument("--json", default=None)
     a = ap.parse_args(argv)
     out = Path(a.out)
@@ -230,27 +260,27 @@ def main(argv):
     rig = bpy.data.objects.get("RIG_HERO")
     setup_flat(sc)
     rows, failed = [], []
-    for f in frames_of(a.shot, a.frames):
+    hold = set(frames_of(a.shot, a.frames))
+    for f in sorted(hold | set(shot_frames(a.shot, a.transit))):
+        role = "hold" if f in hold else "transit"
         sc.frame_set(f)
         dg = bpy.context.evaluated_depsgraph_get()
         geo = geometry(rig, hand, dg, skin, sc.camera) if rig else {"status": "NOT_APPLICABLE", "why": "no RIG_HERO"}
         H = render(sc, {hand.name}, set(), out / f"hand_{f}.png")
         n = int(H.sum())
-        if not n:
-            raise HandPoseError(f"frame {f}: the hand is not in frame")
-        Vh = render(sc, {hand.name}, {o.name for o in head_meshes}, out / f"hand_head_{f}.png")
-        Vb = render(sc, {hand.name}, {o.name for o in body}, out / f"hand_body_{f}.png")
+        if not n and role == "hold":
+            raise HandPoseError(f"frame {f}: the hand is not in frame on the hold")
+        Vh = render(sc, {hand.name}, {o.name for o in head_meshes}, out / f"hand_head_{f}.png") if n else H
+        Vb = render(sc, {hand.name}, {o.name for o in body}, out / f"hand_body_{f}.png") if n else H
         he = hand.evaluated_get(dg)
         clear = min(d for v in he.data.vertices if (d := inside_depth(he.matrix_world @ v.co, skin, dg)) is not None)
-        row = {"frame": f, "hand_px": n, "behind_head": round(float((H & ~Vh).sum()) / n, 4), "behind_body": round(float((H & ~Vb).sum()) / n, 4),
-               "clearance_mm": round(1000 * clear, 1), **{"geometry": geo}}
-        bad = []
-        if row["behind_head"] > REQ["behind_head_fraction_max"]:
-            bad.append(f"behind_head {row['behind_head']:.3f} > {REQ['behind_head_fraction_max']}")
-        c0, c1 = REQ["clearance_mm_range"]
-        if not c0 <= row["clearance_mm"] <= c1:
-            bad.append(f"clearance {row['clearance_mm']} mm outside {c0}-{c1} (the palm on the face, not in it)")
-        bad += geometry_failures(geo, REQ)
+        row = {"frame": f, "role": role, "hand_px": n, "behind_head": round(float((H & ~Vh).sum()) / n, 4) if n else 0.0,
+               "behind_body": round(float((H & ~Vb).sum()) / n, 4) if n else 0.0, "clearance_mm": round(1000 * clear, 1), **{"geometry": geo}}
+        bad = collision_failures(row, geo, REQ)
+        if role == "hold":
+            if row["clearance_mm"] > REQ["clearance_mm_range"][1]:
+                bad.append(f"clearance {row['clearance_mm']} mm > {REQ['clearance_mm_range'][1]} — the palm off the face")
+            bad += [b for b in geometry_failures(geo, REQ)]
         row["failed"] = bad
         rows.append(row)
         if bad:
@@ -258,14 +288,17 @@ def main(argv):
         g = (f"elbow up {geo['elbow_above_shoulder_mm']:+.0f} out {geo['elbow_out_from_shoulder_mm']:+.0f} fwd {geo['elbow_forward_mm']:+.0f}mm "
              f"angle {geo['elbow_angle_deg']:.0f} flex {geo['elbow_flexion']:+.2f} forearm up {geo['forearm_up']:.2f} in {geo['forearm_in']:.2f} "
              f"wrist {geo['wrist_bend_deg']:.0f} in_head {geo['forearm_inside_head_of_21']}/21") if geo["status"] == "MEASURED" else "joints=NOT_APPLICABLE"
-        print(f"HAND_POSE_FRAME {f} {'FAIL' if bad else 'PASS'} behind_head={row['behind_head']:.3f} behind_body={row['behind_body']:.3f} "
+        print(f"HAND_POSE_FRAME {f} {role} {'FAIL' if bad else 'PASS'} behind_head={row['behind_head']:.3f} behind_body={row['behind_body']:.3f} "
               f"clearance={row['clearance_mm']:+.1f}mm {g}" + (" — " + "; ".join(bad) if bad else ""))
     status = "FAIL" if failed else "OK"
+    nh = sum(1 for r in rows if r["role"] == "hold")
+    fh = sum(1 for r in rows if r["role"] == "hold" and r["failed"])
     report = {"shot_id": a.shot, "rule": REQ, "frames": rows, "failed_frames": failed, "status": status,
-              "joints": rows[0]["geometry"]["status"] if rows else None}
+              "hold_frames": nh, "transit_frames": len(rows) - nh, "joints": rows[0]["geometry"]["status"] if rows else None}
     if a.json:
         Path(a.json).write_text(json.dumps(report, indent=1) + "\n")
-    print(f"HAND_POSE_{status} {a.shot} {len(rows)} frames, {len(failed)} failed; joints {report['joints']}")
+    print(f"HAND_POSE_{status} {a.shot} hold {nh} frames, {fh} failed; transit {len(rows) - nh} frames, {len(failed) - fh} failed"
+          f"{' (' + ', '.join(str(f) for f in failed[:12]) + (' …' if len(failed) > 12 else '') + ')' if failed else ''}; joints {report['joints']}")
     if failed:
         sys.exit(2)
 
