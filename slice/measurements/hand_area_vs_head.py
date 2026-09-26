@@ -1,6 +1,7 @@
 """What one hand can cover at all: the whole hand's projected area against the head silhouette (head + hair),
 per frame of a split render — the attainability check behind hand_over_head.fraction_min (2026-09-26). If the
-hand lies entirely on the head and still covers less than the bound, no placement reaches it.
+hand lies entirely on the head and still covers less than the bound, no placement of THAT pose reaches it (a pose
+that pushes the forearm through the head reached 0.2 on checkpoint 2 — slice/check_hand_pose.py gates that).
 
     blender -b --python-exit-code 2 -P slice/measurements/hand_area_vs_head.py -- <exports> <renders/video> <out.json>
 

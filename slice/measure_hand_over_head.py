@@ -11,8 +11,10 @@ render shows 16 %. Per rendered frame of a split video render:
 
 The range holds on every frame of the hand_over_face window, not only at the peak (Q40, 2026-09-25: the hand
 at the eyes is a hold — the SHOT_003 v02 work in progress had 0.255 / 0.107 / 0.081, in range at the peak
-only). The floor is 0.1, not the task's eyeball "a fifth": one child's hand lying entirely on the head covers
-0.09–0.10 of it with hair, 0.13–0.15 with the forearm (slice/measurements/hand_over_head_attainable_2026-09-26.json). Render every frame of the window first — any scale, a few samples are enough for mattes; acceptance
+only). The floor is 0.1, not the task's eyeball "a fifth": in the v01 pose the hand lying entirely on the head
+covered 0.09–0.10 of it with hair (slice/measurements/hand_over_head_attainable_2026-09-26.json), and the pose that
+did reach 0.2 (checkpoint 2) ran the forearm through the head — the number is a check against a token hand, the
+gesture is the owner's eye and slice/check_hand_pose.py. Render every frame of the window first — any scale, a few samples are enough for mattes; acceptance
 measures every frame, so a self-check on every other frame must include both edges of the window:
 
     blender -b SHOT_003_vNN.blend --python-exit-code 2 -P slice/render_passes.py -- --shot SHOT_003 \\

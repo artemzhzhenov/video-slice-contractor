@@ -310,6 +310,6 @@
   "whole_hand": 0.1584,
   "hand_share_on_head": 0.0
  },
- "finding": "where the whole hand lies on the head it covers 0.09-0.10 of the silhouette and the forearm adds ~0.04; the whole hand never exceeds ~0.16 (turned towards the camera as it leaves). One child's hand cannot reach 0.2 of the head with hair; the task's 'a fifth to a half' was an eyeball estimate of the face, turned into a pixel gate on 2026-09-25 without this check",
- "decision": "owner, 2026-09-26 (option 1): the hand covers the near eye entirely, fingers across the bridge towards the far eye, on every frame of the window — judged by the owner on the GPU preview; the measure keeps 0.1-0.5 on every frame against a token hand"
+ "finding": "in the v01 pose, where the whole hand lies on the head it covers 0.09-0.10 of the silhouette and the forearm adds ~0.04; the whole hand never exceeds ~0.16 there. CORRECTED 2026-09-26 (checkpoint 2): a hand CAN reach 0.2 of the head with hair — the contractor measured 0.199-0.207 — but only with the forearm through the head and the elbow above the shoulder; the number is attainable, the gesture is not. The task's 'a fifth to a half' was an eyeball estimate of the face, turned into a pixel gate on 2026-09-25 without this check",
+ "decision": "owner, 2026-09-26 (option 1): the hand covers the near eye entirely, fingers across the bridge towards the far eye, on every frame of the window — judged by the owner on the GPU preview; the measure keeps 0.1-0.5 on every frame against a token hand; hand_pose (slice/check_hand_pose.py) gates the anatomy since 2026-09-26"
 }
