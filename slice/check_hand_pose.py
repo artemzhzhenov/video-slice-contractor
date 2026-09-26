@@ -6,17 +6,30 @@ head and the hand 15 mm under the skin — and the foreground hand plate, cut by
 hand. Per frame of the window (state_map hand_over_face unless --frames), from the .blend, the file never
 saved:
 
-  geometry (the arm that holds C_HAND_FG — the side whose wrist is nearest the hand mesh):
-    elbow_above_shoulder_mm   elbow height above the shoulder joint along the body's up axis
+  geometry (the arm that holds C_HAND_FG — the side whose wrist is nearest the hand mesh), in the body's
+  frame — up along the spine, out towards that arm's shoulder, forward calibrated by the camera:
+    elbow_above_shoulder_mm   elbow height above the shoulder joint
+    elbow_from_midline_mm     elbow's distance from the body's midline towards its own side (negative = the arm
+                              thrown across the chest — checkpoint 3 had −100 mm with the forearm vertical)
+    elbow_out_from_shoulder_mm  elbow outside the shoulder joint, to the arm's own side — the upper arm abducted
+                              out, near horizontal, as in the owner's reference photo (2026-09-26 "elbow": the hand
+                              to the head from the side, the elbow out at shoulder height, not in front of the chest)
+    elbow_forward_mm          elbow in front of the shoulder joint
     elbow_angle_deg           interior angle upper arm / forearm (180 = straight)
+    elbow_flexion             the forearm folds in the hinge's flexion direction: −(arm plane normal · the
+                              forearm bone's local X axis), +1 for a flexed elbow, −1 for one folded backwards
+                              (the rig's convention: flexion is a negative X rotation on lowerarm01)
+    forearm_up / forearm_in   the forearm's direction: rising diagonally towards the face, not vertical
     wrist_bend_deg            angle between the forearm and the hand
     forearm_inside_head       samples of the elbow→wrist segment inside the head skin
   penetration (flat Workbench renders from the shot camera, no AA; and vertex distances):
     behind_head               hand-silhouette pixels where the head or the hair is drawn IN FRONT of the hand —
                               the pixels the foreground plate loses, which every order's head shows through
     behind_body               the same against C_BODY (reported, not gated: a sleeve cuff may cross the wrist)
-    clearance_mm              nearest distance of any hand vertex to the head skin (negative = inside; the skin is the
-                              one closed mesh — the hair strands and the dress are open shells, which the render covers)
+    clearance_mm              nearest distance of any hand vertex to the head skin: 0–15 mm — not inside the skin, and ON
+                              the face, the palm on the eyes (the 5 mm floor of 2026-09-26 morning contradicted the
+                              gesture: checkpoint 3 hung the hand 39 mm off the face); the skin is the one closed mesh —
+                              the hair strands and the dress are open shells, which the render covers
 
 Limits live in slice/state_requirements.json → hand_pose. A rig without the arm chain reports the geometry as
 NOT_APPLICABLE (never as a pass) and the gate rests on the penetration alone.
@@ -104,24 +117,93 @@ def render(sc, white, black, path):
     return mask(path)
 
 
-def geometry(rig, hand, dg, skin):
+def arm_side(rig, hand, dg):
+    """The side whose wrist is nearest the hand mesh, or None when the rig lacks the chain."""
     pb = rig.pose.bones
-    M = rig.matrix_world
     sides = [s for s in ("L", "R") if all(ARM[k].format(s=s) in pb for k in ARM)]
-    if not sides or "spine_01" not in pb:
-        return {"status": "NOT_APPLICABLE", "why": "the rig has no upperarm01/lowerarm01/wrist chain"}
+    if not sides or "spine_01" not in pb or "shoulder_l" not in pb or "shoulder_r" not in pb:
+        return None
     he = hand.evaluated_get(dg)
     hc = he.matrix_world @ (sum((v.co for v in he.data.vertices), he.data.vertices[0].co * 0) / len(he.data.vertices))
-    side = min(sides, key=lambda s: (M @ pb[ARM["wrist"].format(s=s)].head - hc).length)
+    return min(sides, key=lambda s: (rig.matrix_world @ pb[ARM["wrist"].format(s=s)].head - hc).length)
+
+
+def arm_frame(rig, side, cam):
+    """Body frame and arm points: up along the spine, out towards the arm's own shoulder, forward towards the camera's
+    side of the body (the character faces the camera in every shot of the slice), the arm's joints, the arm plane's
+    normal and the forearm's hinge axis."""
+    pb = rig.pose.bones
+    M = rig.matrix_world
+    R = M.to_3x3()
     sh, el, wr = (M @ pb[ARM[k].format(s=side)].head for k in ("shoulder", "elbow", "wrist"))
     fin = M @ pb[ARM["wrist"].format(s=side)].tail
     spine = [n for n in ("spine_05", "spine_04", "spine_03", "spine_02", "spine_01") if n in pb]
     up = ((M @ pb[spine[0]].tail) - (M @ pb["spine_01"].head)).normalized()
+    sl, sr = M @ pb["shoulder_l"].tail, M @ pb["shoulder_r"].tail   # the clavicles' ends: the shoulder joints
+    out = (sl - sr).normalized() * (1 if side == "L" else -1)
+    out = (out - up * out.dot(up)).normalized()
+    fwd = up.cross(out)
+    mid = (sl + sr) / 2
+    if fwd.dot(cam.matrix_world.translation - mid) < 0:
+        fwd = -fwd
     ua, fa, ha = el - sh, wr - el, fin - wr
-    inside = sum(1 for i in range(21) if (d := inside_depth(el + fa * (i / 20), skin, dg)) is not None and d < 0)
-    return {"status": "MEASURED", "side": side, "elbow_above_shoulder_mm": round(1000 * ua.dot(up), 1),
-            "elbow_angle_deg": round(float(np.degrees(ua.angle(fa))), 1), "wrist_bend_deg": round(float(np.degrees(fa.angle(ha))), 1),
-            "forearm_inside_head_of_21": inside}
+    normal = ua.cross(fa)
+    hinge = (R @ pb[ARM["elbow"].format(s=side)].x_axis).normalized()
+    return {"sh": sh, "el": el, "wr": wr, "up": up, "out": out, "fwd": fwd, "mid": mid, "ua": ua, "fa": fa, "ha": ha,
+            "flexion": -normal.normalized().dot(hinge) if normal.length > 1e-9 else 0.0}
+
+
+def geometry(rig, hand, dg, skin, cam):
+    side = arm_side(rig, hand, dg)
+    if side is None:
+        return {"status": "NOT_APPLICABLE", "why": "the rig has no upperarm01/lowerarm01/wrist chain with shoulder_l/r and spine_01"}
+    a = arm_frame(rig, side, cam)
+    ua, fa, ha = a["ua"], a["fa"], a["ha"]
+    fd = fa.normalized()
+    inside = sum(1 for i in range(21) if (d := inside_depth(a["el"] + fa * (i / 20), skin, dg)) is not None and d < 0)
+    return {"status": "MEASURED", "side": side, "elbow_above_shoulder_mm": round(1000 * ua.dot(a["up"]), 1),
+            "elbow_from_midline_mm": round(1000 * (a["el"] - a["mid"]).dot(a["out"]), 1), "elbow_out_from_shoulder_mm": round(1000 * ua.dot(a["out"]), 1),
+            "elbow_forward_mm": round(1000 * ua.dot(a["fwd"]), 1),
+            "elbow_angle_deg": round(float(np.degrees(ua.angle(fa))), 1), "elbow_flexion": round(a["flexion"], 3),
+            "forearm_up": round(fd.dot(a["up"]), 3), "forearm_in": round(-fd.dot(a["out"]), 3),
+            "wrist_bend_deg": round(float(np.degrees(fa.angle(ha))), 1), "forearm_inside_head_of_21": inside}
+
+
+def geometry_failures(geo, req):
+    """The rules on the measured geometry — shared with slice/measurements/find_hand_hold.py."""
+    bad = []
+    if geo["status"] != "MEASURED":
+        return bad
+    if geo["elbow_above_shoulder_mm"] > req["elbow_above_shoulder_mm_max"]:
+        bad.append(f"elbow {geo['elbow_above_shoulder_mm']} mm above the shoulder > {req['elbow_above_shoulder_mm_max']}")
+    if geo["elbow_from_midline_mm"] < req["elbow_from_midline_mm_min"]:
+        bad.append(f"elbow {geo['elbow_from_midline_mm']} mm from the midline — thrown across the chest (min {req['elbow_from_midline_mm_min']})")
+    if geo["elbow_out_from_shoulder_mm"] < req["elbow_out_from_shoulder_mm_min"]:
+        bad.append(f"elbow {geo['elbow_out_from_shoulder_mm']} mm outside the shoulder < {req['elbow_out_from_shoulder_mm_min']} — the upper arm must swing out to the side, not forward across the chest")
+    f0, f1 = req["elbow_forward_mm_range"]
+    if not f0 <= geo["elbow_forward_mm"] <= f1:
+        bad.append(f"elbow {geo['elbow_forward_mm']} mm forward of the shoulder outside {f0}-{f1}")
+    if geo["elbow_flexion"] < req["elbow_flexion_min"]:
+        bad.append(f"elbow flexion {geo['elbow_flexion']} < {req['elbow_flexion_min']} — the forearm folded backwards against the hinge")
+    u0, u1 = req["forearm_up_range"]
+    if not u0 <= geo["forearm_up"] <= u1:
+        bad.append(f"forearm up {geo['forearm_up']} outside {u0}-{u1} (diagonal, not vertical or flat)")
+    if geo["forearm_in"] < req["forearm_in_min"]:
+        bad.append(f"forearm in {geo['forearm_in']} < {req['forearm_in_min']} (it must cross towards the face)")
+    lo, hi = req["elbow_angle_deg_range"]
+    if not lo <= geo["elbow_angle_deg"] <= hi:
+        bad.append(f"elbow angle {geo['elbow_angle_deg']} outside {lo}-{hi}")
+    if geo["wrist_bend_deg"] > req["wrist_bend_deg_max"]:
+        bad.append(f"wrist bend {geo['wrist_bend_deg']} > {req['wrist_bend_deg_max']}")
+    if geo["forearm_inside_head_of_21"]:
+        bad.append(f"forearm inside the head on {geo['forearm_inside_head_of_21']}/21 samples")
+    return bad
+
+
+def signed_to_tree(tree, p):
+    """Signed distance of world point p to a world-space BVH tree (negative = inside)."""
+    loc, nrm, _, _ = tree.find_nearest(p, 0.5)
+    return (p - loc).length * (-1 if (p - loc).dot(nrm) < 0 else 1) if loc is not None else 0.5
 
 
 def main(argv):
@@ -151,7 +233,7 @@ def main(argv):
     for f in frames_of(a.shot, a.frames):
         sc.frame_set(f)
         dg = bpy.context.evaluated_depsgraph_get()
-        geo = geometry(rig, hand, dg, skin) if rig else {"status": "NOT_APPLICABLE", "why": "no RIG_HERO"}
+        geo = geometry(rig, hand, dg, skin, sc.camera) if rig else {"status": "NOT_APPLICABLE", "why": "no RIG_HERO"}
         H = render(sc, {hand.name}, set(), out / f"hand_{f}.png")
         n = int(H.sum())
         if not n:
@@ -165,24 +247,17 @@ def main(argv):
         bad = []
         if row["behind_head"] > REQ["behind_head_fraction_max"]:
             bad.append(f"behind_head {row['behind_head']:.3f} > {REQ['behind_head_fraction_max']}")
-        if row["clearance_mm"] < REQ["clearance_mm_min"]:
-            bad.append(f"clearance {row['clearance_mm']} mm < {REQ['clearance_mm_min']}")
-        if geo["status"] == "MEASURED":
-            if geo["elbow_above_shoulder_mm"] > REQ["elbow_above_shoulder_mm_max"]:
-                bad.append(f"elbow {geo['elbow_above_shoulder_mm']} mm above the shoulder > {REQ['elbow_above_shoulder_mm_max']}")
-            lo, hi = REQ["elbow_angle_deg_range"]
-            if not lo <= geo["elbow_angle_deg"] <= hi:
-                bad.append(f"elbow angle {geo['elbow_angle_deg']} outside {lo}-{hi}")
-            if geo["wrist_bend_deg"] > REQ["wrist_bend_deg_max"]:
-                bad.append(f"wrist bend {geo['wrist_bend_deg']} > {REQ['wrist_bend_deg_max']}")
-            if geo["forearm_inside_head_of_21"]:
-                bad.append(f"forearm inside the head on {geo['forearm_inside_head_of_21']}/21 samples")
+        c0, c1 = REQ["clearance_mm_range"]
+        if not c0 <= row["clearance_mm"] <= c1:
+            bad.append(f"clearance {row['clearance_mm']} mm outside {c0}-{c1} (the palm on the face, not in it)")
+        bad += geometry_failures(geo, REQ)
         row["failed"] = bad
         rows.append(row)
         if bad:
             failed.append(f)
-        g = (f"elbow {geo['elbow_above_shoulder_mm']:+.0f}mm angle {geo['elbow_angle_deg']:.0f} wrist {geo['wrist_bend_deg']:.0f} "
-             f"forearm_in_head {geo['forearm_inside_head_of_21']}/21") if geo["status"] == "MEASURED" else "joints=NOT_APPLICABLE"
+        g = (f"elbow up {geo['elbow_above_shoulder_mm']:+.0f} out {geo['elbow_out_from_shoulder_mm']:+.0f} fwd {geo['elbow_forward_mm']:+.0f}mm "
+             f"angle {geo['elbow_angle_deg']:.0f} flex {geo['elbow_flexion']:+.2f} forearm up {geo['forearm_up']:.2f} in {geo['forearm_in']:.2f} "
+             f"wrist {geo['wrist_bend_deg']:.0f} in_head {geo['forearm_inside_head_of_21']}/21") if geo["status"] == "MEASURED" else "joints=NOT_APPLICABLE"
         print(f"HAND_POSE_FRAME {f} {'FAIL' if bad else 'PASS'} behind_head={row['behind_head']:.3f} behind_body={row['behind_body']:.3f} "
               f"clearance={row['clearance_mm']:+.1f}mm {g}" + (" — " + "; ".join(bad) if bad else ""))
     status = "FAIL" if failed else "OK"
