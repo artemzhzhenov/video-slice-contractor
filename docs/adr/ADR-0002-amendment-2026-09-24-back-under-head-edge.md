@@ -205,3 +205,22 @@ Full `check_asset.sh` on fresh renders: **SHOT_001 v01 — `ASSET_CHECK_OK` at 2
 at both scales and then fails on frame 1209 — blur fidelity at 25 %, the round-trip against the
 blurred matte at 100 % (identical to the diagnostic run before this amendment; the centre sample is
 exact). That is the post-composite blur on fast close-up motion, a separate open item, not the seam.
+
+## Scale note (2026-09-27, owner decision)
+
+SEAM_EXTEND grows the back under the head's edge from the body pixels just outside it. On SHOT_003's fear
+peak (1286–1292, the head raised in ¾) a sliver of the body's neck skin opens between the dress collar and
+the head's edge. At 4K the sliver spans pixels — 98 % of the extension's sources are skin — and the seam
+passes (+0.006 / +0.002, limit 0.04). At 25 % the sliver is narrower than a pixel, 35 % of the sources are
+skin and the grown colour is the collar's: −0.083 / −0.079, a line the criterion rightly fails
+(`slice/measurements/seam_1286_investigation_2026-09-26.json`). The rings are welded; nothing on the
+contractor's side.
+
+Decision (option 1 of three; the threshold untouched, no other metric affected): below production scale a
+frame whose **only** failed metric is A2 is `SEAM_PENDING_4K` — recorded in the precomp report, printed by
+`composite.py`, and `check_asset.sh` ends that run with `ASSET_CHECK_SEAM_PENDING_4K` instead of
+`ASSET_CHECK_OK`. It is never a pass: the 100 % run, which acceptance always includes, decides the seam.
+Rejected: re-rendering the frame at 4K inside the 25 % self-check (tens of CPU-minutes per frame for the
+contractor) and loosening the 25 % threshold (would pass the line). `conventions.json →
+precomp_reproduction_test.pass_rule.seam_below_production_scale`; test in `tests/test_slice_composite.py`.
+

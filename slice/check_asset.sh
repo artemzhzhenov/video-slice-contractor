@@ -23,6 +23,7 @@
 # Needs Blender 5.2.1 on PATH and the vendored OCIO config (set here).
 set -u
 BLEND="${1:?scene.blend}"; OUT="${2:?output dir}"; SAMPLES="${3:-64}"; SCALE="${4:-25}"; SHOT="${5:-SHOT_001}"
+SEAM_PENDING=""
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export OCIO="$ROOT/benchmarks/bakeoff/01J7B000000000000000BAKEXP/slice/ocio/studio-config-v4.0.0_aces-v2.0_ocio-v2.5.ocio"
 export CYCLES_METAL_DISABLE_BINARY_ARCHIVES=1
@@ -55,6 +56,9 @@ step "5 render video frames $VFRAMES ($SAMPLES spp, $SCALE %)"; run blender -b "
 for prof in $PROFILES; do
   step "6 split $prof"; run "${B[@]}" -P "$ROOT/slice/split_bundles.py" -- "$OUT/renders/$prof" --exports "$OUT/exports"
   step "7 composite $prof"; run "${B[@]}" -P "$ROOT/slice/composite.py" -- "$OUT/renders/$prof"
+  # Below 100 % a frame whose ONLY failure is the seam is pending, not passed (owner, 2026-09-27): the verdict
+  # of this run becomes ASSET_CHECK_SEAM_PENDING_4K, and the 100 % run decides the seam.
+  grep -q "^COMPOSITE_SEAM_PENDING_4K" "$OUT/last_step.log" && SEAM_PENDING="$(sed -n 's/^COMPOSITE_SEAM_PENDING_4K .*the seam on \(\[[^]]*\]\).*/\1/p' "$OUT/last_step.log" | tail -n 1)"
   # The video profile is blurred after compositing (ADR-0002 D5 amendment 2026-09-22), so it owes
   # criterion 8: the same frames rendered WITH the shutter open are the ground truth the blur is
   # measured against. That reference is also the matte the round-trip integrates against now that
@@ -78,6 +82,10 @@ for prof in $PROFILES; do
 done
 if [ "$PROFILES" = "video" ]; then
   echo; echo "ASSET_CHECK_QUICK_OK — every gate passed on the first video frame of $BLEND, $SHOT ($SAMPLES spp / $SCALE %) — NOT a delivery check: run without CHECK_ASSET_QUICK before delivering"
+  exit 0
+fi
+if [ -n "${SEAM_PENDING:-}" ]; then
+  echo; echo "ASSET_CHECK_SEAM_PENDING_4K — every gate passed on $BLEND, $SHOT ($SAMPLES spp / $SCALE %) except the seam on frames $SEAM_PENDING, which this scale cannot judge: run at 100 % to decide it (not an OK)"
   exit 0
 fi
 echo; echo "ASSET_CHECK_OK — every gate passed on $BLEND, $SHOT (smoke settings $SAMPLES spp / $SCALE %; thresholds PROVISIONAL)"

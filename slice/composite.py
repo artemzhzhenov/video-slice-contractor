@@ -235,12 +235,20 @@ def reproduction(d, head_layer, report):
               "seam_signed_mean_abs_max": abs(seam["signed_mean"]) if seam["seam_band_px"] else 0.0}  # no seam in view: vacuous, recorded above
     failed = [k for k, v in values.items() if (v < rule[k] if k.endswith("_min") else v > rule[k])]
     res["pass_rule"] = {"thresholds": rule, "values": values, "failed": failed, "status_of_thresholds": rt["pass_rule"]["status"]}
-    res["status"] = "PASS" if not failed else "FAIL"
+    # Below production scale the seam alone is not judged (owner, 2026-09-27): SEAM_EXTEND grows the back from
+    # the pixels outside the head, and a sliver of neck skin narrower than a pixel at 25 % is grown as the
+    # collar (SHOT_003 1286: -0.083 at 25 %, +0.006 at 100 %). Such a frame is PENDING, never PASS: the 100 %
+    # run decides it. Every other metric fails as before, at every scale.
+    pending = failed == ["seam_signed_mean_abs_max"] and SCALE_PERCENT < 100
+    res["status"] = "PASS" if not failed else ("SEAM_PENDING_4K" if pending else "FAIL")
     res["measured_cause_of_error"] = rt["measured_cause_of_error"]
     report["precomp_reproduction"] = res
-    if failed:
+    if failed and not pending:
         raise CompositeError(f"frame {report['frame']}: precomp reproduction FAIL on {failed}: {values}")
     return comp
+
+
+SCALE_PERCENT = 100   # set by main() from the render manifest; the seam is judged at production scale only
 
 
 BLUR_PARTS = ["FRONT_MOTION_VECTORS", "FRONT_DEPTH", "HEAD_MOTION_VECTORS", "HEAD_DEPTH", "BACK_MOTION_VECTORS", "BACK_DEPTH"]
@@ -371,6 +379,8 @@ def main(profile_dir):
         raise CompositeError(f"shutter_position {st['shutter_position']} is not implemented by the post-composite "
                              "blur, which is centred; conventions → post_composite_blur")
     reach_frames = vector_reach(st, shutter_frames, bm["source_render_manifest"])
+    global SCALE_PERCENT
+    SCALE_PERCENT = int(st["resolution_percentage"])
     out_dir = pd / "COMPOSITE_BUNDLE"
     seam_ctx = seam_context(pd, bm["profile"], st["resolution_percentage"])
     derived_rows = []
@@ -392,7 +402,11 @@ def main(profile_dir):
             print(f"BLUR_FRAME {row['frame']} samples={b['samples']} path={b['longest_path_px']}px holes_filled={b['holes_filled']} {b['seconds']}s -> {b['file']}")
     bm["bundles"]["COMPOSITE_BUNDLE"]["derived"] = {"script": CC["script"], "frames": derived_rows, "static_precomp": CC["derived"]["STATIC_PRECOMP"]}
     bm_path.write_text(json.dumps(bm, indent=1) + "\n")
-    print(f"COMPOSITE_OK {len(derived_rows)} frames -> {out_dir}")
+    pending = [r["frame"] for r in derived_rows if r["precomp_reproduction"]["status"] == "SEAM_PENDING_4K"]
+    if pending:
+        print(f"COMPOSITE_SEAM_PENDING_4K {len(derived_rows)} frames -> {out_dir}; the seam on {pending} failed at {SCALE_PERCENT} % and is not judged below 100 % — the 100 % run decides")
+    else:
+        print(f"COMPOSITE_OK {len(derived_rows)} frames -> {out_dir}")
 
 
 if __name__ == "__main__":

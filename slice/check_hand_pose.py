@@ -30,6 +30,14 @@ hand. From the .blend, the file never saved, on two sets of frames:
     forearm_up / forearm_in   the forearm's direction: rising diagonally towards the face, not vertical
     wrist_bend_deg            angle between the forearm and the hand
     forearm_inside_head       samples of the elbow→wrist segment inside the head skin
+  the hand itself (every frame; a rig without finger bones reports NOT_APPLICABLE) — SHOT_003 v03 shipped the
+  fingers in the rig's rest pose, straight and splayed with the thumb 51° off the index: "four fingers", the
+  owner said, the pinky hidden behind the rest:
+    thumb_spread_deg          angle between the thumb's first bone and the index metacarpal
+    finger_curl_deg           mean bend at the first knuckle of fingers 2-5
+    finger_splay_deg          angle between the index and the pinky metacarpals
+  motion (every frame): wrist_speed_mm_per_frame — the wrist joint's travel since the previous frame of the
+    run; v03 flung the hand to the face at 216 mm/frame and dropped it at 155 (the release "like a stick")
   penetration (flat Workbench renders from the shot camera, no AA; and vertex distances):
     behind_head               hand-silhouette pixels where the head or the hair is drawn IN FRONT of the hand —
                               the pixels the foreground plate loses, which every order's head shows through
@@ -184,12 +192,43 @@ def arm_frame(rig, side, cam):
             "flexion": -normal.normalized().dot(hinge) if normal.length > 1e-9 else 0.0}
 
 
+FINGERS = {"thumb": "finger1-1.{s}", "index": "finger2-1.{s}", "pinky": "finger5-1.{s}"}
+
+
+def hand_shape(rig, side):
+    """The fingers' pose: thumb spread, first-knuckle curl of fingers 2-5, index-pinky splay (degrees)."""
+    pb = rig.pose.bones
+    M = rig.matrix_world
+    need = [FINGERS[k].format(s=side) for k in FINGERS] + [f"finger{k}-{j}.{side}" for k in (2, 3, 4, 5) for j in (1, 2)]
+    if not all(n in pb for n in need):
+        return {"status": "NOT_APPLICABLE", "why": "the rig has no finger1-1/finger2-1..finger5-2 chain"}
+    d = lambda n: ((M @ pb[n].tail) - (M @ pb[n].head)).normalized()  # noqa: E731
+    thumb = float(np.degrees(d(FINGERS["thumb"].format(s=side)).angle(d(FINGERS["index"].format(s=side)))))
+    curl = float(np.mean([np.degrees(d(f"finger{k}-1.{side}").angle(d(f"finger{k}-2.{side}"))) for k in (2, 3, 4, 5)]))
+    splay = float(np.degrees(d(FINGERS["index"].format(s=side)).angle(d(FINGERS["pinky"].format(s=side)))))
+    return {"status": "MEASURED", "thumb_spread_deg": round(thumb, 1), "finger_curl_deg": round(curl, 1), "finger_splay_deg": round(splay, 1)}
+
+
+def hand_failures(shape, req):
+    bad = []
+    if shape["status"] != "MEASURED":
+        return bad
+    if shape["thumb_spread_deg"] > req["thumb_spread_deg_max"]:
+        bad.append(f"thumb spread {shape['thumb_spread_deg']} > {req['thumb_spread_deg_max']} — the thumb sticking out")
+    if shape["finger_curl_deg"] < req["finger_curl_deg_min"]:
+        bad.append(f"finger curl {shape['finger_curl_deg']} < {req['finger_curl_deg_min']} — the fingers straight, the rig's rest hand")
+    if shape["finger_splay_deg"] > req["finger_splay_deg_max"]:
+        bad.append(f"finger splay {shape['finger_splay_deg']} > {req['finger_splay_deg_max']} — the fingers spread apart")
+    return bad
+
+
 def geometry(rig, hand, dg, skin, cam):
     side = arm_side(rig, hand, dg)
     if side is None:
         return {"status": "NOT_APPLICABLE", "why": "the rig has no upperarm01/lowerarm01/wrist chain with shoulder_l/r and spine_01"}
     a = arm_frame(rig, side, cam)
     ua, fa, ha = a["ua"], a["fa"], a["ha"]
+    shape = hand_shape(rig, side)
     fd = fa.normalized()
     inside = sum(1 for i in range(21) if (d := inside_depth(a["el"] + fa * (i / 20), skin, dg)) is not None and d < 0)
     return {"status": "MEASURED", "side": side, "elbow_above_shoulder_mm": round(1000 * ua.dot(a["up"]), 1),
@@ -197,7 +236,8 @@ def geometry(rig, hand, dg, skin, cam):
             "elbow_forward_mm": round(1000 * ua.dot(a["fwd"]), 1),
             "elbow_angle_deg": round(float(np.degrees(ua.angle(fa))), 1), "elbow_flexion": round(a["flexion"], 3),
             "forearm_up": round(fd.dot(a["up"]), 3), "forearm_in": round(-fd.dot(a["out"]), 3),
-            "wrist_bend_deg": round(float(np.degrees(fa.angle(ha))), 1), "forearm_inside_head_of_21": inside}
+            "wrist_bend_deg": round(float(np.degrees(fa.angle(ha))), 1), "forearm_inside_head_of_21": inside,
+            "wrist_world_mm": [round(1000 * v, 1) for v in a["wr"]], "hand": shape}
 
 
 def geometry_failures(geo, req):
@@ -261,11 +301,16 @@ def main(argv):
     setup_flat(sc)
     rows, failed = [], []
     hold = set(frames_of(a.shot, a.frames))
+    prev = None   # (frame, wrist position) of the previous frame of the run, for the wrist speed
     for f in sorted(hold | set(shot_frames(a.shot, a.transit))):
         role = "hold" if f in hold else "transit"
         sc.frame_set(f)
         dg = bpy.context.evaluated_depsgraph_get()
         geo = geometry(rig, hand, dg, skin, sc.camera) if rig else {"status": "NOT_APPLICABLE", "why": "no RIG_HERO"}
+        if geo["status"] == "MEASURED":
+            w = np.array(geo["wrist_world_mm"])
+            geo["wrist_speed_mm_per_frame"] = round(float(np.linalg.norm(w - prev[1])), 1) if prev and prev[0] == f - 1 else None
+            prev = (f, w)
         H = render(sc, {hand.name}, set(), out / f"hand_{f}.png")
         n = int(H.sum())
         if not n and role == "hold":
@@ -277,6 +322,11 @@ def main(argv):
         row = {"frame": f, "role": role, "hand_px": n, "behind_head": round(float((H & ~Vh).sum()) / n, 4) if n else 0.0,
                "behind_body": round(float((H & ~Vb).sum()) / n, 4) if n else 0.0, "clearance_mm": round(1000 * clear, 1), **{"geometry": geo}}
         bad = collision_failures(row, geo, REQ)
+        if geo["status"] == "MEASURED":
+            bad += hand_failures(geo["hand"], REQ)
+            sp = geo["wrist_speed_mm_per_frame"]
+            if sp is not None and sp > REQ["wrist_speed_mm_per_frame_max"]:
+                bad.append(f"wrist speed {sp} mm/frame > {REQ['wrist_speed_mm_per_frame_max']} — the hand flung")
         if role == "hold":
             if row["clearance_mm"] > REQ["clearance_mm_range"][1]:
                 bad.append(f"clearance {row['clearance_mm']} mm > {REQ['clearance_mm_range'][1]} — the palm off the face")
@@ -287,18 +337,22 @@ def main(argv):
             failed.append(f)
         g = (f"elbow up {geo['elbow_above_shoulder_mm']:+.0f} out {geo['elbow_out_from_shoulder_mm']:+.0f} fwd {geo['elbow_forward_mm']:+.0f}mm "
              f"angle {geo['elbow_angle_deg']:.0f} flex {geo['elbow_flexion']:+.2f} forearm up {geo['forearm_up']:.2f} in {geo['forearm_in']:.2f} "
-             f"wrist {geo['wrist_bend_deg']:.0f} in_head {geo['forearm_inside_head_of_21']}/21") if geo["status"] == "MEASURED" else "joints=NOT_APPLICABLE"
+             f"wrist {geo['wrist_bend_deg']:.0f} in_head {geo['forearm_inside_head_of_21']}/21 "
+             f"speed {geo['wrist_speed_mm_per_frame'] if geo['wrist_speed_mm_per_frame'] is not None else '-'} "
+             + (f"hand thumb {geo['hand']['thumb_spread_deg']:.0f} curl {geo['hand']['finger_curl_deg']:.0f} splay {geo['hand']['finger_splay_deg']:.0f}"
+                if geo["hand"]["status"] == "MEASURED" else "hand=NOT_APPLICABLE")) if geo["status"] == "MEASURED" else "joints=NOT_APPLICABLE"
         print(f"HAND_POSE_FRAME {f} {role} {'FAIL' if bad else 'PASS'} behind_head={row['behind_head']:.3f} behind_body={row['behind_body']:.3f} "
               f"clearance={row['clearance_mm']:+.1f}mm {g}" + (" — " + "; ".join(bad) if bad else ""))
     status = "FAIL" if failed else "OK"
     nh = sum(1 for r in rows if r["role"] == "hold")
     fh = sum(1 for r in rows if r["role"] == "hold" and r["failed"])
     report = {"shot_id": a.shot, "rule": REQ, "frames": rows, "failed_frames": failed, "status": status,
-              "hold_frames": nh, "transit_frames": len(rows) - nh, "joints": rows[0]["geometry"]["status"] if rows else None}
+              "hold_frames": nh, "transit_frames": len(rows) - nh, "joints": rows[0]["geometry"]["status"] if rows else None,
+              "fingers": rows[0]["geometry"].get("hand", {}).get("status") if rows else None}
     if a.json:
         Path(a.json).write_text(json.dumps(report, indent=1) + "\n")
     print(f"HAND_POSE_{status} {a.shot} hold {nh} frames, {fh} failed; transit {len(rows) - nh} frames, {len(failed) - fh} failed"
-          f"{' (' + ', '.join(str(f) for f in failed[:12]) + (' …' if len(failed) > 12 else '') + ')' if failed else ''}; joints {report['joints']}")
+          f"{' (' + ', '.join(str(f) for f in failed[:12]) + (' …' if len(failed) > 12 else '') + ')' if failed else ''}; joints {report['joints']}, fingers {report['fingers']}")
     if failed:
         sys.exit(2)
 
