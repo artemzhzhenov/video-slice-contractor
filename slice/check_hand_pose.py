@@ -38,6 +38,14 @@ hand. From the .blend, the file never saved, on two sets of frames:
     finger_splay_deg          angle between the index and the pinky metacarpals
   motion (every frame): wrist_speed_mm_per_frame — the wrist joint's travel since the previous frame of the
     run; v03 flung the hand to the face at 216 mm/frame and dropped it at 155 (the release "like a stick")
+  the raised hand (every frame): wrist_above_shoulder_mm — a hand raised above the shoulder joint is up only AT
+    the face: more than raised_wrist_above_shoulder_mm up and more than raised_clearance_mm_max off the skin
+    fails. v04's approach held the forearm level across the face (1294–1297, 53–120 mm off it) and its release
+    left the hand up in the air as the head turned away (1339–1346, 69–118 mm) — a raised arm on screen
+  MEDIUM windows (TASK §6 rule 3, state_map tiers): no hand on the face — hand_over_head, the head + hair
+    silhouette's pixels with the hand in front of them (flat renders), at most medium_hand_over_head_max on
+    every frame of a MEDIUM window. The body is not gated here: the dress collar always covers a sliver of the
+    neck, which belongs to the head's silhouette (0.2–0.5 %). v04 covered the head up to 0.21 in fear
   penetration (flat Workbench renders from the shot camera, no AA; and vertex distances):
     behind_head               hand-silhouette pixels where the head or the hair is drawn IN FRONT of the hand —
                               the pixels the foreground plate loses, which every order's head shows through
@@ -95,6 +103,13 @@ def shot_frames(shot, spec):
     return list(range(r["start"], r["end"] + 1))
 
 
+def medium_frames(shot):
+    """Frames of the shot's MEDIUM-tier windows (state_map tiers)."""
+    sm = json.loads((ROOT / "slice" / "state_map.json").read_text())
+    medium = set(sm["tiers"]["MEDIUM"])
+    return {f for w in sm["windows"] if w["shot_id"] == shot and w["state"] in medium for a, b in w["frames"] for f in range(a, b + 1)}
+
+
 def collision_failures(row, geo, req):
     """The rules that hold on every frame of the shot, the approach and the release included."""
     bad = []
@@ -104,6 +119,12 @@ def collision_failures(row, geo, req):
         bad.append(f"clearance {row['clearance_mm']} mm — the hand inside the skin")
     if geo["status"] == "MEASURED" and geo["forearm_inside_head_of_21"]:
         bad.append(f"forearm inside the head on {geo['forearm_inside_head_of_21']}/21 samples")
+    if (geo["status"] == "MEASURED" and geo["wrist_above_shoulder_mm"] > req["raised_wrist_above_shoulder_mm"]
+            and row["clearance_mm"] > req["raised_clearance_mm_max"]):
+        bad.append(f"the hand raised {geo['wrist_above_shoulder_mm']:.0f} mm above the shoulder {row['clearance_mm']} mm off the face "
+                   f"(> {req['raised_clearance_mm_max']}) — a raised arm, not a hand at the face")
+    if row.get("medium") and row["hand_over_head"] > req["medium_hand_over_head_max"]:
+        bad.append(f"hand over the head {row['hand_over_head']:.3f} in a MEDIUM window (> {req['medium_hand_over_head_max']}, TASK §6 rule 3)")
     return bad
 
 
@@ -237,7 +258,8 @@ def geometry(rig, hand, dg, skin, cam):
             "elbow_angle_deg": round(float(np.degrees(ua.angle(fa))), 1), "elbow_flexion": round(a["flexion"], 3),
             "forearm_up": round(fd.dot(a["up"]), 3), "forearm_in": round(-fd.dot(a["out"]), 3),
             "wrist_bend_deg": round(float(np.degrees(fa.angle(ha))), 1), "forearm_inside_head_of_21": inside,
-            "wrist_world_mm": [round(1000 * v, 1) for v in a["wr"]], "hand": shape}
+            "wrist_world_mm": [round(1000 * v, 1) for v in a["wr"]], "hand": shape,
+            "wrist_above_shoulder_mm": round(1000 * (a["wr"] - a["sh"]).dot(a["up"]), 1)}
 
 
 def geometry_failures(geo, req):
@@ -301,6 +323,7 @@ def main(argv):
     setup_flat(sc)
     rows, failed = [], []
     hold = set(frames_of(a.shot, a.frames))
+    medium = medium_frames(a.shot)
     prev = None   # (frame, wrist position) of the previous frame of the run, for the wrist speed
     for f in sorted(hold | set(shot_frames(a.shot, a.transit))):
         role = "hold" if f in hold else "transit"
@@ -317,9 +340,12 @@ def main(argv):
             raise HandPoseError(f"frame {f}: the hand is not in frame on the hold")
         Vh = render(sc, {hand.name}, {o.name for o in head_meshes}, out / f"hand_head_{f}.png") if n else H
         Vb = render(sc, {hand.name}, {o.name for o in body}, out / f"hand_body_{f}.png") if n else H
+        Hd = render(sc, {o.name for o in head_meshes}, set(), out / f"head_{f}.png")     # the head + hair silhouette alone
+        nh = int(Hd.sum())
         he = hand.evaluated_get(dg)
         clear = min(d for v in he.data.vertices if (d := inside_depth(he.matrix_world @ v.co, skin, dg)) is not None)
-        row = {"frame": f, "role": role, "hand_px": n, "behind_head": round(float((H & ~Vh).sum()) / n, 4) if n else 0.0,
+        row = {"frame": f, "role": role, "medium": f in medium, "hand_over_head": round(float((Hd & Vh).sum()) / nh, 4) if (n and nh) else 0.0,
+               "hand_px": n, "behind_head": round(float((H & ~Vh).sum()) / n, 4) if n else 0.0,
                "behind_body": round(float((H & ~Vb).sum()) / n, 4) if n else 0.0, "clearance_mm": round(1000 * clear, 1), **{"geometry": geo}}
         bad = collision_failures(row, geo, REQ)
         if geo["status"] == "MEASURED":
