@@ -18,6 +18,11 @@ band — all four gated with PROVISIONAL thresholds (conventions.json → roundt
 thresholds scaled by the render's resolution percentage. Pixels where the body or environment
 is in front of the re-projected head are excluded from the comparison and their fraction is
 reported (C_BODY / C_ENV hold the head out in L_HEAD; only C_HAND_FG occluders are shadow-only).
+Against a blur reference the excluded region is the occluder SWEPT over the shutter along its own motion
+vectors: the reference's head is cut by the occluder at every instant, so a moving forearm eats the head's
+alpha along its whole path, while the sharp centre-sample mask covers one instant (SHOT_003 1338: the forearm
+over the head moving 6 px — the sharp mask gave a 0.33 px centroid error on an exact export, the swept one
+0.002).
 Negative controls run on every frame and MUST fail the gate, else the metric is NOT VALIDATED
 and the script exits 2: a socket translation worth 5 px on screen and a focal scale that grows
 the silhouette by 5 px; a 3° yaw is reported VALIDATED / NOT_VALIDATED. The positive control
@@ -45,7 +50,8 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from slice.camera_model import project  # noqa: E402
-from slice.composite import coverage, crypto_manifest, read_parts  # noqa: E402
+from slice import motion_blur  # noqa: E402
+from slice.composite import coverage, crypto_manifest, read_parts, vector_reach  # noqa: E402
 from slice.cryptomatte import float_id_from_hex  # noqa: E402
 from slice.matte_metrics import SS, MatteError, iou_min_for, metrics, rasterize, reference_quantization_px  # noqa: E402
 
@@ -308,6 +314,26 @@ def holdout_coverage(comp_path, classes):
     return cov, {"holdout_objects": sorted(n for n in manifest if n in classes["holdout_objects"]), "unclassified_without_coverage": sorted(unclassified)}
 
 
+def swept_occluder(occ, vec, half_u, max_step_px=1.0):
+    """The occluder's footprint over the shutter: its sharp centre-sample mask forward-splatted along its own
+    vectors (motion_blur.displacement, path parameter u in [-half_u, half_u]) at steps of at most max_step_px, so
+    the swept region has no gaps. Returns (mask, longest path in px)."""
+    if not occ.any():
+        return occ.copy(), 0.0
+    h, w = occ.shape
+    ys, xs = np.nonzero(occ)
+    ends = [motion_blur.displacement(vec, u) for u in (-half_u, half_u)]
+    path = max(float(np.hypot(dx[ys, xs], dy[ys, xs]).max()) for dx, dy in ends)
+    n = max(3, int(math.ceil(2 * path / max_step_px)) + 1)
+    swept = occ.copy()
+    for u in np.linspace(-half_u, half_u, n):
+        dx, dy = motion_blur.displacement(vec, u)
+        tx = np.clip(np.rint(xs + dx[ys, xs]).astype(int), 0, w - 1)
+        ty = np.clip(np.rint(ys + dy[ys, xs]).astype(int), 0, h - 1)
+        swept[ty, tx] = True
+    return swept, path
+
+
 def main(argv):
     p = argparse.ArgumentParser()
     p.add_argument("--exports", required=True)
@@ -451,7 +477,18 @@ def main(argv):
         head = head_at(deformed[frame - first], verts, want_offsets)
         cov = coverage_for_frame(head, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, offsets, weights)
         hold, classified = holdout_coverage(rd / "COMPOSITE_BUNDLE" / comp_rows[frame]["file"], classes)
-        exclude = (hold >= 0.5) & (cov >= 0.5)
+        occ = hold >= 0.5
+        sweep = None
+        if integrate and not plates_blurred:
+            # the reference is cut by the occluder at every instant of the shutter: exclude its whole path
+            shutter_frames = rm["settings"]["shutter_angle_deg"] / 360.0
+            half_u = shutter_frames / 2 / vector_reach(rm["settings"], shutter_frames, bm["source_render_manifest"])
+            vec = read_parts(rd / "COMPOSITE_BUNDLE" / comp_rows[frame]["file"])["BACK_MOTION_VECTORS"][0].astype(np.float32)
+            swept, path = swept_occluder(occ, vec, half_u)
+            sweep = {"pixels_sharp": int((occ & (cov >= 0.5)).sum()), "pixels_swept": int((swept & (cov >= 0.5)).sum()),
+                     "occluder_path_px_max": round(path, 2), "vectors": "BACK_MOTION_VECTORS (the body plate: the occluder's own motion)"}
+            occ = swept
+        exclude = occ & (cov >= 0.5)
         excl_frac = float(exclude.sum() / max(int((cov >= 0.5).sum()), 1))
         th = thresholds_for(shot, frame, scale)
         if excl_frac > th["body_over_head_excluded_fraction_max"]:
@@ -507,7 +544,8 @@ def main(argv):
                "performance_track_max_abs_channel": track_by_frame[frame],
                "rest_head_comparison": {"metrics": m_rest, "gate_failed": gate(m_rest, th),
                                         "note": "the rest head re-projected on this frame, reported only: failing here while the deformed head passes means the facial deformation is visible in the silhouette"},
-               "body_over_head_excluded": {"pixels": int(exclude.sum()), "fraction_of_reprojected": excl_frac, **classified},
+               "body_over_head_excluded": {"pixels": int(exclude.sum()), "fraction_of_reprojected": excl_frac, **classified,
+                                           **({"swept_over_the_shutter": sweep} if sweep else {})},
                "controls": {"translation": {"shift_m": shift_m, "screen_shift_px": nc["translation"]["screen_shift_px"], "metrics": m_t, "gate_failed": t_failed, "status": "VALIDATED" if t_failed else "NOT_VALIDATED"},
                             "scale": {"focal_scale": focal_scale, "screen_growth_px": nc["scale"]["screen_growth_px"], "principal_point_px_used": cx_cy_s, "metrics": m_s, "gate_failed": s_failed, "status": "VALIDATED" if s_failed else "NOT_VALIDATED"},
                             "rotation": {"yaw_deg": nc["rotation"]["yaw_deg"], "metrics": m_r, "gate_failed": r_failed, "status": "VALIDATED" if r_failed else "NOT_VALIDATED"}}}
