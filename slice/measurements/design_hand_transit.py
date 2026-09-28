@@ -35,7 +35,7 @@ import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Euler
+from mathutils import Euler, Vector
 
 BONES = ["upperarm01.L", "upperarm02.L", "lowerarm01.L", "lowerarm02.L", "wrist.L"]
 
@@ -84,10 +84,12 @@ def q(e_deg):
 
 class Path3:
     """A chain of stations (bone -> quaternion), slerped leg by leg and re-parametrised by the WRIST's arc length,
-    so a trapezoid in time is a trapezoid in the hand's speed (slerp is uniform in angle, not in the hand's travel)."""
+    so a trapezoid in time is a trapezoid in the hand's speed (slerp is uniform in angle, not in the hand's travel).
+    measure="wrist+elbow" adds the elbow's arc: a leg that turns the arm a lot while the wrist moves little (v10's
+    CHIN2 -> SLIDE: 63 mm of wrist, the elbow dropping 61 mm and the palm turning 40 deg) otherwise passes in one frame."""
 
-    def __init__(self, stations, rig, samples=16):
-        self.st, self.rig = stations, rig
+    def __init__(self, stations, rig, samples=16, measure="wrist"):
+        self.st, self.rig, self.measure = stations, rig, measure
         self.cum = [0.0]                              # cumulative wrist length at each sample, legs concatenated
         self.at = [(0, 0.0)]
         prev = self._wrist(0, 0.0)
@@ -107,12 +109,17 @@ class Path3:
         return {n: a[n].slerp(b[n], u) for n in a}
 
     def _wrist(self, leg, u):
+        """The point whose travel measures the path: the wrist, or the wrist and the elbow stacked (6-D)."""
         pb = self.rig.pose.bones
         for n, qq in self.pose(leg, u).items():
             pb[n].rotation_mode = "XYZ"
             pb[n].rotation_euler = qq.to_euler("XYZ")
         bpy.context.view_layer.update()
-        return self.rig.matrix_world @ pb["wrist.L"].head
+        w = self.rig.matrix_world @ pb["wrist.L"].head
+        if self.measure == "wrist":
+            return w
+        e = self.rig.matrix_world @ pb["lowerarm01.L"].head
+        return Vector((*w, *e))
 
     def at_length(self, s):
         """The pose at fraction s of the wrist's path."""
@@ -137,13 +144,19 @@ def main(argv):
     ap.add_argument("--r0", type=int, default=1335)
     ap.add_argument("--r1", type=int, default=1359)
 
+    ap.add_argument("--approach-via", default="FOLD,CHIN,NOSE", help="stations of the approach between the rest curve and HOLD, comma-separated")
     ap.add_argument("--release-via", default="FOLD", help="stations of the release between HOLD and RELEASE, comma-separated")
+    ap.add_argument("--stations", default=None, help="a JSON file of more named stations {name: {bone: [x, y, z] degrees}}")
+    ap.add_argument("--measure", default="wrist", choices=("wrist", "wrist+elbow"), help="what the trapezoid's arc length measures")
+    ap.add_argument("--hold-json", default=None, help="a JSON {bone: [x, y, z] degrees} replacing the script's HOLD (the v7 anatomical hold)")
     ap.add_argument("--palm-to-face", type=float, default=None, help="lowerarm02 twist at CHIN and NOSE on the APPROACH (the palm turned to the face early)")
     ap.add_argument("--from-frame", type=int, default=1274, help="the contractor's approach began here: the rest curve from here to A0")
     a = ap.parse_args(argv)
     ns = runpy.run_path(a.anim_script, run_name="transit_design")
     rest = lambda b, f: tuple(ns["_ARM"][b][i][f] for i in range(3))  # noqa: E731
     hold, release_pose, f_end = ns["HOLD"], ns["RELEASE"], ns["F1"]
+    if a.hold_json:
+        hold = {b: tuple(v) for b, v in json.loads(Path(a.hold_json).read_text()).items()}
     sc = bpy.data.scenes["SLICE"]
     rig = bpy.data.objects["RIG_HERO"]
     qd = lambda d: {n: q(d[n]) for n in BONES}  # noqa: E731 — the five arm bones; shoulder_l keeps the contractor's breath
@@ -154,13 +167,16 @@ def main(argv):
     off = dict(hold)
     off["lowerarm01.L"] = (-122.0, 0.0, 0.0)   # OFF: the hold with the elbow opened 24 deg — the palm lifts off the face first
     named = {"FOLD": FOLD, "CHIN": CHIN, "NOSE": NOSE, "CHEST": CHEST, "OFF": off}
+    if a.stations:
+        named.update({k: {b: tuple(v[b]) for b in BONES} for k, v in json.loads(Path(a.stations).read_text()).items()})
+    via_in = [{"CHIN": chin_in, "NOSE": nose_in}.get(v, named[v]) for v in a.approach_via.split(",") if v]
     via_out = [named[v] for v in a.release_via.split(",") if v]
     sc.frame_set(a.a0)
-    path_in = Path3([qd({b: rest(b, a.a0) for b in BONES}), qd(FOLD), qd(chin_in), qd(nose_in), qd(hold)], rig)
+    path_in = Path3([qd({b: rest(b, a.a0) for b in BONES})] + [qd(v) for v in via_in] + [qd(hold)], rig, measure=a.measure)
     sc.frame_set(a.r0)
-    path_out = Path3([qd(hold)] + [qd(v) for v in via_out] + [qd(release_pose)], rig)
+    path_out = Path3([qd(hold)] + [qd(v) for v in via_out] + [qd(release_pose)], rig, measure=a.measure)
     for nm, pth, n in (("approach", path_in, a.a1 - a.a0), ("release", path_out, a.r1 - a.r0)):
-        print(f"PATH {nm}: wrist travel {1000 * pth.length:.0f} mm over {n} frames — mean {1000 * pth.length / n:.0f}, "
+        print(f"PATH {nm}: {a.measure} travel {1000 * pth.length:.0f} mm over {n} frames — mean {1000 * pth.length / n:.0f}, "
               f"trapezoid peak {1000 * pth.length / n / 0.7:.0f} mm/frame (the body's own motion adds to it); legs {pth.legs} mm")
     table, prev = {}, {}
     for f in range(a.from_frame, f_end + 1):
@@ -188,9 +204,11 @@ def main(argv):
         table[f] = row
     Path(a.json).write_text(json.dumps({"what": "the near arm's Euler XYZ (degrees) per frame on the approach and the release; the hold is the "
                                                 "contractor's HOLD, untouched", "a0": a.a0, "a1": a.a1, "r0": a.r0, "r1": a.r1,
-                                        "from_frame": a.from_frame, "stations": {"FOLD": FOLD, "CHIN": CHIN, "NOSE": NOSE},
-                                        "approach": "rest -> FOLD -> CHIN -> NOSE -> HOLD", "release": "HOLD -> " + " -> ".join(a.release_via.split(",")) + " -> RELEASE",
-                                        "timing": "one trapezoid speed profile (ramp 0.3) over the wrist's arc length per transit",
+                                        "from_frame": a.from_frame,
+                                        "stations": {k: named[k] for k in dict.fromkeys(a.approach_via.split(",") + a.release_via.split(",")) if k},
+                                        "approach": "rest -> " + " -> ".join(a.approach_via.split(",")) + " -> HOLD",
+                                        "release": "HOLD -> " + " -> ".join(a.release_via.split(",")) + " -> RELEASE",
+                                        "timing": f"one trapezoid speed profile (ramp 0.3) over the arc length of the {a.measure} per transit",
                                         "frames": table}, indent=1) + "\n")
     sc.frame_set(a.a0)
     bpy.ops.wm.save_as_mainfile(filepath=a.out, copy=True)
