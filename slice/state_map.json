@@ -1,6 +1,6 @@
 {
   "state_map_version": 1,
-  "status": "PROVISIONAL \u2014 proposal \u00a75 windows; final windows are the animator's (burst 2)",
+  "status": "FINAL (burst 2 closed, 2026-09-29) \u2014 every window measured STATES_OK on the accepted shots SHOT_001 v02, SHOT_002 v02 (2026-09-25) and SHOT_003 v06 (2026-09-29); the proposal \u00a75 windows kept except SHOT_003 fear, narrowed to 1273-1293 (owner, 2026-09-27). History: PROVISIONAL until burst 2",
   "tiers": {
     "EASY": [
       "front_neutral",
@@ -26,7 +26,7 @@
       "fast_movement"
     ]
   },
-  "medium_window_rule": "a MEDIUM-tier window carries no occlusion and no head angular velocity above the shot's declared threshold \u2014 threshold UNKNOWN until the animator's burst; note that three_quarter and head_turn currently sit inside SHOT_002's strong_light window, which the animator resolves or the bake-off records",
+  "medium_window_rule": "a MEDIUM-tier window carries no occlusion and no head angular velocity above the shot's declared threshold \u2014 threshold T = 140 \u00b0/s (head_angular_velocity_threshold_deg_s, final); three_quarter and head_turn sit inside SHOT_002's strong_light window by design (strong_light is the whole shot and the light is static, TASK \u00a73) \u2014 the bake-off samples carry the label, SHOT_003 supplies three-quarter under neutral light (Q24)",
   "windows": [
     {
       "shot_id": "SHOT_001",
