@@ -20,7 +20,7 @@ Per shot, `shots/<SHOT>/` — SHOT_001 v02, SHOT_002 v03 (accepted 2026-10-02; i
 | `qc/` | both | the blur-fidelity reference and report (criterion 8), silhouette, seam margin, the `check_asset.sh` log |
 | `order_qc/` | both | the default head's order composite of each profile (`composite_order.py`) — where `t_comp` and `S_frame` come from |
 
-`warmup/warmup.json` — the worker warm-up measurement. Text files up to 512 KB are in the record; everything else is
+`channel_reference/` — the channel reference renders of ADR-0002 D8 (`slice/channel_reference.py` on SHOT_001 v02's default head, 2026-10-02): `channel_reference.json` in the record, the 86 renders and two sheets offline. `warmup/warmup.json` — the worker warm-up measurement. Text files up to 512 KB are in the record; everything else is
 offline at the same relative path. The full-range render of every frame is NOT in the package yet (owner, 2026-09-29:
 before the bake-off starts; SHOT_002 v03 is in since 2026-10-02).
 

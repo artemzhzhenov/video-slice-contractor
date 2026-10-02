@@ -220,7 +220,7 @@
         -1,
         1
       ],
-      "semantic": "-1 compressed, +1 flared"
+      "semantic": "-1 compressed, +1 flared — on the slice's default head only the flare (+) moves; -1 changes nothing visible (slice/channel_reference.py, 2026-10-02)"
     },
     {
       "channel": "mouth_corner_l",

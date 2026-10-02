@@ -235,8 +235,8 @@ def build_face_control(coll, rig, shot):
 
 
 def build_eyes(colls, socket, head, mats):
-    """The placeholder head's eyes (conventions → scene_naming.eyes.template_objects): two spheres inside the placeholder
-    shell, children of SOCKET_HEAD, each looking down its local -Y, turned by FACE_CTRL's gaze_yaw /
+    """The placeholder head's eyes (conventions → scene_naming.eyes.template_objects): two spheres half out of the placeholder
+    shell with a pupil bump, so a turn shows (the channel reference's positive control), children of SOCKET_HEAD, each looking down its local -Y, turned by FACE_CTRL's gaze_yaw /
     gaze_pitch at the vocabulary's readout degrees (channel_map.json → gaze.readout_degrees) exactly
     as the contractor's rig does. The exporter derives the gaze target point from them and
     render_passes.py aims them at it (ADR-0002 amendment 2026-09-30)."""
@@ -245,11 +245,17 @@ def build_eyes(colls, socket, head, mats):
     E = CONV["scene_naming"]["eyes"]
     ctrl = bpy.data.objects[CONV["scene_naming"]["face_ctrl"]]
     centre = head.matrix_world.translation
+    r_eye, dx, dz = 0.012, 0.03, 0.02
+    front = math.sqrt(HEAD_RADIUS ** 2 - dx ** 2 - dz ** 2) - 0.5 * r_eye     # half the eye outside the shell: a turn is visible
     for name, side in zip(E["template_objects"], (1.0, -1.0)):   # PLACEHOLDER_*: a character build removes them
-        bpy.ops.mesh.primitive_uv_sphere_add(radius=0.012, location=(centre.x + side * 0.03, centre.y - HEAD_RADIUS * 0.75, centre.z + 0.02), segments=16, ring_count=8)
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=r_eye, location=(centre.x + side * dx, centre.y - front, centre.z + dz), segments=16, ring_count=8)
         eye = bpy.context.active_object
         eye.name = name
         eye.data.materials.append(mats["HERO_SKIN_HEAD"])
+        for v in eye.data.vertices:                 # the pupil as a bump on the line of sight (local -Y), not another
+            if v.co.y < -0.7 * r_eye:               # material: the placeholder head stays 100 % HERO_SKIN_HEAD, which the
+                v.co.y -= 0.4 * r_eye               # composite test's skin-ID check relies on
+        eye.data.update()
         eye.rotation_mode = "XYZ"
         for c in eye.users_collection:
             c.objects.unlink(eye)

@@ -509,7 +509,7 @@
   "gate": {
    "tool": "slice/check_skin_tone.py",
    "tones": {"lightest": [0.9, 0.72, 0.62], "middle": [0.55, 0.38, 0.28], "darkest": [0.2, 0.11, 0.07]},
-   "tones_status": "PROVISIONAL (TD) — synthetic scene-linear albedos spanning very light to very dark skin; the intended range of a master is the owner's product decision (D4), these are the slice's",
+   "tones_status": "PROVISIONAL — the owner keeps these three as the intended range for now (2026-10-02: «пока такие тона и оставим»); synthetic scene-linear albedos spanning very light to very dark skin, set by the TD 2026-09-29; the bake-off's synthetic children take the same three (docs/experiments/synthetic-reference-set.md); revisited when the owner sets the product range (D4)",
    "relative_error_max": 0.03,
    "relative_error_status": "PROVISIONAL — measured 0.3–1.4 % on the slice (2026-09-29), no re-tint 22–384 %",
    "min_skin_px_lowpassed": 50,
