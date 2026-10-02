@@ -38,9 +38,20 @@
               "emotion_intensity": { "type": "number", "minimum": 0, "maximum": 1 },
               "gaze_target": { "type": "string" }
             }
+          },
+          "gaze": {
+            "description": "ADR-0002 amendment 2026-09-30 (vocabulary v2): the point the character looks at, in the socket's local frame, metres; every head aims each of its own eyes at it",
+            "type": "object", "additionalProperties": false,
+            "required": ["target_m", "source"],
+            "properties": {
+              "target_m": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+              "source": { "enum": ["LOOK_AT", "CAMERA", "NAMED_TARGET", "FAR"] }
+            }
           }
         }
       }
     }
-  }
+  },
+  "if": { "properties": { "channel_vocabulary_version": { "minimum": 2 } } },
+  "then": { "properties": { "frames": { "items": { "required": ["gaze"] } } } }
 }

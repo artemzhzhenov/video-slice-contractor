@@ -138,6 +138,43 @@ def crypto_manifest(attrs, wanted_name):
     raise CompositeError(f"no cryptomatte manifest named {wanted_name}")
 
 
+def layer_skin(skin_parts, layer, material):
+    """Coverage of the body-skin material in one layer's own material cryptomatte (CRYPTO_<layer>_MATERIALnn), or None
+    when the layer does not carry the material at all (an empty front plate)."""
+    attrs = skin_parts[f"CRYPTO_{layer}_MATERIAL00"][1]
+    names = [v for k, v in attrs.items() if k.startswith("cryptomatte/") and k.endswith("/name")]
+    if len(names) != 1:
+        raise CompositeError(f"CRYPTO_{layer}_MATERIAL00 carries {len(names)} cryptomatte manifests {names}, expected its layer's one")
+    ids = manifest_ids(json.dumps(crypto_manifest(attrs, names[0])))
+    if material not in ids:
+        return None
+    return np.clip(coverage(skin_parts, f"{layer}_MATERIAL", ids[material]), 0.0, 1.0).astype(np.float32)
+
+
+def retint(layer_rgba, skin_diffuse_rgb, gain):
+    """The order's skin tone on one premultiplied layer (ADR-0002 amendment 2026-09-29, C3): the skin's diffuse light
+    scaled by gain = target / master albedo, the specular and everything else untouched, alpha unchanged."""
+    out = layer_rgba.astype(np.float32).copy()
+    out[..., :3] += (np.asarray(gain, np.float32) - 1.0) * skin_diffuse_rgb[..., :3].astype(np.float32)
+    return out
+
+
+def skin_diffuse(skin_parts, layer, material):
+    """SKIN_DIFFUSE_<BACK|FRONT> (ADR-0002 amendment 2026-09-29, C2): skin(layer) × diffuse colour × (direct + indirect
+    diffuse light), skin(layer) the coverage of the body-skin material in that layer's OWN material cryptomatte — the full
+    render's matte calls the body behind the hand skin, and cannot see the neck under the default head. A layer without
+    the material (an empty front plate) carries none. Returns (rgb, mean skin coverage)."""
+    col = skin_parts[f"{layer}_DIFFUSE_COLOR"][0][..., :3].astype(np.float32)
+    m = layer_skin(skin_parts, layer, material)
+    if m is None:
+        return np.zeros_like(col), 0.0
+    light = skin_parts[f"{layer}_DIFFUSE_DIRECT"][0][..., :3].astype(np.float32) + skin_parts[f"{layer}_DIFFUSE_INDIRECT"][0][..., :3].astype(np.float32)
+    out = m[..., None] * col * light
+    if not np.isfinite(out).all():
+        raise CompositeError(f"SKIN_DIFFUSE_{'BACK' if layer == 'BODY' else 'FRONT'}: non-finite — the diffuse passes carry NaN or Inf")
+    return out.astype(np.float32), float(m.mean())
+
+
 def over(front, back):
     """Premultiplied over, RGBA float arrays."""
     a = front[..., 3:4]
@@ -322,8 +359,16 @@ def vector_reach(settings, shutter_frames, manifest_name):
     return reach
 
 
-def process_frame(frame_path, out_dir, raw_beauty, seam_ctx, shutter_frames=None, reach_frames=None):
+def process_frame(frame_path, out_dir, raw_beauty, seam_ctx, shutter_frames=None, reach_frames=None, skin_path=None):
     parts, d, report = derive(frame_path)
+    if skin_path is None:
+        raise CompositeError(f"{frame_path.name}: no SKIN_BUNDLE frame — the plates were rendered before master contract v5 "
+                             "(ADR-0002 amendment 2026-09-29); re-render with the current render_passes.py")
+    sp = read_parts(skin_path)
+    material = CONV["skin_tone"]["material_body"]
+    d["skin_diffuse_back"], cov_b = skin_diffuse(sp, "BODY", material)
+    d["skin_diffuse_front"], cov_f = skin_diffuse(sp, "FRONT", material)
+    report["skin_diffuse"] = {"body_skin_coverage_mean": cov_b, "front_skin_coverage_mean": cov_f}
     # The default head layer for the reproduction test is L_HEAD.Combined from the raw render.
     raw = read_parts(raw_beauty)
     if "L_HEAD.Combined" not in raw:
@@ -342,6 +387,8 @@ def process_frame(frame_path, out_dir, raw_beauty, seam_ctx, shutter_frames=None
         ("SKIN_ID_BODY", d["skin_body"][..., None], ["coverage"], "float", "NOT_APPLICABLE"),
         ("PRECOMP_BACK", d["back"], ["R", "G", "B", "A"], "half", "PREMULTIPLIED"),
         ("PRECOMP_FRONT", d["front"], ["R", "G", "B", "A"], "half", "PREMULTIPLIED"),
+        ("SKIN_DIFFUSE_BACK", d["skin_diffuse_back"], ["R", "G", "B"], "half", "NOT_APPLICABLE"),
+        ("SKIN_DIFFUSE_FRONT", d["skin_diffuse_front"], ["R", "G", "B"], "half", "NOT_APPLICABLE"),
     ]
     write_parts(dst, planned, d["colour"])
     written = read_parts(dst)
@@ -384,8 +431,10 @@ def main(profile_dir):
     out_dir = pd / "COMPOSITE_BUNDLE"
     seam_ctx = seam_context(pd, bm["profile"], st["resolution_percentage"])
     derived_rows = []
+    skin_rows = {r["frame"]: pd / "SKIN_BUNDLE" / r["file"] for r in bm["bundles"].get("SKIN_BUNDLE", {}).get("frames", [])}
+    skin_mat = rm.get("skin_material", {})
     for row in bm["bundles"]["COMPOSITE_BUNDLE"]["frames"]:
-        dst, report = process_frame(out_dir / row["file"], out_dir, raw_by_frame[row["frame"]], seam_ctx, shutter_frames, reach_frames)
+        dst, report = process_frame(out_dir / row["file"], out_dir, raw_by_frame[row["frame"]], seam_ctx, shutter_frames, reach_frames, skin_rows.get(row["frame"]))
         derived_rows.append({"frame": row["frame"], "file": dst.name, "bytes": dst.stat().st_size,
                              "sha256": hashlib.sha256(dst.read_bytes()).hexdigest(), "report": f"precomp_report.{row['frame']:04d}.json",
                              "parts": [{"name": n, "pixel_type": DERIVED[n]["pixel_type"], "alpha": DERIVED[n]["alpha"]} for n in CONV["bundles"]["COMPOSITE_BUNDLE"]["derived_by_compositor"]],
@@ -400,7 +449,9 @@ def main(profile_dir):
         if "post_composite_blur" in report:
             b = report["post_composite_blur"]
             print(f"BLUR_FRAME {row['frame']} samples={b['samples']} path={b['longest_path_px']}px holes_filled={b['holes_filled']} {b['seconds']}s -> {b['file']}")
-    bm["bundles"]["COMPOSITE_BUNDLE"]["derived"] = {"script": CC["script"], "frames": derived_rows, "static_precomp": CC["derived"]["STATIC_PRECOMP"]}
+    bm["bundles"]["COMPOSITE_BUNDLE"]["derived"] = {"script": CC["script"], "frames": derived_rows, "static_precomp": CC["derived"]["STATIC_PRECOMP"],
+                                                     "skin_tone": {"master_albedo": skin_mat.get("base_color"), "material": skin_mat.get("name"),
+                                                                   "material_status": skin_mat.get("status", "NOT RECORDED (render made before contract v5)")}}
     bm_path.write_text(json.dumps(bm, indent=1) + "\n")
     pending = [r["frame"] for r in derived_rows if r["precomp_reproduction"]["status"] == "SEAM_PENDING_4K"]
     if pending:

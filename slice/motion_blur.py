@@ -176,6 +176,140 @@ def over(front, back):
     return front + back * (1 - front[..., 3:4])
 
 
+def reach_map(layers, half, us=(-1.0, -0.5, 0.5, 1.0)):
+    """Per pixel, the farthest any layer's source there gets from its centre position during the shutter — the
+    quadratic path sampled at its ends and halfway (a bounce can peak between the centre and an end)."""
+    H, W = layers[0][0].shape[:2]
+    m = np.zeros((H, W), np.float32)
+    for img, vec, _ in layers:
+        covered = (img[..., 3] > 0) if img.shape[2] == 4 else np.ones((H, W), bool)
+        if not covered.any():
+            continue
+        for u in us:
+            dx, dy = displacement(vec, u * half)
+            np.maximum(m, np.where(covered, np.hypot(dx, dy), 0.0).astype(np.float32), out=m)   # only a visible source moves
+    return m
+
+
+def _tile_max(a, T):
+    H, W = a.shape
+    ny, nx = -(-H // T), -(-W // T)
+    p = np.zeros((ny * T, nx * T), a.dtype)
+    p[:H, :W] = a
+    return p.reshape(ny, T, nx, T).max(axis=(1, 3))
+
+
+def _grow(t, r):
+    """Max over the (2r+1)² neighbourhood of tiles: what can move INTO a tile comes from up to r tiles away."""
+    out = t.copy()
+    ny, nx = t.shape
+    for dy in range(-r, r + 1):
+        for dx in range(-r, r + 1):
+            sh = np.zeros_like(t)
+            sh[max(0, dy):ny + min(0, dy), max(0, dx):nx + min(0, dx)] = t[max(0, -dy):ny + min(0, -dy), max(0, -dx):nx + min(0, -dx)]
+            np.maximum(out, sh, out=out)
+    return out
+
+
+def tile_plan(layers, shutter_frames, reach_frames):
+    """K per tile (conventions → post_composite_blur.tiles): the samples rule on the longest path of any source that
+    can land in the tile, rounded up to a level; 1 where nothing moves in. Returns the plan the blur runs."""
+    TL, S = PB["tiles"], PB["samples"]
+    T = int(TL["size_px"])
+    half = shutter_frames / 2 / _reach(reach_frames)
+    M = reach_map(layers, half)
+    G = float(M.max())
+    r = int(math.ceil((G + 2) / T))
+    m_reach = _grow(_tile_max(M, T), r)
+    levels = sorted(int(v) for v in TL["k_levels"])
+    need = np.clip(np.ceil(2.0 * m_reach / S["px_per_sample"]), 1, S["max_samples"]).astype(int)
+    k = np.vectorize(lambda n: next((L for L in levels if L >= n), levels[-1]))(need)
+    k = np.where(m_reach <= TL["static_max_px"], 1, k).astype(int)
+    return {"k": k, "size_px": T, "longest_reach_px": G, "margin_px": int(math.ceil(G)) + 8}
+
+
+def _tile_runs(k):
+    """Runs of equal-K tiles along each tile row (K > 1), in a fixed order."""
+    ny, nx = k.shape
+    runs = []
+    for j in range(ny):
+        i = 0
+        while i < nx:
+            K = int(k[j, i])
+            if K == 1:
+                i += 1
+                continue
+            i1 = i
+            while i1 + 1 < nx and int(k[j, i1 + 1]) == K:
+                i1 += 1
+            runs.append((j, i, i1, K))
+            i = i1 + 1
+    return runs
+
+
+def _blur_run(layers, run, plan, shutter_frames, reach):
+    """One run of tiles accumulated over its own K instants inside a window grown by the plan's margin; the layers are
+    warped and composited inside the window exactly as the frame-wide blur does (warp's inside test and the hole fill
+    see the window's edge only inside the margin, which is discarded). Returns (y0, y1, x0, x1, tile, holes, empty)."""
+    j, i, i1, K = run
+    T, mg = plan["size_px"], plan["margin_px"]
+    H, W = layers[0][0].shape[:2]
+    y0, y1, x0, x1 = j * T, min(H, (j + 1) * T), i * T, min(W, (i1 + 1) * T)
+    wy0, wy1, wx0, wx1 = max(0, y0 - mg), min(H, y1 + mg), max(0, x0 - mg), min(W, x1 + mg)
+    acc = np.zeros((y1 - y0, x1 - x0, layers[0][0].shape[2]), np.float64)
+    holes, empty = 0, 0
+    for q in range(K):
+        t = (-0.5 + (q + 0.5) / K) * shutter_frames / reach
+        comp = None
+        for img, vec, dep in reversed(layers):
+            iw = img[wy0:wy1, wx0:wx1]
+            if iw.shape[2] == 4 and not (iw[..., 3] > 0).any():
+                empty += 1
+                comp = np.zeros_like(iw) if comp is None else comp
+                continue
+            dx, dy = displacement(vec[wy0:wy1, wx0:wx1], t)
+            w_img, hole = warp(iw, dep[wy0:wy1, wx0:wx1], dx, dy)
+            holes += hole
+            comp = w_img if comp is None else over(w_img, comp)
+        acc += comp[y0 - wy0:y1 - wy0, x0 - wx0:x1 - wx0]
+    return y0, y1, x0, x1, (acc / K).astype(np.float32), holes, empty
+
+
+def _runs_chunk(runs):
+    """Runs in a forked worker: the layers and the plan come from the parent's memory."""
+    return [_blur_run(_FORKED["layers"], r, _FORKED["plan"], _FORKED["shutter"], _FORKED["reach"]) for r in runs]
+
+
+def blur_tiled(layers, shutter_frames, reach, workers=None):
+    """The per-tile blur (option B): every tile over its own K instants, a tile nothing moves into left as the sharp
+    composite. Returns (image, holes, empty passes, plan, workers)."""
+    plan = tile_plan(layers, shutter_frames, reach)
+    front, head, back = layers[0], layers[1:-1], layers[-1]
+    comp = back[0]
+    for img, _, _ in reversed(head):
+        comp = over(img, comp)
+    out = over(front[0], comp).astype(np.float32)
+    runs = _tile_runs(plan["k"])
+    n = worker_count(layers[0][0].shape, 0, workers)
+    if n > 1 and len(runs) > 1:
+        chunks = [runs[i::n] for i in range(n)]
+        _FORKED.update({"layers": layers, "plan": plan, "shutter": shutter_frames, "reach": reach})
+        try:
+            with multiprocessing.get_context("fork").Pool(n) as pool:
+                results = [r for chunk in pool.map(_runs_chunk, chunks) for r in chunk]
+        finally:
+            for k in ("layers", "plan", "shutter", "reach"):
+                _FORKED.pop(k, None)
+    else:
+        results = [_blur_run(layers, r, plan, shutter_frames, reach) for r in runs]
+    holes = empty = 0
+    for y0, y1, x0, x1, tile, hole, e in results:
+        out[y0:y1, x0:x1] = tile
+        holes += hole
+        empty += e
+    return out, holes, empty, plan, n
+
+
 def composite_at(layers, u):
     """The picture at one instant of the shutter (path parameter u): every layer warped along its
     own vectors, then composited in order. Returns (image, holes filled, empty-layer passes)."""
@@ -226,7 +360,9 @@ def blur(layers, shutter_frames, reach_frames, samples=None, workers=None):
     """layers: [(rgba_premultiplied, vector, depth)] ordered FRONT first, as they composite; their
     vectors point reach_frames away (0.25 at a 180° shutter since 2026-09-25: the shutter's ends;
     1.0 for plates whose vectors point at the previous and next frame). Returns (image, report). The
-    shutter is centred: t runs over ±shutter_frames/2, the path parameter over ±t/reach."""
+    shutter is centred: t runs over ±shutter_frames/2, the path parameter over ±t/reach.
+    samples=None runs the production rule — K per tile (conventions → post_composite_blur.tiles,
+    the owner's pick of 2026-10-01); an explicit samples runs the frame-wide blur at that K."""
     if not layers:
         raise BlurError("no layers to blur")
     if shutter_frames <= 0:
@@ -235,6 +371,21 @@ def blur(layers, shutter_frames, reach_frames, samples=None, workers=None):
     path = longest_path_px(layers, shutter_frames, reach)
     k = samples or samples_for(path)
     t0 = time.time()
+    if samples is None and "tiles" in PB:
+        # the production rule (owner's pick 2026-10-01, conventions → tiles): K per tile; an explicit samples=
+        # request runs the frame-wide blur at that K — the reference the tiles were measured against
+        img, holes, empty, plan, n = blur_tiled(layers, shutter_frames, reach, workers)
+        kk = plan["k"]
+        hist = {str(L): int((kk == L).sum()) for L in sorted(set(kk.ravel().tolist()))}
+        report = {"samples": k, "longest_path_px": round(path, 2), "shutter_frames": shutter_frames, "vector_reach_frames": reach,
+                  "px_per_sample": round(path / k, 3) if k else None, "samples_rule": PB["samples"]["rule"], "samples_status": PB["status"],
+                  "tiles": {"size_px": plan["size_px"], "count": int(kk.size), "static": int((kk == 1).sum()), "k_histogram": hist,
+                            "instants_fraction_of_frame_wide": round(float(kk[kk > 1].sum()) / (kk.size * k), 4) if k else None,
+                            "longest_reach_px": round(plan["longest_reach_px"], 2), "margin_px": plan["margin_px"],
+                            "rule": PB["tiles"]["rule"], "status": PB["tiles"]["status"]},
+                  "holes_filled": holes, "empty_layer_passes_skipped": empty, "workers": n,
+                  "seconds": round(time.time() - t0, 2), "layers": len(layers), "model": PB["model"] + "; K per tile (tiles)"}
+        return img, report
     ts = [(-0.5 + (i + 0.5) / k) * shutter_frames / reach for i in range(k)]
     n = worker_count(layers[0][0].shape, k, workers)
     accum, holes, empty = None, 0, 0

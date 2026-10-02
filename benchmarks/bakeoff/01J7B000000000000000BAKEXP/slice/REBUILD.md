@@ -1,60 +1,55 @@
-# Rebuild recipe — Phase 0.5 reference slice (2026-09-15; assets pending)
+# Rebuild recipe — Phase 0.5 reference slice
 
-Package: `benchmarks/bakeoff/01J7B000000000000000BAKEXP/slice/`. Master `01J7B000000000000000BAKEM1`
-v1, contract v1 (ADR-0002). This file is the D11 rebuild recipe; a stranger with this directory
-and the pinned toolchain must be able to re-render one shot. Each step below is filled in as the
-step exists; a step that is not yet executable says so.
+Package: `benchmarks/bakeoff/01J7B000000000000000BAKEXP/slice/` in the git record (the light part) plus its offline part
+on the archive disk, `<the archive disk>/package/01J7B000000000000000BAKEXP/slice/` (owner decision
+2026-09-29). Master `01J7B000000000000000BAKEM1` v1, contract v5 (ADR-0002 with its amendments to 2026-09-29), channel vocabulary v2 (the gaze target point, amendment 2026-09-30). One file
+table and one `package_hash` over both parts (`package_manifest.json`). This file is the D11 rebuild recipe: a stranger
+with this package, the repository and the pinned toolchain must be able to rebuild a shot and re-render it.
+(Rewritten 2026-09-29 for the delivered shots; the 2026-09-15 recipe described the placeholder at contract v1.)
 
-1. Toolchain — install exactly the versions in `../../../../slice/toolchain.lock.json`:
-   Blender 5.2.1 LTS (build 9e2066aef7ef), OpenImageIO 3.1.17, OpenColorIO 2.5.2. On macOS:
-   `brew install --cask blender && brew install openimageio opencolorio`, then confirm the
-   versions match the lock. PINNED 2026-09-15.
-2. Environment — `export OCIO=$PWD/ocio/studio-config-v4.0.0_aces-v2.0_ocio-v2.5.ocio` (vendored
-   in this package; sha256 in the lock and in `package_manifest.json`). VENDORED.
-3. Scene — from the repository root:
-   `blender -b --python-exit-code 2 -P slice/scene_template.py -- --out <pkg>/template.blend --shot SHOT_001`
-   then `blender -b <pkg>/template.blend --python-exit-code 2 -P slice/check_scene.py` must exit 0.
-   EXECUTABLE — last run 2026-09-15, zero failed checks (`slice/measurements/check_scene.json`).
-4. Assets — character, default head, hair, environment: NOT YET DELIVERED (rigger burst 1).
-5. Animation and performance track — NOT YET DELIVERED (burst 2). The export step already runs
-   on the placeholder rig: `blender -b <pkg>/template.blend --python-exit-code 2 -P slice/export_shot.py -- --shot SHOT_001 --out <pkg>/shots/SHOT_001/exports`,
-   then `.venv/bin/python slice/check_exports.py <pkg>/shots/SHOT_001/exports` and
-   `blender -b --python-exit-code 2 -P slice/check_alembic.py -- --abc … --meta …` must exit 0.
-   EXECUTABLE — last run 2026-09-15, zero failed checks on all three.
-6. Render — from the repository root, per profile:
-   `blender -b <pkg>/template.blend --python-exit-code 2 -P slice/render_passes.py -- --shot SHOT_001 --profile video --frames all --probe --out <pkg>/shots/SHOT_001/renders`
-   and `--profile still` (frames from `slice/state_map.json`). Then
-   `blender -b --python-exit-code 2 -P slice/split_bundles.py -- <pkg>/shots/SHOT_001/renders/<profile> --exports <pkg>/shots/SHOT_001/exports`
-   writes the two bundles, and
-   `blender -b --python-exit-code 2 -P slice/composite.py -- <pkg>/shots/SHOT_001/renders/<profile>`
-   derives HEAD_SHADOW_MULTIPLY, SKIN_ID and the precomp pair and writes the reproduction report;
-   `blender -b --python-exit-code 2 -P slice/roundtrip.py -- --exports <pkg>/shots/SHOT_001/exports --renders <pkg>/shots/SHOT_001/renders/<profile>`
-   runs the D7 round-trip and records its status in the bundle manifest.
-   EXECUTABLE — smoke-verified 2026-09-15 at 10 % / 8 samples on the placeholder scene; a
-   conformant render (100 %, profile samples) of the placeholder is ~6 min per video frame on
-   this machine (`slice/measurements/test_frame.json`), so full-range renders wait for the
-   real asset and the render-time decision in PROJECT_STATE.
-7. Package — `.venv/bin/python slice/package.py hash <pkg>` writes `package_manifest.json`
-   (sha256 + bytes per file, per-shot entries from the export and bundle manifests, toolchain and
-   OCIO hash from the lock, `package_hash`); `.venv/bin/python slice/package.py verify <pkg>`
-   recomputes and exits 2 on any missing / added / changed file. EXECUTABLE — CI verifies this
-   directory as committed; the placeholder's regenerable content (template, exports, renders) is
-   not committed and is not in the committed manifest — it is rebuilt by step 8 into a fresh
-   directory until the real asset is archived here.
-8. Verify — precomp reproduction (`precomp_report.####.json`, step 6), round-trip
-   (`roundtrip_report.<profile>.json`, step 6) and the test-rebuild of one shot:
-   `.venv/bin/python slice/rebuild_shot.py --pkg <pkg> --shot SHOT_001 --out <fresh dir> [--smoke 64 10] [--frames 1001-1010]`
-   runs steps 3, 5, 6 (including the round-trip) and 7 into `<fresh dir>`, records every step
-   in `rebuild_report.json` (also on failure), and compares with the archive: export files must
-   hash-identically (`proxies.abc` through its geometry hash — the Alembic header carries a
-   write date); render parts are compared by pixel SHA-1 and the differing ones listed (Metal
-   is not bit-exact). An archive with nothing to compare gives `NOT COMPARED` and exit 2
-   unless `--no-archive` is passed and recorded; render settings must equal the archive's.
-   The record is `<fresh dir>/rebuild_report.json`; copying it to
-   `slice/measurements/rebuild_SHOT_001.json` (absolute scratch paths replaced by `<scratch>`)
-   is a manual step of this recipe. EXECUTABLE — last run 2026-09-15 at smoke settings, second
-   run against the first.
+## Contents
 
-Per-order composite (not a rebuild step; the consumer of this package):
-`blender -b --python-exit-code 2 -P slice/composite_order.py -- compose --bundle <pkg>/shots/SHOT_001/renders/<profile> --head-layer <dir> --shadow-multiply <dir> --order-id <id> --out <dir>`
-— refuses a bundle whose precomp reproduction or round-trip has not PASSed.
+Per shot, `shots/<SHOT>/` — SHOT_001 v02, SHOT_002 v03 (accepted 2026-10-02; its renders aimed at the gaze point, `gaze_aim` TARGET_POINT), SHOT_003 v06:
+
+| Path | Part | What |
+|---|---|---|
+| `shot_manifest.json` | record | brief §4E: difficulty, occlusion, identity-risk notes, the fourteen passes |
+| `source/` | both | the delivered `.blend` (offline), the contractor's build scripts, `DELIVERY.json` (their sha256, the acceptance record) |
+| `exports/` | both | the whole shot's exports (`export_shot.py`, 120 frames): socket, camera, joints, performance track, proxies. Re-exported 2026-09-30 at vocabulary v2 (the gaze target point per frame; `export_manifest.json → gaze`); the plates were NOT re-rendered — their `render_manifest → settings.gaze_aim` reads `NONE` (the pair-driven eyes) and the rebuild renders them that way; the default head's eyes turned by the aim would differ by ≤ 0.16° on every rendered frame (SHOT_001's named-target frames 1023–1027 are not in the package) |
+| `renders/video/`, `renders/still/` | both | the conformant renders `check_asset.sh` chose (the first frame, the fastest head, the widest jaw; the still frame), split into HEAD_RENDER_BUNDLE and COMPOSITE_BUNDLE, the derived precomp, the round-trip reports, `raw/` |
+| `qc/` | both | the blur-fidelity reference and report (criterion 8), silhouette, seam margin, the `check_asset.sh` log |
+| `order_qc/` | both | the default head's order composite of each profile (`composite_order.py`) — where `t_comp` and `S_frame` come from |
+
+`warmup/warmup.json` — the worker warm-up measurement. Text files up to 512 KB are in the record; everything else is
+offline at the same relative path. The full-range render of every frame is NOT in the package yet (owner, 2026-09-29:
+before the bake-off starts; SHOT_002 v03 is in since 2026-10-02).
+
+## Steps
+
+1. **Toolchain** — exactly `../../../../slice/toolchain.lock.json`: Blender 5.2.1 LTS (build 9e2066aef7ef), OpenImageIO
+   3.1.17, OpenColorIO 2.5.2; MPFB2 2.0.17 at commit 80919fa (the contractor's `LICENSES.md`), installed into an isolated
+   profile by the rebuild itself. PINNED 2026-09-15.
+2. **Environment** — `export OCIO=$PWD/ocio/studio-config-v4.0.0_aces-v2.0_ocio-v2.5.ocio` (vendored here; sha256 in
+   the lock and in `package_manifest.json`). VENDORED.
+3. **Verify the package** — `.venv/bin/python slice/package.py verify <pkg> --offline <offline>` must print
+   `PACKAGE_VERIFIED` (without `--offline`: `PACKAGE_VERIFIED_LIGHT`, the offline files NOT CHECKED — what CI runs).
+4. **Rebuild a shot from its source** — `.venv/bin/python slice/rebuild_from_package.py --pkg <pkg> --offline <offline>
+   --shot SHOT_003 --out <fresh dir>`: scene template → the archived scripts (scanned; hashes against `DELIVERY.json`)
+   `build_character.py` → `make_shot_00N.py` → `animate_shot_00N.py` → the rebuilt `.blend` against the archived one
+   (content within `conventions.json → rebuild → cross_platform_tolerance`) → exports against the archived exports →
+   the archived frames rendered again at the archived settings (`gaze_aim` included: `--exports` only when the archived plates were aimed) → split → composite → every bundle part against the
+   archived render (`slice/compare_renders.py`), with the frames shifted as the negative control. Record:
+   `<fresh dir>/rebuild_report.json`.
+5. **Re-render and check a shot from scratch** — `CHECK_ASSET_STILL_SAMPLES=256 slice/check_asset.sh <shot .blend>
+   <out> 64 100 <SHOT>` (both profiles conformant; must end `ASSET_CHECK_OK`), then the default head's order composite
+   per profile: `composite_order.py default-head-inputs` and `compose --record-default-head-reproduction`.
+6. **Package a shot** — `.venv/bin/python slice/package_add_shot.py --pkg <pkg> --offline <offline> --shot <SHOT> --run
+   <out>/check --source-blend … --scripts … --record … --order-qc …` (`--replace` for a new version), then
+   `.venv/bin/python slice/package.py hash <pkg> --offline <offline>` and update `../master.json → package_hash`
+   (`tests/test_bakeoff_record.py` fails until it matches).
+
+## Per-order composite (the consumer of this package, not a rebuild step)
+
+`blender -b --python-exit-code 2 -P slice/composite_order.py -- compose --bundle <renders/<profile>> --head-layer <dir>
+--shadow-multiply <dir> --order-id <id> --out <dir>` — refuses a bundle whose precomp reproduction or round-trip has not
+PASSed; records `t_comp` and the bytes it reads per frame. It applies no motion blur yet (Phase 0.5 exit review, step 5).

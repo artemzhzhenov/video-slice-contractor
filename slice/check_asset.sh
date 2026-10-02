@@ -19,10 +19,14 @@
 # video frame only, no still, no blur-fidelity reference render (one static frame cannot test a blur). It ends with ASSET_CHECK_QUICK_OK, never ASSET_CHECK_OK: the full
 # run is what a delivery needs (contractor Q22, 2026-09-17: one CPU video frame takes ~100 s at
 # 64 spp / 25 %).
+# CHECK_ASSET_STILL_SAMPLES=N — the still's samples when they differ from the video's (default: the same [samples]). The
+# profiles' own counts are video 64, still 256 (conventions.json → render_profiles): at 100 % with 64 and 256 both
+# renders are conformant (Phase 0.5 exit review, criteria 1 and 5, 2026-09-29).
 # Every step prints its own verdict; the script stops at the first failure with exit 2.
 # Needs Blender 5.2.1 on PATH and the vendored OCIO config (set here).
 set -u
 BLEND="${1:?scene.blend}"; OUT="${2:?output dir}"; SAMPLES="${3:-64}"; SCALE="${4:-25}"; SHOT="${5:-SHOT_001}"
+STILL_SAMPLES="${CHECK_ASSET_STILL_SAMPLES:-$SAMPLES}"
 SEAM_PENDING=""
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export OCIO="$ROOT/benchmarks/bakeoff/01J7B000000000000000BAKEXP/slice/ocio/studio-config-v4.0.0_aces-v2.0_ocio-v2.5.ocio"
@@ -51,8 +55,8 @@ rm -f "$OUT/pick_frames.err"
 case "$VFRAMES" in "$FIRST"|"$FIRST",*) ;; *) echo "frame choice $VFRAMES does not start at the shot's first frame $FIRST"; exit 2;; esac
 PROFILES="video still"
 if [ "${CHECK_ASSET_QUICK:-}" = "1" ]; then VFRAMES="$FIRST"; PROFILES="video"; echo "QUICK run: first video frame only, no still — not a delivery check"; fi
-step "5 render video frames $VFRAMES ($SAMPLES spp, $SCALE %)"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --profile video --frames "$VFRAMES" --samples "$SAMPLES" --scale "$SCALE" --probe --out "$OUT/renders"
-[ "$PROFILES" = "video" ] || { step "5 render still"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --profile still --frames still --samples "$SAMPLES" --scale "$SCALE" --probe --out "$OUT/renders"; }
+step "5 render video frames $VFRAMES ($SAMPLES spp, $SCALE %)"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --exports "$OUT/exports" --profile video --frames "$VFRAMES" --samples "$SAMPLES" --scale "$SCALE" --probe --out "$OUT/renders"
+[ "$PROFILES" = "video" ] || { step "5 render still ($STILL_SAMPLES spp, $SCALE %)"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --exports "$OUT/exports" --profile still --frames still --samples "$STILL_SAMPLES" --scale "$SCALE" --probe --out "$OUT/renders"; }
 for prof in $PROFILES; do
   step "6 split $prof"; run "${B[@]}" -P "$ROOT/slice/split_bundles.py" -- "$OUT/renders/$prof" --exports "$OUT/exports"
   step "7 composite $prof"; run "${B[@]}" -P "$ROOT/slice/composite.py" -- "$OUT/renders/$prof"
@@ -73,7 +77,7 @@ for prof in $PROFILES; do
     step "8 plan the blur reference"; run "${B[@]}" -P "$ROOT/slice/roundtrip.py" -- --exports "$OUT/exports" --renders "$OUT/renders/$prof" --plan-reference-samples --min-samples "$SAMPLES"
     REF_SAMPLES="$(sed -n 's/^BLUR_REFERENCE_SAMPLES //p' "$OUT/last_step.log" | tail -n 1)"
     [ -n "$REF_SAMPLES" ] || { echo "the plan printed no sample count — full log: $OUT/last_step.log"; exit 2; }
-    step "8 blur reference $VFRAMES ($REF_SAMPLES spp, planned)"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --profile video --frames "$VFRAMES" --samples "$REF_SAMPLES" --scale "$SCALE" --blur-reference --out "$OUT/blur_reference"
+    step "8 blur reference $VFRAMES ($REF_SAMPLES spp, planned)"; run blender -b "$BLEND" --python-exit-code 2 -P "$ROOT/slice/render_passes.py" -- --shot "$SHOT" --exports "$OUT/exports" --profile video --frames "$VFRAMES" --samples "$REF_SAMPLES" --scale "$SCALE" --blur-reference --out "$OUT/blur_reference"
     step "9 round-trip $prof"; run "${B[@]}" -P "$ROOT/slice/roundtrip.py" -- --exports "$OUT/exports" --renders "$OUT/renders/$prof" --blur-reference "$OUT/blur_reference/video"
     step "10 blur fidelity"; run "${B[@]}" -P "$ROOT/slice/check_blur_fidelity.py" -- --renders "$OUT/renders/video" --reference "$OUT/blur_reference/video" --out "$OUT/blur_fidelity" ${MAYBE:+$MAYBE}
   else
@@ -88,4 +92,4 @@ if [ -n "${SEAM_PENDING:-}" ]; then
   echo; echo "ASSET_CHECK_SEAM_PENDING_4K — every gate passed on $BLEND, $SHOT ($SAMPLES spp / $SCALE %) except the seam on frames $SEAM_PENDING, which this scale cannot judge: run at 100 % to decide it (not an OK)"
   exit 0
 fi
-echo; echo "ASSET_CHECK_OK — every gate passed on $BLEND, $SHOT (smoke settings $SAMPLES spp / $SCALE %; thresholds PROVISIONAL)"
+echo; echo "ASSET_CHECK_OK — every gate passed on $BLEND, $SHOT (video $SAMPLES spp, still $STILL_SAMPLES spp / $SCALE %; conformant only at the profiles' own counts and 100 %; thresholds PROVISIONAL)"

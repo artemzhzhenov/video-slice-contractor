@@ -168,6 +168,33 @@ def check(out_dir):
                 ok(lo - 1e-9 <= v <= hi + 1e-9, f"track f{f['frame']}: {k}={v} outside {ranges[k]}")
         c = centre.get(f["frame"])
         ok(c is not None and f["socket"]["position_m"] == c["position_m"] and f["socket"]["quaternion"] == c["quaternion"], f"track f{f['frame']}: socket row differs from socket.json centre sample")
+    # The gaze target point (vocabulary v2, ADR-0002 amendment 2026-09-30): in the socket's frame the default
+    # head's eyes are fixed, so the point's distance and the readout channels are checked against the manifest's
+    # eye positions without Blender — a FAR point sits at far_m, a named one nearer, and the yaw/pitch readouts are
+    # the direction to the point in the vocabulary's degrees (socket frame: +X left, +Y up, +Z forward).
+    G = CMAP["gaze"]
+    gz = man.get("gaze") or {}
+    eyes = gz.get("default_head_eyes_socket_m")
+    ok(track.get("channel_vocabulary_version") == CMAP["channel_vocabulary_version"], f"track: channel_vocabulary_version {track.get('channel_vocabulary_version')} is not the vocabulary's {CMAP['channel_vocabulary_version']}")
+    ok(isinstance(eyes, list) and len(eyes) == 2, "export_manifest: gaze.default_head_eyes_socket_m missing")
+    if isinstance(eyes, list) and len(eyes) == 2:
+        mid = [(eyes[0][i] + eyes[1][i]) / 2 for i in range(3)]
+        for f in track["frames"]:
+            g = f.get("gaze")
+            if not g:
+                continue
+            v = [g["target_m"][i] - mid[i] for i in range(3)]
+            dist = math.sqrt(sum(x * x for x in v))
+            if g["source"] == "FAR":
+                ok(abs(dist - G["far_m"]) < 1e-3, f"track f{f['frame']}: FAR point at {dist:.4f} m, not {G['far_m']}")
+            else:
+                ok(0 < dist < G["far_m"], f"track f{f['frame']}: {g['source']} point at {dist:.4f} m")
+            if g["source"] in ("FAR", "NAMED_TARGET"):   # on these the point lies on the default head's own gaze ray
+                yaw = math.degrees(math.atan2(v[0], v[2]))
+                pitch = math.degrees(math.atan2(v[1], math.hypot(v[0], v[2])))
+                for name, got in (("gaze_yaw", yaw), ("gaze_pitch", pitch)):
+                    want = f["channels"][name] * G["readout_degrees"][name]
+                    ok(abs(got - want) <= G["readout_tolerance_deg"], f"track f{f['frame']}: {name} readout {want:.3f}° but the point lies at {got:.3f}°")
     return fails
 
 

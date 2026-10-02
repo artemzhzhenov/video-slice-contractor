@@ -168,6 +168,28 @@ def apply_profile(scene, profile, samples, scale, blur_reference=False):
             "motion_steps": motion_steps, "shutter_time_points": (2 ** (motion_steps - 1) + 1) if motion_steps else None}
 
 
+SKIN_LAYERS = sorted({p["from"].split(":")[1].split(".")[0] for p in CONV["bundles"]["SKIN_BUNDLE"]["parts"]})
+SKIN_CRYPTO_DEPTH = 2 * sum(1 for p in CONV["bundles"]["SKIN_BUNDLE"]["parts"] if p["name"].startswith("CRYPTO_BODY_MATERIAL"))  # 2 ranks per part
+
+
+def skin_material(scene):
+    """The master's body-skin albedo for the re-tint (ADR-0002 amendment 2026-09-29, C2): the Principled base colour of
+    conventions → skin_tone.material_body, and whether a plain gain can describe that skin (no texture on the base colour,
+    no subsurface) — recorded, and enforced where the re-tint is made."""
+    name = CONV["skin_tone"]["material_body"]
+    m = bpy.data.materials.get(name)
+    if m is None or not m.use_nodes:
+        return {"name": name, "status": "MISSING" if m is None else "NO NODES"}
+    b = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+    if b is None:
+        return {"name": name, "status": "NO PRINCIPLED BSDF"}
+    sss = float(b.inputs["Subsurface Weight"].default_value)
+    textured = bool(b.inputs["Base Color"].is_linked)
+    return {"name": name, "base_color": [round(float(v), 6) for v in b.inputs["Base Color"].default_value[:3]],
+            "subsurface_weight": sss, "base_color_textured": textured,
+            "status": "RE-TINTABLE" if not textured and sss == 0.0 else "NOT RE-TINTABLE BY A GAIN (textured base colour or subsurface — re-measure, ADR-0002 amendment 2026-09-29 §Does not solve)"}
+
+
 def set_group(scene, group, dof_setting):
     """Enable the group's view layers. The data group renders with motion blur AND depth of
     field off (proposal §1 row 5: Depth is unfiltered, unusable under either); the beauty group
@@ -189,11 +211,69 @@ def set_group(scene, group, dof_setting):
             if vl.name in layers:
                 vl.use_pass_vector = True
                 vl.use_pass_z = True
+            if vl.name in SKIN_LAYERS:   # ADR-0002 amendment 2026-09-29, C1: the skin's diffuse light and a matte per layer
+                vl.use_pass_diffuse_color = vl.use_pass_diffuse_direct = vl.use_pass_diffuse_indirect = True
+                vl.use_pass_cryptomatte_material = True
+                vl.pass_cryptomatte_depth = SKIN_CRYPTO_DEPTH
     elif group == "blur_reference":
         for vl in scene.view_layers:
             if vl.name in layers:
                 vl.use_pass_vector = False       # Cycles cannot produce it with the shutter open
     return {"motion_blur": scene.render.use_motion_blur, "dof": scene.camera.data.dof.use_dof}
+
+
+def aim_eyes(scene, exports_dir):
+    """The gaze target point of vocabulary v2 (ADR-0002 amendment 2026-09-30): each eye of the default head is
+    aimed at the exported point — the rendered master follows the rule every head follows. The point comes from
+    the exports' performance_track.json (socket-local, metres) and is placed per frame in world space on an aim
+    empty (keys linear; the shutter's sub-frames interpolate it), and every eye object (conventions →
+    scene_naming.eyes) gets a Damped Track to it along its pupil axis. The scene is not saved. A rig that carries
+    its own look-at object already aims its eyes: nothing is added and that is recorded. Returns the manifest
+    record; without --exports the rig's own eye rotation renders, recorded as NONE (plates before vocabulary v2
+    are rebuilt that way)."""
+    E = N["eyes"]
+    track_path = Path(exports_dir) / "performance_track.json"
+    track = json.loads(track_path.read_text())
+    if track.get("channel_vocabulary_version", 0) < 2 or any("gaze" not in f for f in track["frames"]):
+        raise RenderError(f"{track_path}: no gaze target point per frame (vocabulary {track.get('channel_vocabulary_version')}) — re-export with the current export_shot.py")
+    if bpy.data.objects.get(E["look_at"]) is not None:
+        return {"mode": "RIG_LOOK_AT", "object": E["look_at"], "note": "the rig aims its own eyes"}
+    sys.path.insert(0, str(ROOT))
+    from slice.eyes import EyesError, eye_objects
+    try:
+        eyes, _kind = eye_objects(bpy.data.objects)
+    except EyesError as e:
+        raise RenderError(str(e)) from None
+    socket = bpy.data.objects["SOCKET_HEAD"]
+    sys.path.insert(0, str(ROOT))
+    from slice import socketspace as ss
+    from mathutils import Matrix, Vector
+    from_local = Matrix(ss.C).inverted()
+    aim = bpy.data.objects.new("GAZE_AIM_TMP", None)
+    scene.collection.objects.link(aim)
+    aim.rotation_mode = "XYZ"
+    for f in track["frames"]:
+        scene.frame_set(f["frame"])
+        aim.location = socket.matrix_world @ from_local @ Vector(f["gaze"]["target_m"])
+        aim.keyframe_insert("location", frame=f["frame"])
+    action = aim.animation_data.action
+    fcurves = getattr(action, "fcurves", None)
+    if fcurves is None:   # Blender 4.4+ layered actions: the slot's channel bag holds the curves
+        fcurves = action.layers[0].strips[0].channelbag(action.slots[0]).fcurves
+    for fc in fcurves:
+        for k in fc.keyframe_points:
+            k.interpolation = "LINEAR"
+    ax = Vector(E["pupil_axis_local"])
+    axis = {(0, -1, 0): "TRACK_NEGATIVE_Y", (0, 1, 0): "TRACK_Y", (0, 0, -1): "TRACK_NEGATIVE_Z", (0, 0, 1): "TRACK_Z", (1, 0, 0): "TRACK_X", (-1, 0, 0): "TRACK_NEGATIVE_X"}[tuple(int(round(v)) for v in ax)]
+    for e in eyes:
+        c = e.constraints.new("DAMPED_TRACK")
+        c.name = "GAZE_AIM_TMP"
+        c.target = aim
+        c.track_axis = axis
+    scene.frame_set(scene.frame_start)
+    return {"mode": "TARGET_POINT", "eyes": [e.name for e in eyes], "track_sha256": hashlib.sha256(track_path.read_bytes()).hexdigest(),
+            "sources": {k: sum(1 for f in track["frames"] if f["gaze"]["source"] == k) for k in sorted({f["gaze"]["source"] for f in track["frames"]})},
+            "rule": "channel_map.json → gaze: each eye's line of sight through the point; keys linear between frames"}
 
 
 def render_one(scene, filepath_stem, frame):
@@ -281,6 +361,9 @@ def main():
     p.add_argument("--probe", action="store_true")
     p.add_argument("--blur-reference", action="store_true",
                    help="render L_FULL WITH the profile's shutter — the blur-fidelity reference, not a plate; use a separate --out")
+    p.add_argument("--exports", default=None,
+                   help="the shot's exports: the default head's eyes are aimed at the exported gaze target point (vocabulary v2); "
+                        "without it the rig's own eye rotation renders and the manifest says NONE")
     args = p.parse_args(argv)
     scene = bpy.data.scenes["SLICE"]
     if args.shot not in CONV["shots"] or scene.get("shot_id") != args.shot:
@@ -300,7 +383,9 @@ def main():
         # scene's own remap would be overwritten silently — checked once, on the scene as loaded
         raise RenderError(f"the scene remaps time itself ({scene.render.frame_map_old} → {scene.render.frame_map_new}); the exports "
                           "refuse it too — remove it from the scene")
+    gaze_aim = aim_eyes(scene, args.exports) if args.exports else {"mode": "NONE", "note": "no --exports: the rig's own eye rotation (the yaw/pitch pair) renders"}
     settings = apply_profile(scene, args.profile, samples, args.scale, args.blur_reference)
+    settings["gaze_aim"] = gaze_aim
     groups = ("blur_reference",) if args.blur_reference else ("beauty", "data")
     scene_path = Path(bpy.data.filepath)
     placeholders = sorted(o.name for o in bpy.data.objects if o.name.startswith("PLACEHOLDER_"))
@@ -310,6 +395,7 @@ def main():
                                  "slice_template_version": scene.get("slice_template_version"), "placeholder_objects": placeholders,
                                  "scene_kind": "placeholder template" if placeholders else "asset"},
                 "settings": settings, "smoke_test_only": not settings["conformant"],
+                "skin_material": skin_material(scene),
                 "kind": "blur_reference" if args.blur_reference else "plates",
                 "groups": {g: {"view_layers": CONV["render_groups"][g]["view_layers"]} for g in groups},
                 "frames": [], "probe": None,

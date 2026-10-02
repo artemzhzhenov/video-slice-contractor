@@ -89,6 +89,9 @@ def build_bundle(bundle, sources, frame, out_dir, profile_settings):
     for src in sources.values():
         for part in src.values():
             crypto.update({k: v for k, v in part["attrs"].items() if k.startswith("cryptomatte/")})
+    by_hash = {}
+    for k, v in crypto.items():
+        by_hash.setdefault(k.split("/")[1], {})[k] = v
     planned = []
     for part in spec["parts"]:
         group, src_part = part["from"].split(":")
@@ -112,11 +115,15 @@ def build_bundle(bundle, sources, frame, out_dir, profile_settings):
         if part["name"].startswith("CRYPTO_") and part["pixel_type"] != "float":
             raise SplitError(f"{part['name']}: cryptomatte ids are only exact in float; conventions declare {part['pixel_type']}")
         if part["name"].startswith("CRYPTO_"):
-            if not crypto:
-                raise SplitError(f"frame {frame}: no cryptomatte/* attributes in the source — the matte would be unreadable")
-            attrs.update(crypto)
+            # only the manifests of this part's own layer and pass: since the skin passes (ADR-0002 amendment 2026-09-29)
+            # three layers carry a material cryptomatte, and a reader resolves a matte by the one manifest it carries
+            own = {k: v for h in by_hash.values() for k, v in h.items()
+                   if any(kk.endswith("/name") and src_part.startswith(vv) for kk, vv in h.items())}
+            if not own:
+                raise SplitError(f"frame {frame}: no cryptomatte/* attributes for {src_part} in the source — the matte would be unreadable")
+            attrs.update(own)
         planned.append({"name": part["name"], "pixels": pixels, "channels": chans, "format": part["pixel_type"], "attrs": attrs, "source": src, "spec": part})
-    stem = "holdout" if bundle == "HEAD_RENDER_BUNDLE" else "composite"
+    stem = spec.get("file_stem") or ("holdout" if bundle == "HEAD_RENDER_BUNDLE" else "composite")
     dst = out_dir / f"{stem}.{frame:04d}.exr"
     write_parts(dst, planned)
     written = read_parts(dst)
@@ -183,10 +190,32 @@ def copy_plus_files(pd, raw, man, exports_dir):
     return copied
 
 
+def refresh_plus_files(pd, exports_dir):
+    """Re-copy the exports into an existing HEAD_RENDER_BUNDLE and update their hashes in the bundle manifest,
+    touching nothing else (the gates' records in it stay). For an export that changed without a re-render — the
+    gaze target point of vocabulary v2 (ADR-0002 amendment 2026-09-30) on plates rendered before it."""
+    bm_path = next(iter(sorted(pd.glob("bundle_manifest.*.json"))), None)
+    if bm_path is None:
+        raise SplitError(f"no bundle_manifest in {pd} — nothing to refresh; run the split first")
+    bm = json.loads(bm_path.read_text())
+    man = json.loads((pd / bm["source_render_manifest"]).read_text())
+    before = bm["bundles"]["HEAD_RENDER_BUNDLE"].get("plus_files") or {}
+    after = copy_plus_files(pd, pd / "raw", man, exports_dir)
+    bm["bundles"]["HEAD_RENDER_BUNDLE"]["plus_files"] = after
+    changed = sorted(k for k in after if before.get(k) != after[k])
+    bm["bundles"]["HEAD_RENDER_BUNDLE"]["plus_files_refreshed"] = {"files": changed, "from": str(Path(exports_dir).resolve()),
+                                                                   "note": "exports re-copied after the split; the plates were not re-rendered"}
+    bm_path.write_text(json.dumps(bm, indent=1) + "\n")
+    print(f"PLUS_FILES_REFRESHED {len(changed)} changed: {changed}")
+
+
 def main(argv):
     if not argv:
-        raise SplitError("usage: split_bundles.py <renders/<profile>> [--exports <shot exports dir>] [--no-plus-files]")
+        raise SplitError("usage: split_bundles.py <renders/<profile>> [--exports <shot exports dir>] [--no-plus-files] | <renders/<profile>> --refresh-plus-files <exports dir>")
     pd = Path(argv[0])
+    if "--refresh-plus-files" in argv:
+        refresh_plus_files(pd, argv[argv.index("--refresh-plus-files") + 1])
+        return
     exports_dir = argv[argv.index("--exports") + 1] if "--exports" in argv else None
     with_plus = "--no-plus-files" not in argv
     manifests = sorted(pd.glob("render_manifest.*.json"))

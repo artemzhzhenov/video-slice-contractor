@@ -34,7 +34,26 @@ are rendered with the time stretched by 720 / shutter angle, which leaves the pi
 D7 — **nine** sub-frame samples across the shutter instead of three; §Validation criteria 2 and 8
 sample time at those nine instants. Found on the contractor's SHOT_002 v01 laugh, a head pulse
 shorter than a frame. Contract version `master_contract_version = 4`.
-Validated by the Phase 0.5 reference slice (§Validation); any item that fails validation reopens
+Amended 2026-09-29 (owner approval the same day, «утверждаю»; full text, evidence and alternatives in
+`ADR-0002-amendment-2026-09-29-skin-tone-diffuse-retint.md`): D4 — the body's skin tone is re-tinted through the diffuse
+light, not by a 2D gain (measured 0.3–1.4 % against 25–78 % on very dark skin); D5 — the two beauty layers that carry body
+skin (the back, the front plate) render the diffuse colour, direct and indirect passes and their own material cryptomatte
+(SKIN_BUNDLE, the master's archive), from which the compositor derives SKIN_DIFFUSE_BACK / FRONT once per master; the
+per-order composite applies the order's tone before compositing and the blur and refuses a tone outside the master's range,
+which is measured per master version. Contract version `master_contract_version = 5`.
+Amended 2026-09-30 (owner approval the same day, «утверждаю»; full text, evidence and alternatives in
+`ADR-0002-amendment-2026-09-30-gaze-target-point.md`): D8 — the gaze is a **target point per frame in the socket's frame**
+that every head aims each of its own eyes at (vergence and parallax from the head's own eye positions); `gaze_yaw` /
+`gaze_pitch` stay as readouts in defined degrees and drive no head. Channel vocabulary v2; the contract version is
+unchanged (no pass or plate changes). Measured: one pair for both eyes left each eye 5.1–5.7° off a ball at 0.26 m and
+would miss by 4.8–6.6° on other eye spacings.
+Refined 2026-10-01 (owner's pick, no contract change): the post-composite blur samples the shutter per 256-px tile — K from
+the same rule on what can move into the tile, 1 where nothing does — measured against the frame-wide blur and the true
+3D-blurred reference on the slice (`slice/measurements/blur_cost_options_2026-09-30/`, `conventions.json →
+post_composite_blur.tiles`); the blur-fidelity gate re-passed 9/9; the per-order composite 2–8 s per ordinary 4K frame
+against 14–17 s.
+Validated by the Phase 0.5 reference slice (§Validation; the checklist and its state:
+`../experiments/phase-0-5-exit-review.md`); any item that fails validation reopens
 this ADR before any master production begins. Layer: Core (`../architecture/layering.md`).
 
 ## Context
@@ -135,6 +154,11 @@ Hair lives on the body even though it is personalized.
 - The **supported tone range is a master property**: lighting is designed and test-rendered
   against the full intended range before the master is approved. An avatar whose tone is out
   of range is a qualification reject, never a silent clamp.
+- **The re-tint (amendment 2026-09-29):** the body's skin tone is changed through its diffuse light only —
+  `layer + (gain − 1)·SKIN_DIFFUSE_layer`, gain = the order's albedo / the master's, on the back before the order's
+  shadow multiply and on the front plate, before compositing and the blur; the skin's specular stays as rendered. The
+  range is measured per master version (the body re-rendered at the range's tones against the re-tint;
+  `slice/check_skin_tone.py`), and the per-order composite refuses a tone outside it.
 
 ### D5. Frozen base pass set
 
@@ -142,7 +166,10 @@ The "no pass without a consumer" rule applies to *incremental* passes. The base 
 frozen by this ADR because a missing pass in a finished master costs a re-render at best and,
 if the scene organisation did not plan for it, is unrecoverable. Each row still carries the
 full contract (`../architecture/master-spec.md`), including `read_granularity` and
-`bytes_per_frame` measured on the slice.
+`bytes_per_frame` measured on the slice. Since the amendment of 2026-09-29 the layers that carry body skin also render
+Cycles' diffuse colour, direct and indirect light and their own material cryptomatte (SKIN_BUNDLE — the master's archive,
+the compositor's derivation, never read per order); row 10's skin ID gains the derived SKIN_DIFFUSE_BACK / FRONT the
+per-order composite reads for the order's tone (D4).
 
 | # | Pass | Consumer | Bundle |
 |---|---|---|---|
@@ -299,6 +326,14 @@ per-frame **project-owned continuous control-channel vector**:
   inside the master;
 - `emotion`, `emotion_intensity`, `emotion_*` become editorial metadata used for routing and QC
   bucketing, not for driving.
+- **the gaze is a point, not a pair** (amendment 2026-09-30, vocabulary v2): per frame `gaze.target_m` — the point
+  the character looks at, in the socket's local frame, metres — with its `source` (`LOOK_AT` from the master's rig,
+  `CAMERA` for eye contact, `NAMED_TARGET` / `FAR` by the slice's migration rule). Every head turns each of its OWN
+  eyes so that eye's line of sight passes through the point; vergence and parallax follow from the head's own eye
+  positions, and a head whose eyes cannot turn that far clamps and reports it, never silently. `gaze_yaw` / `gaze_pitch`
+  are the default head's direction toward the point in the vocabulary's degrees (1 = 30° / 20°) — readouts for QC and
+  state detection; they drive no head. The master's own render aims the default head's eyes at the same point
+  (`slice/render_passes.py --exports`), so the reference follows the rule every head follows.
 
 This is what makes invariant 6 true in practice: the master owns the acting, and two children
 land the director's beat on the same frame.

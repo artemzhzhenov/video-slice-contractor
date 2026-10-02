@@ -4,7 +4,7 @@
  "experiment_id": "01J7B000000000000000BAKEXP",
  "master_id": "01J7B000000000000000BAKEM1",
  "master_version": 1,
- "master_contract_version": 4,
+ "master_contract_version": 5,
  "fps": 24,
  "frame_numbering": "1001-based",
  "units": {
@@ -147,6 +147,14 @@
   "proxies_collection": "C_PROXIES",
   "rig": "RIG_HERO",
   "face_ctrl": "FACE_CTRL",
+  "eyes": {
+   "objects": ["HERO_EYE_L", "HERO_EYE_R"],
+   "template_objects": ["PLACEHOLDER_EYE_L", "PLACEHOLDER_EYE_R"],
+   "resolution": "the asset's eyes (`objects`) when the scene has them, the placeholder template's (`template_objects`) when it has only those; both sets in one scene, or neither, stops the export and the render. The template's are PLACEHOLDER_* so a character build that replaces the template's PLACEHOLDER_* geometry removes them (found 2026-10-02: named HERO_EYE_* they survived the contractor's build beside his own eyes — 228 extra head vertices in the rebuild of SHOT_002 v03)",
+   "pupil_axis_local": [0.0, -1.0, 0.0],
+   "look_at": "GAZE_TARGET",
+   "rule": "the default head's two eye objects in C_HEAD, children of SOCKET_HEAD, each looking down its own local -Y (the pupil). ADR-0002 amendment 2026-09-30: the exporter derives the gaze target point from them (channel_map.json -> gaze) and render_passes.py aims each of them at it (--exports); a rig that carries its own look-at object (`look_at`) aims them itself and the exporter reads the point from that object"
+  },
   "bones": {
    "spine": [
     "spine_01",
@@ -408,9 +416,107 @@
     "SKIN_ID_HEAD",
     "SKIN_ID_BODY",
     "PRECOMP_BACK",
-    "PRECOMP_FRONT"
+    "PRECOMP_FRONT",
+    "SKIN_DIFFUSE_BACK",
+    "SKIN_DIFFUSE_FRONT"
    ],
    "motion_vectors_consumer_note": "MOTION_VECTORS rows in bundle_manifest carry shutter_angle_deg and shutter_position; in the still profile the consumer is NONE (ADR-0002 D5 row 14 amendment). Since the 2026-09-22 amendment the video-profile consumer is the post-composite blur, and the per-layer BACK/HEAD/FRONT vector and depth parts are what it reads"
+  },
+  "SKIN_BUNDLE": {
+   "read_granularity": "per-frame",
+   "consumer": "the compositor's derivation of SKIN_DIFFUSE_BACK / FRONT and the skin-tone gate — the master's archive, never read per order",
+   "file_stem": "skin",
+   "basis": "ADR-0002 amendment 2026-09-29 (skin tone through the diffuse light), C1: Cycles' diffuse colour, direct and indirect light and the material cryptomatte of the two layers that carry hero body skin — the back (L_BODY) and the front plate (L_FG); render settings only (render_passes.py), no asset change. The light and the albedo are scene-linear working-space values declared 'data' so no reader colour-transforms them before the derivation multiplies them",
+   "parts": [
+    {
+     "name": "BODY_DIFFUSE_COLOR",
+     "from": "beauty:L_BODY.Diffuse Color",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "half"
+    },
+    {
+     "name": "BODY_DIFFUSE_DIRECT",
+     "from": "beauty:L_BODY.Diffuse Direct",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "half"
+    },
+    {
+     "name": "BODY_DIFFUSE_INDIRECT",
+     "from": "beauty:L_BODY.Diffuse Indirect",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "half"
+    },
+    {
+     "name": "CRYPTO_BODY_MATERIAL00",
+     "from": "beauty:L_BODY.CryptoMaterial00",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float"
+    },
+    {
+     "name": "CRYPTO_BODY_MATERIAL01",
+     "from": "beauty:L_BODY.CryptoMaterial01",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float"
+    },
+    {
+     "name": "CRYPTO_BODY_MATERIAL02",
+     "from": "beauty:L_BODY.CryptoMaterial02",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float"
+    },
+    {
+     "name": "FRONT_DIFFUSE_COLOR",
+     "from": "beauty:L_FG.Diffuse Color",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "half"
+    },
+    {
+     "name": "FRONT_DIFFUSE_DIRECT",
+     "from": "beauty:L_FG.Diffuse Direct",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "half"
+    },
+    {
+     "name": "FRONT_DIFFUSE_INDIRECT",
+     "from": "beauty:L_FG.Diffuse Indirect",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "half"
+    },
+    {
+     "name": "CRYPTO_FRONT_MATERIAL00",
+     "from": "beauty:L_FG.CryptoMaterial00",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float"
+    },
+    {
+     "name": "CRYPTO_FRONT_MATERIAL01",
+     "from": "beauty:L_FG.CryptoMaterial01",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float"
+    },
+    {
+     "name": "CRYPTO_FRONT_MATERIAL02",
+     "from": "beauty:L_FG.CryptoMaterial02",
+     "alpha": "NOT_APPLICABLE",
+     "pixel_type": "float"
+    }
+   ]
+  }
+ },
+ "skin_tone": {
+  "material_body": "HERO_SKIN_BODY",
+  "basis": "ADR-0002 amendment 2026-09-29 (approved by the owner the same day): the body's skin tone is re-tinted through the diffuse light, measured within 0.3–1.4 % of a re-render on every tone where a 2D gain by the matte was 25–78 % off (slice/measurements/skin_tone_retint_2026-09-29/)",
+  "gate": {
+   "tool": "slice/check_skin_tone.py",
+   "tones": {"lightest": [0.9, 0.72, 0.62], "middle": [0.55, 0.38, 0.28], "darkest": [0.2, 0.11, 0.07]},
+   "tones_status": "PROVISIONAL (TD) — synthetic scene-linear albedos spanning very light to very dark skin; the intended range of a master is the owner's product decision (D4), these are the slice's",
+   "relative_error_max": 0.03,
+   "relative_error_status": "PROVISIONAL — measured 0.3–1.4 % on the slice (2026-09-29), no re-tint 22–384 %",
+   "min_skin_px_lowpassed": 50,
+   "scale_percent": 25,
+   "samples": 64,
+   "rule": "per shot, on its QC video frames: the body re-rendered at each tone (truth) against the master re-tinted through SKIN_DIFFUSE, on the visible skin of each layer (skin > 0.5, the layer opaque; the back where neither the front plate nor the head's holdout covers it — under the head the body plate shows the open neck, lit by the skin's own inter-reflection, 3–21 % off, which no head lets through: composite_order's unfilled gate) after a 4×4 low-pass; PASS when every measured tone and layer is within relative_error_max AND no re-tint is not (the negative control); VACUOUS when no frame shows min_skin_px_lowpassed of body skin (a close-up with the neck under the collar); the supported range is the per-channel box between the passing tones",
+   "on_fail": "SKIN_TONE_ERROR, exit 2; the bundle manifests are not marked"
   }
  },
  "lighting_probe": {
@@ -479,6 +585,8 @@
     "pixel_type": "half",
     "alpha": "PREMULTIPLIED"
    },
+   "SKIN_DIFFUSE_BACK": {"formula": "skin(L_BODY) × BODY_DIFFUSE_COLOR × (BODY_DIFFUSE_DIRECT + BODY_DIFFUSE_INDIRECT), skin(L_BODY) = the coverage of skin_tone.material_body in L_BODY's own material cryptomatte", "pixel_type": "half", "alpha": "NOT_APPLICABLE", "consumer": "the per-order compositor: BODY_BEAUTY + (gain − 1) × SKIN_DIFFUSE_BACK before the order's shadow multiply (ADR-0002 amendment 2026-09-29, C2/C3)"},
+   "SKIN_DIFFUSE_FRONT": {"formula": "skin(L_FG) × FRONT_DIFFUSE_COLOR × (FRONT_DIFFUSE_DIRECT + FRONT_DIFFUSE_INDIRECT)", "pixel_type": "half", "alpha": "NOT_APPLICABLE", "consumer": "the per-order compositor: PRECOMP_FRONT + (gain − 1) × SKIN_DIFFUSE_FRONT"},
    "STATIC_PRECOMP": "the ordered pair PRECOMP_BACK + PRECOMP_FRONT (ADR-0002 D5 row 13 amendment)"
   },
   "per_order_composite": "PRECOMP_FRONT over (HEAD_LAYER over SEAM_EXTEND(PRECOMP_BACK)), premultiplied overs in scene-linear; HEAD_LAYER comes from the head technology, with its own body shadow multiply replacing HEAD_SHADOW_MULTIPLY in PRECOMP_BACK = BODY_BEAUTY × M_child; SEAM_EXTEND per seam_extend (ADR-0002 amendment 2026-09-24)",
@@ -531,11 +639,13 @@
   "head_layer_contract": "HEAD_LAYER (default: L_HEAD.Combined; per order: the head technology's layer) is the UNOCCLUDED head+hair, premultiplied; occluders never cut it — PRECOMP_FRONT does",
   "per_order": {
    "script": "slice/composite_order.py (Blender's Python: numpy + OpenImageIO)",
-   "formula": "FINAL = PRECOMP_FRONT over (HEAD_LAYER over SEAM_EXTEND(BODY_BEAUTY × SHADOW_MULTIPLY_ORDER)) — premultiplied overs in scene-linear ACEScg; SEAM_EXTEND per compositor.seam_extend",
+   "formula": "FINAL = PRECOMP_FRONT over (HEAD_LAYER over SEAM_EXTEND(BODY_BEAUTY × SHADOW_MULTIPLY_ORDER)) — premultiplied overs in scene-linear ACEScg; SEAM_EXTEND per compositor.seam_extend (the back's vectors and depth extended with it); video: the three layers blurred after compositing by slice/motion_blur.py with their own vectors (post_composite_blur), as the QC path's blur-fidelity gate measured — since 2026-09-29",
    "inputs": {
     "bundle": "renders/<profile> with COMPOSITE_BUNDLE, derived parts and a PASSing precomp reproduction and round-trip (prerequisite gates, CLAUDE.md §6)",
     "head_layer": "<dir>/head.####.exr — one RGBA part, premultiplied, colorInteropID lin_ap1_scene declared by the head technology (no declaration → error, never assumed)",
-    "shadow_multiply": "<dir>/shadow.####.exr — one RGB part in [0, 1] declared colorInteropID 'data', the ORDER head's body shadow factor from the head technology (ADR-0002 D3 amendment); the default head's HEAD_SHADOW_MULTIPLY is never substituted — that would be a silent fallback to the wrong head's shadow"
+    "shadow_multiply": "<dir>/shadow.####.exr — one RGB part in [0, 1] declared colorInteropID 'data', the ORDER head's body shadow factor from the head technology (ADR-0002 D3 amendment); the default head's HEAD_SHADOW_MULTIPLY is never substituted — that would be a silent fallback to the wrong head's shadow",
+   "skin_tone": "--skin-tone R,G,B: the order's approved body-skin albedo, scene-linear (ADR-0002 amendment 2026-09-29, C3); gain = skin_tone / the master's albedo (bundle_manifest → skin_tone.master_albedo) per channel; a tone outside the master's supported range (bundle_manifest → skin_tone.supported_range, set by slice/check_skin_tone.py) is refused, never clamped; 'master' re-tints nothing — the QC baseline with the default head only. Required: there is no default tone",
+   "head_vectors": "<dir>/head_mv.####.exr — video profile only (the shutter open): HEAD_MOTION_VECTORS (4 channels, the shutter-open pair then the shutter-close pair, post_composite_blur.vector_convention) and HEAD_DEPTH, both declared 'data', the ORDER head's own motion from the head technology (ADR-0002 D5 amendment 2026-09-22); required with the shutter open — the blur is never skipped — and refused for a still; the default head's HEAD_MOTION_VECTORS is never substituted"
    },
    "gate": {
     "unfilled_fraction_max": 0.002,
@@ -1218,6 +1328,17 @@
    "basis": "MEASURED 2026-09-16 on the contractor's v01: the same build script on Linux CPU (bpy 5.2.1) and on macOS Metal (Blender 5.2.1) produces exports and bone matrices that differ by at most 1.3e-7 m / 1.3e-7 per element (float32 arithmetic order); 1e-5 is ~100x above that noise and ~50x below the smallest modelling change the contract cares about (the 5 mm rest-gap threshold is 5e-3)",
    "rule": "a rebuild on another machine is EQUAL WITHIN TOLERANCE when every number of every export file, every proxy vertex at every sub-frame sample and every field of the canonical scene content lies within numeric_abs of its counterpart and every non-numeric field is identical; byte-identical files are EQUAL; anything else DIFFERS and fails. The tolerance is never applied on the same machine (rebuild_shot.py) where exports must be byte-identical",
    "status": "PROVISIONAL — calibration set: contractor v01 vs its rebuild (one asset, one pair of machines)"
+  },
+  "render_tolerance": {
+   "abs_by_part_class": {"colour_and_mattes": 0.003, "depth": 0.001, "motion_vectors": 0.05, "cryptomatte": 0.0},
+   "within_on_support_min": 0.98,
+   "min_support_fraction": 0.001,
+   "units": "colour and mattes in scene-linear values; depth in metres; motion vectors in pixels at the render's own resolution; cryptomatte ids compared exactly (ids are hashes; coverage not judged)",
+   "metric": "per part, after a 4x4 box low-pass (not cryptomatte), the fraction of its support (blocks non-empty in either render) within the class tolerance (slice/compare_renders.py); judged parts: support fraction >= min_support_fraction",
+   "rule": "a rebuild PASSes when EVERY judged part reaches within_on_support_min AND each negative control (another frame of the shot; the render moved one pixel) has at least one judged part below it — a flat matte moved one pixel keeps its interior, so the control is caught by the parts that carry texture",
+   "basis": "MEASURED 2026-09-29 on the first rebuild from the package (SHOT_003 v06, same machine, the rebuilt scene 1e-6 off the delivered one so Cycles traces other paths): colour tolerance 0.001 / 0.003 / 0.01 → the rebuild's worst judged part 0.967 / 0.992 / 1.000 (the hand plate on the fastest frame 1338), the one-pixel control's best colour part 0.35 / 0.83 / 0.966 (still, body beauty; head holdout 0.97 at every tolerance), another frame 0.0; 0.003 with 0.98 leaves margins on both sides (0.012 above the rebuild's worst, 0.15 below the control's best texture part)",
+   "tested": "2026-10-02, the first independent test — SHOT_002 v03 rebuilt from the package (another shot, its eyes aimed at the gaze point, the per-tile blur in the composite): PASS, the worst judged part 0.99906 video (SKIN_BUNDLE/1121 BODY_DIFFUSE_DIRECT) and 0.99967 still, 54 + 18 parts judged; the controls caught — another frame 0.0, one pixel 0.077 video / 0.220 still (slice/measurements/rebuild_SHOT_002_v03_from_package_2026-10-02/)",
+   "status": "PROVISIONAL — calibrated on SHOT_003 v06, passed its first independent test on SHOT_002 v03, both on one machine; revisit on a rebuild on another machine"
   }
  },
  "post_composite_blur": {
@@ -1237,6 +1358,15 @@
    "min_samples": 16,
    "max_samples": 96,
    "basis": "PROVISIONAL - at 3840x2160 frame 1090 has 57 px of path and K = 48 showed no stepping; below about one sample per 1.5 px the streaks become visible"
+  },
+  "tiles": {
+   "size_px": 256,
+   "static_max_px": 0.01,
+   "k_levels": [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96],
+   "rule": "the frame is cut into size_px tiles; a tile's K = the samples rule (px_per_sample, max_samples, no min_samples floor) on the longest path of any source that can land in it (the per-pixel shutter reach, grown by the frame's longest reach), rounded up to a k_level; a tile no source moves into beyond static_max_px gets K = 1 — the sharp composite, which it is at every instant. Each tile is accumulated over its own K instants from a window grown by the frame's longest reach plus 8 px, so a source from any tile can land in it; the layers are warped and composited inside that window exactly as the frame-wide blur does. The frame-wide K (samples) is reported beside it",
+   "basis": "owner's pick 2026-10-01 of option B in slice/measurements/blur_cost_options_2026-09-30: on the nine 4K frames with a true 3D-blurred reference it passed the blur-fidelity gate 9/9 with the head error within 0.0008 of the frame-wide blur, took 0.4-6.9 s on the ordinary frames against 13-15 s (5.1x less CPU per order at that mix) and the same on the fastest frames (their head tiles need 48-96 instants anyway); no seam at tile borders (blur_tile_seam_probe: |B - reference| 0.0026-0.0034 at the borders against 0.0039-0.0042 elsewhere, the jump across them equal to the reference's at the 99.9th percentile)",
+   "status": "PROVISIONAL - the slice's three shots; the frame-wide blur remains the reference an explicit samples= request runs",
+   "measured": "2026-10-01 on the conformant v5 renders after the switch: see PROJECT_STATE and the exit review (criteria 6 and 8)"
   },
   "workers": {
    "default": 1,

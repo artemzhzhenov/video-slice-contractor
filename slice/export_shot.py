@@ -31,6 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from slice import camera_model as cm  # noqa: E402
 from slice import socketspace as ss  # noqa: E402
+from slice.eyes import EyesError, eye_objects  # noqa: E402
 
 CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
 CMAP = json.loads((ROOT / "slice" / "channel_map.json").read_text())
@@ -260,6 +261,58 @@ def export_lighting(scene, root, frames, out):
                                     "shot_id": scene.get("shot_id"), "sampled_at_frame": frames[0], "lights": rows, "hdri": hdri, "world_background": "NONE" if world is None else world.name})
 
 
+def gaze_rig(scene):
+    """The default head's eyes (conventions → scene_naming.eyes) and the rig's own look-at object, if any."""
+    E = N["eyes"]
+    try:
+        eyes, _kind = eye_objects(bpy.data.objects)
+    except EyesError as e:
+        raise ExportError(str(e)) from None
+    for e in eyes:
+        if e.parent is not bpy.data.objects["SOCKET_HEAD"]:
+            raise ExportError(f"{e.name} is not a child of SOCKET_HEAD — the eyes must sit in the socket's frame")
+    return eyes, bpy.data.objects.get(E["look_at"]), Vector(E["pupil_axis_local"])
+
+
+def gaze_for_frame(scene, depsgraph, eyes, look_at, axis_local, socket, editorial_target, channels):
+    """The gaze target point of one frame in the socket's local frame (channel_map.json → gaze; ADR-0002
+    amendment 2026-09-30), with its source, and the readout check: the rig's eyes must obey the vocabulary's
+    degrees for gaze_yaw / gaze_pitch within readout_tolerance_deg. Returns (gaze row, readout error in degrees)."""
+    G = CMAP["gaze"]
+    cs, axes, bases = [], [], []
+    for e in eyes:
+        ev = e.evaluated_get(depsgraph)
+        cs.append(ev.matrix_world.translation.copy())
+        axes.append((ev.matrix_world.to_3x3() @ axis_local).normalized())
+        bases.append((ev.matrix_basis.to_3x3() @ axis_local).normalized())
+    mid, d = (cs[0] + cs[1]) / 2, (axes[0] + axes[1]).normalized()
+    to_local = Matrix(ss.C) @ socket.matrix_world.inverted()
+    if look_at is not None:
+        point, source = look_at.evaluated_get(depsgraph).matrix_world.translation.copy(), "LOOK_AT"
+    elif editorial_target == "CAMERA":
+        point, source = scene.camera.evaluated_get(depsgraph).matrix_world.translation.copy(), "CAMERA"
+    else:
+        point, source = mid + d * G["far_m"], "FAR"
+        if editorial_target:
+            origin = mid.copy()
+            for _ in range(64):   # the ray through the character's own geometry to the named object
+                ok, loc, _n, _i, o, _m = scene.ray_cast(depsgraph, origin, d, distance=G["far_m"])
+                if not ok:
+                    break
+                if o.name == editorial_target:
+                    point, source = loc, "NAMED_TARGET"
+                    break
+                origin = loc + d * 1e-4
+    # the readout: the eyes' own rotation (matrix_basis, what the drivers set) decomposed as the vocabulary defines
+    deg = G["readout_degrees"]
+    worst = 0.0
+    for b in bases:
+        yaw = math.degrees(math.atan2(b.x, -b.y))
+        pitch = math.degrees(math.asin(max(-1.0, min(1.0, b.z))))
+        worst = max(worst, abs(yaw - channels["gaze_yaw"] * deg["gaze_yaw"]), abs(pitch - channels["gaze_pitch"] * deg["gaze_pitch"]))
+    return {"target_m": [round(float(v), 6) for v in (to_local @ point)], "source": source}, worst
+
+
 def export_performance_track(scene, ctrl, socket_rec, frames, out, shot):
     depsgraph = bpy.context.evaluated_depsgraph_get()
     windows = [w for w in SMAP["windows"] if w["shot_id"] == shot and "editorial" in w]
@@ -268,6 +321,9 @@ def export_performance_track(scene, ctrl, socket_rec, frames, out, shot):
     centre = {f["frame"]: next(s for s in f["samples"] if s["offset"] == 0.0) for f in socket_rec["frames"]}
     track = {"schema_version": 1, "shot": {"master_id": CONV["master_id"], "master_version": CONV["master_version"], "shot_id": shot},
              "channel_vocabulary_version": CMAP["channel_vocabulary_version"], "fps": CONV["fps"], "frames": []}
+    eyes, look_at, axis_local = gaze_rig(scene)
+    socket = bpy.data.objects["SOCKET_HEAD"]
+    readout_worst, sources = 0.0, {}
     for frame in frames:
         set_time(scene, frame, 0.0)
         ev = ctrl.evaluated_get(depsgraph)
@@ -289,8 +345,21 @@ def export_performance_track(scene, ctrl, socket_rec, frames, out, shot):
                 ed.update(w["editorial"])
         if ed:
             row["editorial"] = ed
+        row["gaze"], err = gaze_for_frame(scene, depsgraph, eyes, look_at, axis_local, socket, ed.get("gaze_target"), channels)
+        readout_worst = max(readout_worst, err)
+        sources[row["gaze"]["source"]] = sources.get(row["gaze"]["source"], 0) + 1
         track["frames"].append(row)
+    tol = CMAP["gaze"]["readout_tolerance_deg"]
+    if readout_worst > tol:
+        raise ExportError(f"the rig's eyes deviate from the vocabulary's readout degrees by {readout_worst:.3f}° (tolerance {tol}°): "
+                          "channel_map.json → gaze.readout_degrees does not describe this rig")
     dump(out, "performance_track.json", track)
+    set_time(scene, frames[0], 0.0)
+    to_local = Matrix(ss.C) @ socket.matrix_world.inverted()
+    return {"eyes": [e.name for e in eyes], "rule": "channel_map.json → gaze (vocabulary 2): the target point per frame in the socket's local frame; "
+                    + ("the rig's own look-at object" if look_at is not None else CMAP["gaze"]["migration_rule"].split(". Measured")[0]),
+            "default_head_eyes_socket_m": [[round(float(v), 6) for v in (to_local @ e.evaluated_get(depsgraph).matrix_world.translation)] for e in eyes],
+            "sources": sources, "readout_worst_deg": round(readout_worst, 4), "readout_tolerance_deg": tol}
 
 
 def head_rest_meshes(scene, frames):
@@ -525,7 +594,7 @@ def main():
     export_joints(scene, rig, root, frames, out)
     export_socket_boundary(scene, heads[0], bodies[0], root, frames, out)
     export_lighting(scene, root, frames, out)
-    export_performance_track(scene, ctrl, socket_rec, frames, out, args.shot)
+    gaze_rec = export_performance_track(scene, ctrl, socket_rec, frames, out, args.shot)
     export_proxies(scene, root, frames, out)
     head_rec = export_default_head(scene, socket, frames, out)
     deformed_rec = export_default_head_deformed(scene, socket, frames, out, head_rec)
@@ -539,7 +608,7 @@ def main():
                 "frames": [frames[0], frames[-1]], "sub_frame_offsets_frames": OFFSETS,
                 "socket_space_root_world_matrix_4x4_blender": m4(root.matrix_world),
                 "transform_conventions": CONV["exports"]["transform_conventions"], "default_head_rest": head_rec,
-                "default_head_deformed": deformed_rec,
+                "default_head_deformed": deformed_rec, "gaze": gaze_rec,
                 # Object classes for the round-trip's cryptomatte reading (conventions → roundtrip.body_over_head):
                 # the head's own objects (any type, C_HEAD ∪ C_HAIR), the shadow-only occluders (C_HAND_FG),
                 # and the objects that hold the head out in L_HEAD (C_BODY ∪ C_ENV). Render-visible geometry only.

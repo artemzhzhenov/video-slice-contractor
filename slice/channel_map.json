@@ -1,6 +1,23 @@
 {
-  "channel_vocabulary_version": 1,
-  "source": "proposal \u00a75 channel vocabulary v1 (2026-09-14); project-owned names, no vendor names",
+  "channel_vocabulary_version": 2,
+  "source": "proposal \u00a75 channel vocabulary v1 (2026-09-14); project-owned names, no vendor names. v2 (ADR-0002 amendment 2026-09-30): the gaze is a target point per frame (`gaze`); gaze_yaw / gaze_pitch are readouts in defined degrees",
+  "gaze": {
+    "track_field": "frames[].gaze = {target_m: [x, y, z], source}",
+    "frame": "the socket's local frame (default_head_rest.obj, the envelope of ADR-0002 D1), metres",
+    "rule": "every head turns each of its OWN eyes so that eye's line of sight passes through target_m; vergence and parallax follow from the head's own eye positions. Between frames a head interpolates each eye's rotation, not the point. A head whose eyes cannot turn that far clamps and reports gaze_clamped per frame, never silently. A head without 3D eyes maps the point through its own eye positions in this frame: the rule is where the eyes look, not how they are drawn",
+    "sources": {
+      "LOOK_AT": "the master's rig carries an animated look-at object (conventions scene_naming.eyes.look_at): its position per frame",
+      "CAMERA": "the state map names CAMERA for the window: the camera's position \u2014 eye contact",
+      "NAMED_TARGET": "the state map names an object for the window and the default head's gaze ray meets it: the hit point",
+      "FAR": "none of the above: the point on the default head's gaze ray at far_m \u2014 two eyes parallel within 0.16\u00b0 each"
+    },
+    "far_m": 10.0,
+    "migration_rule": "the slice's shots were authored with the yaw/pitch pair and record no distance: the gaze ray runs from the midpoint between the default head's eyes along their shared direction (NAMED_TARGET where it meets the window's named object, else FAR). Measured 2026-09-30 (slice/measurements/gaze_vergence_2026-09-30): SHOT_001 1023-1027 converge on the ball at 0.26 m; every other frame of the three shots stays within 0.16\u00b0 per eye of what was rendered",
+    "readout_degrees": {"gaze_yaw": 30.0, "gaze_pitch": 20.0},
+    "readout_rule": "gaze_yaw / gaze_pitch drive no head since v2: they are the default head's gaze direction toward target_m \u2014 yaw the azimuth about the socket's up axis (+ = the character's left), pitch the elevation \u2014 in channel units of readout_degrees per 1.0, for QC and state detection (check_states). The exporter asserts that the default head's rig obeys these degrees within readout_tolerance_deg",
+    "readout_tolerance_deg": 0.1,
+    "readout_tolerance_status": "PROVISIONAL \u2014 the slice's rig drives the eyes by exactly these degrees (build_character.py GAZE_YAW_DEG / GAZE_PITCH_DEG); a rig with a non-linear eye mapping fails it and the vocabulary's degrees are re-measured, never the rig re-fitted silently"
+  },
   "sides": "_l / _r are the character's ANATOMICAL left and right (socket +X = anatomical left)",
   "control_convention": "placeholder rig: one float custom property per channel on the FACE_CTRL empty, already in channel units. A real rig maps its own controls here: input_range \u2192 output_range, linear.",
  "combination_rules": [
@@ -379,7 +396,7 @@
         -1,
         1
       ],
-      "semantic": "-1 to character's right, +1 to character's left"
+      "semantic": "READOUT since v2 (ADR-0002 amendment 2026-09-30, see gaze): the default head's gaze azimuth toward gaze.target_m, 1.0 = 30\u00b0; -1 to character's right, +1 to character's left. Drives no head"
     },
     {
       "channel": "gaze_pitch",
@@ -395,7 +412,7 @@
         -1,
         1
       ],
-      "semantic": "-1 down, +1 up"
+      "semantic": "READOUT since v2 (ADR-0002 amendment 2026-09-30, see gaze): the default head's gaze elevation toward gaze.target_m, 1.0 = 20\u00b0; -1 down, +1 up. Drives no head"
     },
     {
       "channel": "blink_l",

@@ -234,6 +234,40 @@ def build_face_control(coll, rig, shot):
     return ctrl
 
 
+def build_eyes(colls, socket, head, mats):
+    """The placeholder head's eyes (conventions → scene_naming.eyes.template_objects): two spheres inside the placeholder
+    shell, children of SOCKET_HEAD, each looking down its local -Y, turned by FACE_CTRL's gaze_yaw /
+    gaze_pitch at the vocabulary's readout degrees (channel_map.json → gaze.readout_degrees) exactly
+    as the contractor's rig does. The exporter derives the gaze target point from them and
+    render_passes.py aims them at it (ADR-0002 amendment 2026-09-30)."""
+    cmap = json.loads((ROOT / "slice" / "channel_map.json").read_text())
+    deg = cmap["gaze"]["readout_degrees"]
+    E = CONV["scene_naming"]["eyes"]
+    ctrl = bpy.data.objects[CONV["scene_naming"]["face_ctrl"]]
+    centre = head.matrix_world.translation
+    for name, side in zip(E["template_objects"], (1.0, -1.0)):   # PLACEHOLDER_*: a character build removes them
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=0.012, location=(centre.x + side * 0.03, centre.y - HEAD_RADIUS * 0.75, centre.z + 0.02), segments=16, ring_count=8)
+        eye = bpy.context.active_object
+        eye.name = name
+        eye.data.materials.append(mats["HERO_SKIN_HEAD"])
+        eye.rotation_mode = "XYZ"
+        for c in eye.users_collection:
+            c.objects.unlink(eye)
+        colls["C_HEAD"].objects.link(eye)
+        eye.parent = socket
+        eye.matrix_parent_inverse = socket.matrix_world.inverted()
+        set_head_shadow_caster_only(eye)
+        for index, prop, expr in ((2, "gaze_yaw", f"v * {math.radians(deg['gaze_yaw']):.9f}"), (0, "gaze_pitch", f"-v * {math.radians(deg['gaze_pitch']):.9f}")):
+            d = eye.driver_add("rotation_euler", index).driver
+            d.type = "SCRIPTED"
+            var = d.variables.new()
+            var.name = "v"
+            var.type = "SINGLE_PROP"
+            var.targets[0].id = ctrl
+            var.targets[0].data_path = f'["{prop}"]'
+            d.expression = expr
+
+
 def build(scene, shot):
     conv_shot = CONV["shots"][shot]
     scene.name = "SLICE"
@@ -447,6 +481,7 @@ def build(scene, shot):
     head.matrix_parent_inverse = socket.matrix_world.inverted()
     set_head_shadow_caster_only(head)
     bpy.context.view_layer.update()
+    build_eyes(colls, socket, head, mats)
 
     hair_data = bpy.data.hair_curves.new("PLACEHOLDER_HAIR")
     hair = bpy.data.objects.new("PLACEHOLDER_HAIR", hair_data)
