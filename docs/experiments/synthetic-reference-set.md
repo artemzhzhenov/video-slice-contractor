@@ -95,7 +95,24 @@ Rendering is ours (the contractor works on one CPU core; we have the GPU): his s
 provenance, file hashes) in the bake-off record; one `AVATAR` per child with `canonical_ref: ref:synthetic/<set>/<child>`
 (the dry run's shape); the renders on the archive disk; the pre-registration's §3 filled from it.
 
+## Decided with the contractor (the owner's answers to his Q52 questions, 2026-10-02)
+
+- Curly hair: volume over the envelope — he gives the volume and reports where and by how much it leaves the envelope
+  (the envelope is not a gate for hair on the synthetic set).
+- The child's eyes are the child's: iris colour is a parameter of `subject_NN.json` (`subject_01`: brown).
+- The character file wears the master's dress; the child's own simple clothes appear only in the parent-photo scene.
+- 2026-10-23 (owner, after the pilot): the master's skirt visible below the child's own top in the parent-photo scene is kept
+  as is — it touches no measurement; the same for all nine.
+
+## The pilot, accepted 2026-10-18 (`slice/measurements/subject_01_acceptance_2026-10-18.json`)
+
+`subject_01` (the darkest tone, curly high-volume hair) passed every gate above except one that is ours: the D7 round-trip's
+nine-instant shutter integration cannot follow a thousand thin curls on the fastest frame (p95 1.35 px of 0.5; the same
+export at 33 instants 0.25 px). Two consequences for the set and the bake-off: **the default head's envelope is too small
+for voluminous hair** (this child leaves it by 35–60 mm, by the owner's decision) and **the round-trip needs a rule for
+thin hair** before candidates' heads with their own hair are measured — an ADR-0002 D7 amendment for the owner.
+
 ## Decided and open
 
 - Decided 2026-10-02 (owner): the route — 3D; the tones — the three above.
-- Open: the cap, once the contractor has estimated the pilot child.
+- The contractor's estimate (2026-10-02): the pilot ~21–29 h, with two early checkpoints (after the head with its channels; after the first parent-photo frame); the other eight ~36–52 h, final after the pilot. Open: the owner's cap on the pilot.

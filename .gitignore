@@ -28,6 +28,8 @@ node_modules/
 
 # claude code local
 CLAUDE.local.md
+# the agent's browser session output — may hold account pages
+.playwright-mcp/
 .claude/settings.local.json
 
 # Phase 0.5 slice — renders and Blender backups are never committed
