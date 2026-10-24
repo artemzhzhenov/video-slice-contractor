@@ -81,8 +81,8 @@ Rendering is ours (the contractor works on one CPU core; we have the GPU): his s
 | socket | the head's ring equals the default head's within 1e-6; the child composited in a slice shot passes the round-trip (D7) and the seam criterion |
 | channels | every channel the default head moves visibly moves the child (`slice/channel_reference.py`) |
 | tone | the skin's albedo is the assigned tone (measured on the material and on a flat-lit render) |
-| hair, glasses | the class declared and visible; the forehead crossing where assigned; glasses present on their children in every shot and seated (above); on any frame of the three shots and at the channel extremes, no glasses triangle crossing the skin, brows, eyes or body, no hair triangle crossing the brows, eyes or body, and the hair's crossings with the head skin no more than at rest (its own seating on the scalp, as on the default head); the gaps reported (`slice/measurements/accessory_clearance.py`) — except the master's own SHOT_003 hand window (Open Decisions) |
-| features | the measured parameter table matches the declared (planned) one within 2 mm per feature; the **minimum difference** (owner, 2026-10-24): every child differs from the default head and from every other child by **≥ 12 mm summed** over face width, interocular distance and nose width, **with at least two of the three ≥ 3 mm** |
+| hair, glasses | the class declared and visible; the forehead crossing where assigned; glasses present on their children in every shot and seated (above); on any frame of the three shots and at the channel extremes, no glasses triangle crossing the skin, brows, eyes or body, no hair triangle crossing the brows, eyes or body, and the hair's crossings with the head skin no more than at rest (its own seating on the scalp, as on the default head); the gaps reported (`slice/measurements/accessory_clearance.py`) — except the master's own SHOT_003 hand window, excluded from the metrics of the children with a fringe or glasses (owner, 2026-10-24; `benchmarks/bakeoff/01J7B000000000000000BAKEXP/declared_exclusions.json`) |
+| features | the **minimum difference** (owner, 2026-10-24, replacing the same day's 12-mm feature sum): every child's face differs from the default head's and from every other child's by **≥ 2.0 mm** — the RMS of the per-vertex displacement over the face, the same topology vertex to vertex, translation removed (`slice/measurements/face_shape_distance.py`); faces stay natural (no extreme target weights to buy the difference) and the owner sees the sheet of faces; the feature table (face width, interocular, nose wing width — the contractor's `face_measure.py` v2) is a description, matched to the plan within 2 mm, not the rule |
 | home advantage | the residual of the best MPFB fit reported per child (not a gate until a calibration exists) |
 | packet | 3–5 scenes per child render deterministically on our GPU; no metadata in the files |
 | controls | the variants differ from their source in the one property and nothing else (content hash per object) |
@@ -116,9 +116,11 @@ export at 33 instants 0.25 px). Two consequences for the set and the bake-off: *
 for voluminous hair** (this child leaves it by 35–60 mm, by the owner's decision) and **the round-trip needs a rule for
 thin hair** before candidates' heads with their own hair are measured — an ADR-0002 D7 amendment for the owner.
 
-- 2026-10-24 (owner, after the checkpoint of subject_02 and subject_03): the minimum difference between faces as in the
-  features gate (≥ 12 mm summed over three features, two of them ≥ 3 mm) — the plan is the order and is re-planned, not
-  re-declared to what came out; the hair moved into its own function (`hair_on_head.py`, 2–3 h within the cap); **long
+- 2026-10-24 (owner, after the checkpoint of subject_02 and subject_03): the minimum difference between faces — first
+  as a 12-mm sum over three features, then the same day, once the nose was found mis-measured (the contractor's
+  face_measure v1 and our subject_measure both measured the cheeks beside the nose) and the sum could be met only with
+  extreme faces, **as the whole face: ≥ 2.0 mm RMS** (the features gate); the nose wing width (v2) is a description only;
+  the plan is the order and is re-planned, not re-declared to what came out; the hair moved into its own function (`hair_on_head.py`, 2–3 h within the cap); **long
   straight hair ends at the collar** — rigid hair on the socket cannot be longer through the head turns (longer hair would
   need simulated hair, a later product question); the cap for the eight: 40 h.
 
