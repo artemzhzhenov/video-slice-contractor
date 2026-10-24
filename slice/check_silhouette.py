@@ -285,6 +285,9 @@ def main():
         scene.collection.children.link(coll)
         linked.append(c)
     bpy.context.window.scene = scene
+    hidden = [n for n in S.get("excluded_objects", []) if bpy.data.objects.get(n) is not None]
+    for n in hidden:                     # open accessories of the head (conventions silhouette.excluded_objects)
+        bpy.data.objects[n].hide_render = True
     scene.frame_set(src.frame_start)
 
     r = S["render"]
@@ -320,7 +323,7 @@ def main():
             raise SilhouetteError("SOCKET_HEAD missing")
 
         report = {"schema_note": "see-through holes in the character silhouette; conventions.json → silhouette",
-                  "criterion": S["criterion"], "collections": linked, "excluded": S["excluded"],
+                  "criterion": S["criterion"], "collections": linked, "excluded": S["excluded"], "excluded_objects_hidden": hidden,
                   "render": r, "pose_status": S["pose"]["status"], "pass_rule": S["pass_rule"],
                   "objects": by_colour, "views": []}
         failed = []

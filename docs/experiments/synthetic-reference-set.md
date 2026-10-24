@@ -52,7 +52,11 @@ photoreal render of the same head.
    drive the default head (the same expression units, rebuilt on the child's identity), the gaze by the vocabulary's
    degrees, the lid / blink rule. Our channel reference renders of each child show the channels move.
 3. **Skin, hair, glasses.** Skin albedo exactly the assigned tone (head and body, Principled; any texture multiplies to a
-   mean equal to the tone). Hair as a mesh hanging rigidly on the socket (the slice's contract). Glasses as geometry.
+   mean equal to the tone). Hair as a mesh hanging rigidly on the socket (the slice's contract), built by a function of
+   its own (`hair_on_head.py`: a head, the socket and the class parameters → the hair), so a class's hair can be put on
+   another head — a candidate head has no hair of its own (owner, 2026-10-24). Glasses as geometry, **seated**: the
+   bridge on the nose (gap 0–2 mm), the lenses about 10–14 mm in front of the eyes, the temples outside the head
+   (skin + ~2 mm) to the top of the ear (2026-10-24, after the checkpoint's glasses floated 30 mm ahead of the eyes).
 4. **The upload packet scenes:** 3–5 per child, phone-like — wide lens (24–28 mm equivalent), 0.4–1.2 m, varied height
    and tilt; daylight from a window, warm indoor light, overhead light, open shade; neutral and smiling; the child in
    their own clothes (not the master's costume), simple home backgrounds; the photoreal look: subsurface skin, fine
@@ -77,8 +81,8 @@ Rendering is ours (the contractor works on one CPU core; we have the GPU): his s
 | socket | the head's ring equals the default head's within 1e-6; the child composited in a slice shot passes the round-trip (D7) and the seam criterion |
 | channels | every channel the default head moves visibly moves the child (`slice/channel_reference.py`) |
 | tone | the skin's albedo is the assigned tone (measured on the material and on a flat-lit render) |
-| hair, glasses | the class declared and visible; the forehead crossing where assigned; glasses present on their children in every shot |
-| features | the measured parameter table matches the declared one; no two children within the declared minimum difference |
+| hair, glasses | the class declared and visible; the forehead crossing where assigned; glasses present on their children in every shot and seated (above); on any frame of the three shots and at the channel extremes, no glasses triangle crossing the skin, brows, eyes or body, no hair triangle crossing the brows, eyes or body, and the hair's crossings with the head skin no more than at rest (its own seating on the scalp, as on the default head); the gaps reported (`slice/measurements/accessory_clearance.py`) — except the master's own SHOT_003 hand window (Open Decisions) |
+| features | the measured parameter table matches the declared (planned) one within 2 mm per feature; the **minimum difference** (owner, 2026-10-24): every child differs from the default head and from every other child by **≥ 12 mm summed** over face width, interocular distance and nose width, **with at least two of the three ≥ 3 mm** |
 | home advantage | the residual of the best MPFB fit reported per child (not a gate until a calibration exists) |
 | packet | 3–5 scenes per child render deterministically on our GPU; no metadata in the files |
 | controls | the variants differ from their source in the one property and nothing else (content hash per object) |
@@ -111,6 +115,12 @@ nine-instant shutter integration cannot follow a thousand thin curls on the fast
 export at 33 instants 0.25 px). Two consequences for the set and the bake-off: **the default head's envelope is too small
 for voluminous hair** (this child leaves it by 35–60 mm, by the owner's decision) and **the round-trip needs a rule for
 thin hair** before candidates' heads with their own hair are measured — an ADR-0002 D7 amendment for the owner.
+
+- 2026-10-24 (owner, after the checkpoint of subject_02 and subject_03): the minimum difference between faces as in the
+  features gate (≥ 12 mm summed over three features, two of them ≥ 3 mm) — the plan is the order and is re-planned, not
+  re-declared to what came out; the hair moved into its own function (`hair_on_head.py`, 2–3 h within the cap); **long
+  straight hair ends at the collar** — rigid hair on the socket cannot be longer through the head turns (longer hair would
+  need simulated hair, a later product question); the cap for the eight: 40 h.
 
 ## Decided and open
 
