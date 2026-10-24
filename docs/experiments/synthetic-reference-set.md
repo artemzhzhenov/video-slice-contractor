@@ -124,6 +124,11 @@ thin hair** before candidates' heads with their own hair are measured — an ADR
   straight hair ends at the collar** — rigid hair on the socket cannot be longer through the head turns (longer hair would
   need simulated hair, a later product question); the cap for the eight: 40 h.
 
+- 2026-10-24 (owner, Q56 → Q57): **the plan of faces 03–09 accepted** — targets only, weights ≤ 0.4, natural faces;
+  every pair of the ten heads ≥ 2.0 mm by `face_shape_distance.py` on the trial builds (worst child pair 2.391 mm),
+  the contractor's linear model within 0.022 mm of it; **each of 03–09 still carries its own sculpted deviation outside
+  the targets** (2–3 bumps of 1.5–3 mm, as on 01 and 02 — the home-advantage guard above), checked again on the built heads.
+
 ## Decided and open
 
 - Decided 2026-10-02 (owner): the route — 3D; the tones — the three above.

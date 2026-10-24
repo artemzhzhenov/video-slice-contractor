@@ -1,5 +1,5 @@
 {
-  "schema_note": "burst 3 plan of nine synthetic children (TASK §3.6). Only subject_01 is built in the pilot. Girls 7-9, on character v04.1.",
+  "schema_note": "burst 3 plan of nine synthetic children (TASK §3.6). Only subject_01 is built in the pilot. Girls 7-9, on character v04.1. Re-planned 2026-10-24 (Q56): 03-09 by the whole-face rule.",
   "tones_linear": {
     "lightest": [
       0.9,
@@ -25,7 +25,8 @@
   "default_head_measured_m": {
     "face_width": 0.1317,
     "interocular": 0.0546,
-    "nose_width": 0.046,
+    "nose_width": 0.0295,
+    "nose_band_v1": 0.046,
     "face_height_brow_to_chin": 0.1083
   },
   "provenance": "No photograph of any real person was an input, a seed or a reference for any row.",
@@ -67,9 +68,11 @@
       "face_measured_m": {
         "face_width": 0.147,
         "interocular": 0.0618,
-        "nose_width": 0.0574
+        "nose_width": 0.035,
+        "nose_band_v1": 0.0574
       },
-      "built": true
+      "built": true,
+      "plan_note": "accepted; stays as built (Q55/Q56)"
     },
     {
       "subject": "subject_02",
@@ -113,9 +116,11 @@
       "face_measured_m": {
         "face_width": 0.1457,
         "interocular": 0.0511,
-        "nose_width": 0.0476,
-        "face_height_brow_to_chin": 0.1158
-      }
+        "nose_width": 0.0305,
+        "face_height_brow_to_chin": 0.1158,
+        "nose_band_v1": 0.0476
+      },
+      "plan_note": "accepted; stays as built (Q55/Q56)"
     },
     {
       "subject": "subject_03",
@@ -138,30 +143,64 @@
         0.06,
         0.03
       ],
-      "face_shape_targets": {
-        "head-square": 0.4
-      },
-      "eye_spacing_targets": {
-        "eye-trans-out": 0.15
-      },
-      "nose_width_targets": {
-        "nose-scale-horiz-decr": 0.15
-      },
-      "nose_length_targets": {
-        "nose-scale-vert-incr": 0.1
-      },
-      "built": true,
+      "built": false,
       "face_planned_m_was": {
         "face_width": 0.141,
         "interocular": 0.057,
         "nose_width": 0.043
       },
-      "face_measured_m": {
-        "face_width": 0.1325,
-        "interocular": 0.0565,
-        "nose_width": 0.0477,
-        "face_height_brow_to_chin": 0.1059
-      }
+      "plan_was_before_q56": {
+        "face_shape_targets": {
+          "head-square": 0.4
+        },
+        "eye_spacing_targets": {
+          "eye-trans-out": 0.15
+        },
+        "nose_width_targets": {
+          "nose-scale-horiz-decr": 0.15
+        },
+        "nose_length_targets": {
+          "nose-scale-vert-incr": 0.1
+        },
+        "face_measured_m_checkpoint_v01": {
+          "face_width": 0.1325,
+          "interocular": 0.0565,
+          "nose_width": 0.0477,
+          "face_height_brow_to_chin": 0.1059
+        },
+        "checkpoint_v01_rms_to_default_mm": 1.277
+      },
+      "feature_targets": {
+        "chin-bones-incr": 0.02,
+        "chin-height-incr": 0.36,
+        "chin-prognathism-incr": 0.08,
+        "chin-prominent-incr": 0.02,
+        "chin-triangle": 0.12,
+        "eye-trans-up": 0.07,
+        "forehead-nubian-decr": 0.07,
+        "forehead-scale-vert-decr": 0.06,
+        "head-invertedtriangular": 0.04,
+        "head-rectangular": 0.03,
+        "head-round": 0.03,
+        "head-scale-horiz-incr": 0.13,
+        "head-scale-vert-incr": 0.15,
+        "head-square": 0.04,
+        "mouth-trans-down": 0.04,
+        "mouth-trans-forward": 0.15,
+        "nose-scale-depth-decr": 0.09,
+        "nose-scale-vert-decr": 0.03,
+        "nose-trans-backward": 0.06,
+        "nose-trans-up": 0.03
+      },
+      "sculpt": [],
+      "face_planned_m": {
+        "face_width": 0.1396,
+        "interocular": 0.056100000000000004,
+        "nose_width": 0.0305,
+        "face_height_brow_to_chin": 0.1161
+      },
+      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.402
     },
     {
       "subject": "subject_04",
@@ -184,24 +223,62 @@
         0.07,
         0.03
       ],
-      "face_shape_targets": {
-        "head-triangular": 0.4
+      "built": false,
+      "plan_was_before_q56": {
+        "face_shape_targets": {
+          "head-triangular": 0.4
+        },
+        "eye_spacing_targets": {
+          "eye-trans-in": 0.1
+        },
+        "nose_width_targets": {
+          "nose-scale-horiz-incr": 0.3
+        },
+        "nose_length_targets": {
+          "nose-scale-vert-decr": 0.1
+        },
+        "face_planned_m": {
+          "face_width": 0.128,
+          "interocular": 0.053,
+          "nose_width": 0.052
+        }
       },
-      "eye_spacing_targets": {
-        "eye-trans-in": 0.1
+      "feature_targets": {
+        "cheek-volume-incr": 0.03,
+        "chin-prognathism-decr": 0.15,
+        "chin-prominent-decr": 0.04,
+        "chin-width-incr": 0.03,
+        "eye-trans-out": 0.16,
+        "eye-trans-up": 0.15,
+        "eyebrows-trans-up": 0.02,
+        "forehead-nubian-decr": 0.1,
+        "forehead-scale-vert-decr": 0.08,
+        "head-fat-incr": 0.03,
+        "head-rectangular": 0.03,
+        "head-round": 0.06,
+        "head-scale-horiz-incr": 0.15,
+        "head-scale-vert-incr": 0.15,
+        "head-square": 0.06,
+        "mouth-scale-horiz-incr": 0.05,
+        "mouth-trans-backward": 0.15,
+        "mouth-trans-down": 0.15,
+        "nose-hump-incr": 0.04,
+        "nose-scale-depth-incr": 0.22,
+        "nose-scale-vert-incr": 0.04,
+        "nose-trans-down": 0.03,
+        "nose-trans-forward": 0.15,
+        "nose-volume-decr": 0.03,
+        "nose-volume-incr": 0.03
       },
-      "nose_width_targets": {
-        "nose-scale-horiz-incr": 0.3
-      },
-      "nose_length_targets": {
-        "nose-scale-vert-decr": 0.1
-      },
+      "sculpt": [],
       "face_planned_m": {
-        "face_width": 0.128,
-        "interocular": 0.053,
-        "nose_width": 0.052
+        "face_width": 0.1409,
+        "interocular": 0.0579,
+        "nose_width": 0.0305,
+        "face_height_brow_to_chin": 0.1092
       },
-      "built": false
+      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.402
     },
     {
       "subject": "subject_05",
@@ -224,24 +301,62 @@
         0.09,
         0.04
       ],
-      "face_shape_targets": {
-        "head-diamond": 0.45
+      "built": false,
+      "plan_was_before_q56": {
+        "face_shape_targets": {
+          "head-diamond": 0.45
+        },
+        "eye_spacing_targets": {
+          "eye-trans-out": 0.3
+        },
+        "nose_width_targets": {
+          "nose-scale-horiz-decr": 0.25
+        },
+        "nose_length_targets": {
+          "nose-scale-vert-incr": 0.2
+        },
+        "face_planned_m": {
+          "face_width": 0.134,
+          "interocular": 0.06,
+          "nose_width": 0.041
+        }
       },
-      "eye_spacing_targets": {
-        "eye-trans-out": 0.3
+      "feature_targets": {
+        "cheek-bones-incr": 0.03,
+        "cheek-volume-incr": 0.05,
+        "chin-bones-incr": 0.02,
+        "chin-height-incr": 0.37,
+        "chin-prognathism-incr": 0.06,
+        "chin-triangle": 0.11,
+        "chin-width-incr": 0.03,
+        "eye-trans-down": 0.05,
+        "eye-trans-out": 0.25,
+        "eyebrows-trans-down": 0.04,
+        "forehead-nubian-decr": 0.09,
+        "forehead-scale-vert-decr": 0.07,
+        "head-fat-incr": 0.04,
+        "head-oval": 0.03,
+        "head-rectangular": 0.03,
+        "head-round": 0.07,
+        "head-scale-horiz-incr": 0.15,
+        "head-scale-vert-decr": 0.15,
+        "head-square": 0.05,
+        "mouth-scale-horiz-incr": 0.06,
+        "mouth-trans-forward": 0.15,
+        "mouth-trans-up": 0.15,
+        "nose-scale-depth-decr": 0.02,
+        "nose-scale-vert-decr": 0.08,
+        "nose-trans-up": 0.06
       },
-      "nose_width_targets": {
-        "nose-scale-horiz-decr": 0.25
-      },
-      "nose_length_targets": {
-        "nose-scale-vert-incr": 0.2
-      },
+      "sculpt": [],
       "face_planned_m": {
-        "face_width": 0.134,
-        "interocular": 0.06,
-        "nose_width": 0.041
+        "face_width": 0.14,
+        "interocular": 0.059,
+        "nose_width": 0.031,
+        "face_height_brow_to_chin": 0.10740000000000001
       },
-      "built": false
+      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.417
     },
     {
       "subject": "subject_06",
@@ -264,24 +379,55 @@
         0.06,
         0.025
       ],
-      "face_shape_targets": {
-        "head-rectangular": 0.4
+      "built": false,
+      "plan_was_before_q56": {
+        "face_shape_targets": {
+          "head-rectangular": 0.4
+        },
+        "eye_spacing_targets": {
+          "eye-trans-in": 0.3
+        },
+        "nose_width_targets": {
+          "nose-scale-horiz-incr": 0.1
+        },
+        "nose_length_targets": {
+          "nose-scale-vert-incr": 0.3
+        },
+        "face_planned_m": {
+          "face_width": 0.13,
+          "interocular": 0.05,
+          "nose_width": 0.048
+        }
       },
-      "eye_spacing_targets": {
-        "eye-trans-in": 0.3
+      "feature_targets": {
+        "cheek-volume-decr": 0.02,
+        "chin-height-decr": 0.07,
+        "chin-prognathism-decr": 0.23,
+        "chin-prominent-decr": 0.08,
+        "eye-trans-down": 0.08,
+        "eye-trans-in": 0.1,
+        "eyebrows-trans-down": 0.06,
+        "forehead-nubian-incr": 0.15,
+        "forehead-scale-vert-incr": 0.16,
+        "head-scale-horiz-decr": 0.15,
+        "head-scale-vert-decr": 0.15,
+        "mouth-scale-horiz-decr": 0.05,
+        "mouth-trans-backward": 0.15,
+        "mouth-trans-up": 0.15,
+        "nose-scale-depth-incr": 0.32,
+        "nose-trans-forward": 0.15,
+        "nose-volume-decr": 0.04,
+        "nose-volume-incr": 0.05
       },
-      "nose_width_targets": {
-        "nose-scale-horiz-incr": 0.1
-      },
-      "nose_length_targets": {
-        "nose-scale-vert-incr": 0.3
-      },
+      "sculpt": [],
       "face_planned_m": {
-        "face_width": 0.13,
-        "interocular": 0.05,
-        "nose_width": 0.048
+        "face_width": 0.128,
+        "interocular": 0.0518,
+        "nose_width": 0.0285,
+        "face_height_brow_to_chin": 0.1105
       },
-      "built": false
+      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.391
     },
     {
       "subject": "subject_07",
@@ -304,24 +450,58 @@
         0.28,
         0.42
       ],
-      "face_shape_targets": {
-        "head-invertedtriangular": 0.4
+      "built": false,
+      "plan_was_before_q56": {
+        "face_shape_targets": {
+          "head-invertedtriangular": 0.4
+        },
+        "eye_spacing_targets": {
+          "eye-trans-out": 0.2
+        },
+        "nose_width_targets": {
+          "nose-scale-horiz-decr": 0.3
+        },
+        "nose_length_targets": {
+          "nose-scale-vert-decr": 0.15
+        },
+        "face_planned_m": {
+          "face_width": 0.126,
+          "interocular": 0.058,
+          "nose_width": 0.039
+        }
       },
-      "eye_spacing_targets": {
-        "eye-trans-out": 0.2
+      "feature_targets": {
+        "cheek-volume-decr": 0.03,
+        "chin-height-decr": 0.1,
+        "chin-prognathism-incr": 0.15,
+        "chin-prominent-incr": 0.05,
+        "eye-scale-decr": 0.02,
+        "eye-trans-down": 0.1,
+        "eye-trans-in": 0.13,
+        "eyebrows-trans-down": 0.07,
+        "forehead-nubian-incr": 0.22,
+        "forehead-scale-vert-incr": 0.24,
+        "head-fat-decr": 0.03,
+        "head-scale-horiz-decr": 0.15,
+        "head-scale-vert-decr": 0.15,
+        "mouth-lowerlip-volume-incr": 0.02,
+        "mouth-scale-depth-decr": 0.02,
+        "mouth-scale-horiz-decr": 0.07,
+        "mouth-trans-forward": 0.15,
+        "mouth-trans-up": 0.15,
+        "nose-scale-depth-decr": 0.2,
+        "nose-scale-vert-decr": 0.04,
+        "nose-trans-backward": 0.12
       },
-      "nose_width_targets": {
-        "nose-scale-horiz-decr": 0.3
-      },
-      "nose_length_targets": {
-        "nose-scale-vert-decr": 0.15
-      },
+      "sculpt": [],
       "face_planned_m": {
-        "face_width": 0.126,
-        "interocular": 0.058,
-        "nose_width": 0.039
+        "face_width": 0.1275,
+        "interocular": 0.0514,
+        "nose_width": 0.0285,
+        "face_height_brow_to_chin": 0.11359999999999999
       },
-      "built": false
+      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.394
     },
     {
       "subject": "subject_08",
@@ -344,25 +524,63 @@
         0.2,
         0.08
       ],
-      "face_shape_targets": {
-        "head-oval": 0.25,
-        "head-scale-horiz-decr": 0.2
+      "built": false,
+      "plan_was_before_q56": {
+        "face_shape_targets": {
+          "head-oval": 0.25,
+          "head-scale-horiz-decr": 0.2
+        },
+        "eye_spacing_targets": {
+          "eye-trans-in": 0.2
+        },
+        "nose_width_targets": {
+          "nose-scale-horiz-incr": 0.05
+        },
+        "nose_length_targets": {
+          "nose-scale-vert-incr": 0.15
+        },
+        "face_planned_m": {
+          "face_width": 0.124,
+          "interocular": 0.051,
+          "nose_width": 0.046
+        }
       },
-      "eye_spacing_targets": {
-        "eye-trans-in": 0.2
+      "feature_targets": {
+        "cheek-bones-incr": 0.03,
+        "cheek-volume-incr": 0.05,
+        "chin-height-decr": 0.07,
+        "chin-prognathism-decr": 0.16,
+        "chin-prominent-decr": 0.06,
+        "chin-width-incr": 0.04,
+        "eye-scale-incr": 0.02,
+        "eye-trans-down": 0.1,
+        "eye-trans-out": 0.27,
+        "eyebrows-trans-down": 0.07,
+        "head-fat-incr": 0.04,
+        "head-oval": 0.06,
+        "head-round": 0.05,
+        "head-scale-horiz-incr": 0.15,
+        "head-scale-vert-decr": 0.15,
+        "mouth-scale-horiz-incr": 0.09,
+        "mouth-trans-backward": 0.15,
+        "mouth-trans-up": 0.15,
+        "nose-scale-depth-incr": 0.29,
+        "nose-scale-horiz-incr": 0.02,
+        "nose-scale-vert-decr": 0.04,
+        "nose-trans-forward": 0.15,
+        "nose-trans-up": 0.02,
+        "nose-volume-decr": 0.03,
+        "nose-volume-incr": 0.04
       },
-      "nose_width_targets": {
-        "nose-scale-horiz-incr": 0.05
-      },
-      "nose_length_targets": {
-        "nose-scale-vert-incr": 0.15
-      },
+      "sculpt": [],
       "face_planned_m": {
-        "face_width": 0.124,
-        "interocular": 0.051,
-        "nose_width": 0.046
+        "face_width": 0.1397,
+        "interocular": 0.059,
+        "nose_width": 0.031,
+        "face_height_brow_to_chin": 0.1038
       },
-      "built": false
+      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.409
     },
     {
       "subject": "subject_09",
@@ -385,25 +603,60 @@
         0.08,
         0.04
       ],
-      "face_shape_targets": {
-        "head-round": 0.3,
-        "head-scale-horiz-incr": 0.1
+      "built": false,
+      "plan_was_before_q56": {
+        "face_shape_targets": {
+          "head-round": 0.3,
+          "head-scale-horiz-incr": 0.1
+        },
+        "eye_spacing_targets": {
+          "eye-trans-out": 0.1
+        },
+        "nose_width_targets": {
+          "nose-scale-horiz-decr": 0.1
+        },
+        "nose_length_targets": {
+          "nose-scale-vert-decr": 0.25
+        },
+        "face_planned_m": {
+          "face_width": 0.139,
+          "interocular": 0.056,
+          "nose_width": 0.044
+        }
       },
-      "eye_spacing_targets": {
-        "eye-trans-out": 0.1
+      "feature_targets": {
+        "cheek-volume-decr": 0.02,
+        "chin-height-incr": 0.27,
+        "chin-prognathism-decr": 0.12,
+        "chin-prominent-decr": 0.05,
+        "chin-triangle": 0.09,
+        "eye-trans-up": 0.1,
+        "forehead-nubian-decr": 0.04,
+        "forehead-scale-vert-decr": 0.03,
+        "head-invertedtriangular": 0.07,
+        "head-scale-horiz-decr": 0.15,
+        "head-scale-vert-incr": 0.15,
+        "mouth-scale-horiz-decr": 0.03,
+        "mouth-scale-vert-incr": 0.03,
+        "mouth-trans-backward": 0.1,
+        "mouth-trans-down": 0.13,
+        "nose-scale-depth-incr": 0.16,
+        "nose-scale-vert-decr": 0.05,
+        "nose-trans-forward": 0.15,
+        "nose-trans-up": 0.04,
+        "nose-volume-incr": 0.02
       },
-      "nose_width_targets": {
-        "nose-scale-horiz-decr": 0.1
-      },
-      "nose_length_targets": {
-        "nose-scale-vert-decr": 0.25
-      },
+      "sculpt": [],
       "face_planned_m": {
-        "face_width": 0.139,
-        "interocular": 0.056,
-        "nose_width": 0.044
+        "face_width": 0.13119999999999998,
+        "interocular": 0.052700000000000004,
+        "nose_width": 0.0285,
+        "face_height_brow_to_chin": 0.116
       },
-      "built": false
+      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.405
     }
-  ]
+  ],
+  "distinctness_rule": "owner Q56, 2026-10-24: every child differs from the default head and from every other child by an RMS of the per-vertex face displacement >= 2.0 mm (slice/measurements/face_shape_distance.py). Planned with margin: >= 2.3 mm by the contractor's linear model (tools/burst3/check_plan.py); trial builds checked with the owner's script.",
+  "face_description": "tools/burst3/face_measure.py v2: face width at the cheekbones, interocular, nose WING width (ray cast), face height — a description of each face, matched to the plan within 2 mm; not the rule. v1's nose band (below the nose, on the cheeks) is kept as nose_band_v1."
 }

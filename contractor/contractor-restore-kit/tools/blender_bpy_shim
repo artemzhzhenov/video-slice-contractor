@@ -1,0 +1,29 @@
+#!/home/claude/bpyenv/bin/python
+"""Shim: emulates `blender [-b] [file.blend] [--python-exit-code N] -P script.py [-- args]` and `blender --version`
+with the PyPI bpy module (Blender 5.2.1 LTS). No GUI; -b is implied. A script exception exits with the
+--python-exit-code value, as Blender does."""
+import sys, runpy, traceback
+a = sys.argv[1:]
+if "--version" in a:
+    import bpy; print("Blender", bpy.app.version_string, "(bpy module shim)"); sys.exit(0)
+rest = []
+if "--" in a:
+    i = a.index("--"); a, rest = a[:i], a[i + 1:]
+blend = script = None; code = 1; k = 0
+while k < len(a):
+    t = a[k]
+    if t in ("-b", "--background", "--factory-startup"): k += 1; continue
+    if t == "--python-exit-code": code = int(a[k + 1]); k += 2; continue
+    if t in ("-P", "--python"): script = a[k + 1]; k += 2; continue
+    if t.endswith(".blend"): blend = t; k += 1; continue
+    sys.exit(f"blender shim: unsupported argument {t!r}")
+if script is None: sys.exit("blender shim: -P script is required")
+import bpy
+if blend: bpy.ops.wm.open_mainfile(filepath=blend)
+sys.argv = [script] + (["--"] + rest if rest else [])
+try:
+    runpy.run_path(script, run_name="__main__")
+except SystemExit as e:
+    sys.exit(e.code)
+except Exception:
+    traceback.print_exc(); sys.exit(code)
