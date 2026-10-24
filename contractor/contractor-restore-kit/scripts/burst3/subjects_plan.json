@@ -1,0 +1,409 @@
+{
+  "schema_note": "burst 3 plan of nine synthetic children (TASK §3.6). Only subject_01 is built in the pilot. Girls 7-9, on character v04.1.",
+  "tones_linear": {
+    "lightest": [
+      0.9,
+      0.72,
+      0.62
+    ],
+    "medium": [
+      0.55,
+      0.38,
+      0.28
+    ],
+    "darkest": [
+      0.2,
+      0.11,
+      0.07
+    ]
+  },
+  "hair_classes": [
+    "short_straight",
+    "long_straight",
+    "curly_voluminous"
+  ],
+  "default_head_measured_m": {
+    "face_width": 0.1317,
+    "interocular": 0.0546,
+    "nose_width": 0.046,
+    "face_height_brow_to_chin": 0.1083
+  },
+  "provenance": "No photograph of any real person was an input, a seed or a reference for any row.",
+  "subjects": [
+    {
+      "subject": "subject_01",
+      "tone": "darkest",
+      "tone_albedo_linear": [
+        0.2,
+        0.11,
+        0.07
+      ],
+      "hair_class": "curly_voluminous",
+      "hair_color_linear": [
+        0.028,
+        0.019,
+        0.015
+      ],
+      "bangs_on_forehead_in_neutral": false,
+      "glasses": false,
+      "iris_color_linear": [
+        0.085,
+        0.042,
+        0.02
+      ],
+      "face_shape_targets": {
+        "head-round": 0.45,
+        "head-scale-horiz-incr": 0.22
+      },
+      "eye_spacing_targets": {
+        "eye-trans-out": 0.4
+      },
+      "nose_width_targets": {
+        "nose-scale-horiz-incr": 0.45
+      },
+      "nose_length_targets": {
+        "nose-scale-vert-decr": 0.2
+      },
+      "face_measured_m": {
+        "face_width": 0.147,
+        "interocular": 0.0618,
+        "nose_width": 0.0574
+      },
+      "built": true
+    },
+    {
+      "subject": "subject_02",
+      "tone": "darkest",
+      "tone_albedo_linear": [
+        0.2,
+        0.11,
+        0.07
+      ],
+      "hair_class": "short_straight",
+      "hair_color_linear": [
+        0.03,
+        0.02,
+        0.016
+      ],
+      "bangs_on_forehead_in_neutral": true,
+      "glasses": false,
+      "iris_color_linear": [
+        0.07,
+        0.036,
+        0.018
+      ],
+      "face_shape_targets": {
+        "head-oval": 0.5
+      },
+      "eye_spacing_targets": {
+        "eye-trans-in": 0.25
+      },
+      "nose_width_targets": {
+        "nose-scale-horiz-incr": 0.2
+      },
+      "nose_length_targets": {
+        "nose-scale-vert-incr": 0.25
+      },
+      "built": true,
+      "face_planned_m_was": {
+        "face_width": 0.138,
+        "interocular": 0.052,
+        "nose_width": 0.051
+      },
+      "face_measured_m": {
+        "face_width": 0.1457,
+        "interocular": 0.0511,
+        "nose_width": 0.0476,
+        "face_height_brow_to_chin": 0.1158
+      }
+    },
+    {
+      "subject": "subject_03",
+      "tone": "darkest",
+      "tone_albedo_linear": [
+        0.2,
+        0.11,
+        0.07
+      ],
+      "hair_class": "long_straight",
+      "hair_color_linear": [
+        0.022,
+        0.016,
+        0.013
+      ],
+      "bangs_on_forehead_in_neutral": false,
+      "glasses": true,
+      "iris_color_linear": [
+        0.11,
+        0.06,
+        0.03
+      ],
+      "face_shape_targets": {
+        "head-square": 0.4
+      },
+      "eye_spacing_targets": {
+        "eye-trans-out": 0.15
+      },
+      "nose_width_targets": {
+        "nose-scale-horiz-decr": 0.15
+      },
+      "nose_length_targets": {
+        "nose-scale-vert-incr": 0.1
+      },
+      "built": true,
+      "face_planned_m_was": {
+        "face_width": 0.141,
+        "interocular": 0.057,
+        "nose_width": 0.043
+      },
+      "face_measured_m": {
+        "face_width": 0.1325,
+        "interocular": 0.0565,
+        "nose_width": 0.0477,
+        "face_height_brow_to_chin": 0.1059
+      }
+    },
+    {
+      "subject": "subject_04",
+      "tone": "medium",
+      "tone_albedo_linear": [
+        0.55,
+        0.38,
+        0.28
+      ],
+      "hair_class": "curly_voluminous",
+      "hair_color_linear": [
+        0.09,
+        0.045,
+        0.02
+      ],
+      "bangs_on_forehead_in_neutral": false,
+      "glasses": true,
+      "iris_color_linear": [
+        0.12,
+        0.07,
+        0.03
+      ],
+      "face_shape_targets": {
+        "head-triangular": 0.4
+      },
+      "eye_spacing_targets": {
+        "eye-trans-in": 0.1
+      },
+      "nose_width_targets": {
+        "nose-scale-horiz-incr": 0.3
+      },
+      "nose_length_targets": {
+        "nose-scale-vert-decr": 0.1
+      },
+      "face_planned_m": {
+        "face_width": 0.128,
+        "interocular": 0.053,
+        "nose_width": 0.052
+      },
+      "built": false
+    },
+    {
+      "subject": "subject_05",
+      "tone": "medium",
+      "tone_albedo_linear": [
+        0.55,
+        0.38,
+        0.28
+      ],
+      "hair_class": "long_straight",
+      "hair_color_linear": [
+        0.18,
+        0.075,
+        0.03
+      ],
+      "bangs_on_forehead_in_neutral": true,
+      "glasses": false,
+      "iris_color_linear": [
+        0.05,
+        0.09,
+        0.04
+      ],
+      "face_shape_targets": {
+        "head-diamond": 0.45
+      },
+      "eye_spacing_targets": {
+        "eye-trans-out": 0.3
+      },
+      "nose_width_targets": {
+        "nose-scale-horiz-decr": 0.25
+      },
+      "nose_length_targets": {
+        "nose-scale-vert-incr": 0.2
+      },
+      "face_planned_m": {
+        "face_width": 0.134,
+        "interocular": 0.06,
+        "nose_width": 0.041
+      },
+      "built": false
+    },
+    {
+      "subject": "subject_06",
+      "tone": "medium",
+      "tone_albedo_linear": [
+        0.55,
+        0.38,
+        0.28
+      ],
+      "hair_class": "short_straight",
+      "hair_color_linear": [
+        0.06,
+        0.035,
+        0.02
+      ],
+      "bangs_on_forehead_in_neutral": false,
+      "glasses": false,
+      "iris_color_linear": [
+        0.09,
+        0.06,
+        0.025
+      ],
+      "face_shape_targets": {
+        "head-rectangular": 0.4
+      },
+      "eye_spacing_targets": {
+        "eye-trans-in": 0.3
+      },
+      "nose_width_targets": {
+        "nose-scale-horiz-incr": 0.1
+      },
+      "nose_length_targets": {
+        "nose-scale-vert-incr": 0.3
+      },
+      "face_planned_m": {
+        "face_width": 0.13,
+        "interocular": 0.05,
+        "nose_width": 0.048
+      },
+      "built": false
+    },
+    {
+      "subject": "subject_07",
+      "tone": "lightest",
+      "tone_albedo_linear": [
+        0.9,
+        0.72,
+        0.62
+      ],
+      "hair_class": "short_straight",
+      "hair_color_linear": [
+        0.45,
+        0.3,
+        0.12
+      ],
+      "bangs_on_forehead_in_neutral": false,
+      "glasses": false,
+      "iris_color_linear": [
+        0.15,
+        0.28,
+        0.42
+      ],
+      "face_shape_targets": {
+        "head-invertedtriangular": 0.4
+      },
+      "eye_spacing_targets": {
+        "eye-trans-out": 0.2
+      },
+      "nose_width_targets": {
+        "nose-scale-horiz-decr": 0.3
+      },
+      "nose_length_targets": {
+        "nose-scale-vert-decr": 0.15
+      },
+      "face_planned_m": {
+        "face_width": 0.126,
+        "interocular": 0.058,
+        "nose_width": 0.039
+      },
+      "built": false
+    },
+    {
+      "subject": "subject_08",
+      "tone": "lightest",
+      "tone_albedo_linear": [
+        0.9,
+        0.72,
+        0.62
+      ],
+      "hair_class": "long_straight",
+      "hair_color_linear": [
+        0.3,
+        0.16,
+        0.06
+      ],
+      "bangs_on_forehead_in_neutral": false,
+      "glasses": false,
+      "iris_color_linear": [
+        0.06,
+        0.2,
+        0.08
+      ],
+      "face_shape_targets": {
+        "head-oval": 0.25,
+        "head-scale-horiz-decr": 0.2
+      },
+      "eye_spacing_targets": {
+        "eye-trans-in": 0.2
+      },
+      "nose_width_targets": {
+        "nose-scale-horiz-incr": 0.05
+      },
+      "nose_length_targets": {
+        "nose-scale-vert-incr": 0.15
+      },
+      "face_planned_m": {
+        "face_width": 0.124,
+        "interocular": 0.051,
+        "nose_width": 0.046
+      },
+      "built": false
+    },
+    {
+      "subject": "subject_09",
+      "tone": "lightest",
+      "tone_albedo_linear": [
+        0.9,
+        0.72,
+        0.62
+      ],
+      "hair_class": "curly_voluminous",
+      "hair_color_linear": [
+        0.2,
+        0.09,
+        0.035
+      ],
+      "bangs_on_forehead_in_neutral": true,
+      "glasses": false,
+      "iris_color_linear": [
+        0.11,
+        0.08,
+        0.04
+      ],
+      "face_shape_targets": {
+        "head-round": 0.3,
+        "head-scale-horiz-incr": 0.1
+      },
+      "eye_spacing_targets": {
+        "eye-trans-out": 0.1
+      },
+      "nose_width_targets": {
+        "nose-scale-horiz-decr": 0.1
+      },
+      "nose_length_targets": {
+        "nose-scale-vert-decr": 0.25
+      },
+      "face_planned_m": {
+        "face_width": 0.139,
+        "interocular": 0.056,
+        "nose_width": 0.044
+      },
+      "built": false
+    }
+  ]
+}

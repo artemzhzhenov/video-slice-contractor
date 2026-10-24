@@ -1,0 +1,31 @@
+{
+  "subject": "subject_02",
+  "note": "Burst 3. Synthetic child, girl 7-9, built on character v04.1. No photograph of any real person was an input, a seed or a reference.",
+  "seed": 102,
+  "tone_albedo_linear": [0.20, 0.11, 0.07],
+  "iris_color_linear": [0.070, 0.036, 0.018],
+  "brow_color_linear": [0.030, 0.020, 0.016],
+  "hair": {"class": "short_straight", "color_linear": [0.030, 0.020, 0.016], "bangs": true},
+  "glasses": false,
+  "targets": [
+    ["head", "head-oval", 0.50],
+    ["head", "head-scale-vert-incr", 0.15],
+    ["eyes", "l-eye-trans-in", 0.25],
+    ["eyes", "r-eye-trans-in", 0.25],
+    ["nose", "nose-scale-horiz-incr", 0.20],
+    ["nose", "nose-scale-vert-incr", 0.25],
+    ["nose", "nose-hump-decr", 0.30],
+    ["mouth", "mouth-scale-horiz-decr", 0.15],
+    ["mouth", "mouth-lowerlip-volume-incr", 0.20],
+    ["chin", "chin-prominent-incr", 0.25],
+    ["cheek", "l-cheek-bones-incr", 0.25],
+    ["cheek", "r-cheek-bones-incr", 0.25]
+  ],
+  "sculpt_note": "Own deviation outside the MPFB targets: Gaussian bumps in metres, centre relative to the socket ring centre.",
+  "sculpt": [
+    {"centre": [ 0.040, -0.080, 0.105], "radius": 0.020, "offset": [-0.0020, -0.0030, 0.0000]},
+    {"centre": [-0.040, -0.080, 0.105], "radius": 0.020, "offset": [ 0.0020, -0.0030, 0.0000]},
+    {"centre": [ 0.000, -0.100, 0.030], "radius": 0.022, "offset": [ 0.0000, -0.0035, -0.0020]}
+  ],
+  "blend_ramp_m": 0.035
+}

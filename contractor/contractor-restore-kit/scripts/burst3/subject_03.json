@@ -1,0 +1,34 @@
+{
+  "subject": "subject_03",
+  "note": "Burst 3. Synthetic child, girl 7-9, built on character v04.1. No photograph of any real person was an input, a seed or a reference.",
+  "seed": 103,
+  "tone_albedo_linear": [0.20, 0.11, 0.07],
+  "iris_color_linear": [0.110, 0.060, 0.030],
+  "brow_color_linear": [0.025, 0.018, 0.015],
+  "hair": {"class": "long_straight", "color_linear": [0.022, 0.016, 0.013], "bangs": false},
+  "glasses": true,
+  "glasses_frame_color_linear": [0.06, 0.03, 0.02],
+  "targets": [
+    ["head", "head-square", 0.40],
+    ["head", "head-scale-depth-incr", 0.15],
+    ["eyes", "l-eye-trans-out", 0.15],
+    ["eyes", "r-eye-trans-out", 0.15],
+    ["eyes", "l-eye-scale-incr", 0.15],
+    ["eyes", "r-eye-scale-incr", 0.15],
+    ["nose", "nose-scale-horiz-decr", 0.15],
+    ["nose", "nose-scale-vert-incr", 0.10],
+    ["nose", "nose-point-width-incr", 0.15],
+    ["mouth", "mouth-scale-horiz-incr", 0.10],
+    ["mouth", "mouth-upperlip-volume-incr", 0.15],
+    ["chin", "chin-width-incr", 0.30],
+    ["chin", "chin-height-incr", 0.15],
+    ["forehead", "forehead-scale-vert-decr", 0.15]
+  ],
+  "sculpt_note": "Own deviation outside the MPFB targets: Gaussian bumps in metres, centre relative to the socket ring centre.",
+  "sculpt": [
+    {"centre": [ 0.050, -0.070, 0.060], "radius": 0.024, "offset": [ 0.0030, -0.0015, 0.0000]},
+    {"centre": [-0.050, -0.070, 0.060], "radius": 0.024, "offset": [-0.0030, -0.0015, 0.0000]},
+    {"centre": [ 0.000, -0.105, 0.165], "radius": 0.028, "offset": [ 0.0000, -0.0020, -0.0010]}
+  ],
+  "blend_ramp_m": 0.035
+}

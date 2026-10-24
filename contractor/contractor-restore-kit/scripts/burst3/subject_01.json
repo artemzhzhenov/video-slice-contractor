@@ -1,0 +1,170 @@
+{
+  "subject": "subject_01",
+  "note": "Pilot of burst 3 (Q52). Synthetic child, girl 7-9, built on character v04.1. No photograph of any real person was an input, a seed or a reference.",
+  "seed": 101,
+  "tone_albedo_linear": [
+    0.2,
+    0.11,
+    0.07
+  ],
+  "iris_color_linear": [
+    0.085,
+    0.042,
+    0.02
+  ],
+  "brow_color_linear": [
+    0.03,
+    0.02,
+    0.016
+  ],
+  "hair": {
+    "class": "curly_voluminous",
+    "color_linear": [
+      0.028,
+      0.019,
+      0.015
+    ],
+    "bangs": false
+  },
+  "glasses": false,
+  "targets": [
+    [
+      "head",
+      "head-round",
+      0.45
+    ],
+    [
+      "head",
+      "head-scale-horiz-incr",
+      0.22
+    ],
+    [
+      "forehead",
+      "forehead-scale-vert-incr",
+      0.25
+    ],
+    [
+      "eyes",
+      "l-eye-trans-out",
+      0.4
+    ],
+    [
+      "eyes",
+      "r-eye-trans-out",
+      0.4
+    ],
+    [
+      "nose",
+      "nose-scale-horiz-incr",
+      0.45
+    ],
+    [
+      "nose",
+      "nose-flaring-incr",
+      0.4
+    ],
+    [
+      "nose",
+      "nose-point-width-incr",
+      0.35
+    ],
+    [
+      "nose",
+      "nose-scale-vert-decr",
+      0.2
+    ],
+    [
+      "mouth",
+      "mouth-scale-horiz-incr",
+      0.18
+    ],
+    [
+      "mouth",
+      "mouth-upperlip-volume-incr",
+      0.3
+    ],
+    [
+      "mouth",
+      "mouth-lowerlip-volume-incr",
+      0.3
+    ],
+    [
+      "chin",
+      "chin-width-incr",
+      0.2
+    ],
+    [
+      "cheek",
+      "l-cheek-volume-incr",
+      0.3
+    ],
+    [
+      "cheek",
+      "r-cheek-volume-incr",
+      0.3
+    ]
+  ],
+  "sculpt_note": "Own deviation outside the MPFB targets: Gaussian bumps in metres, centre relative to the socket ring centre (x right of the character = −x, y back = +y, z up).",
+  "sculpt": [
+    {
+      "centre": [
+        0.045,
+        -0.085,
+        0.115
+      ],
+      "radius": 0.022,
+      "offset": [
+        0.003,
+        -0.0035,
+        0.0015
+      ]
+    },
+    {
+      "centre": [
+        -0.045,
+        -0.085,
+        0.115
+      ],
+      "radius": 0.022,
+      "offset": [
+        -0.003,
+        -0.0035,
+        0.0015
+      ]
+    },
+    {
+      "centre": [
+        0.0,
+        -0.105,
+        0.175
+      ],
+      "radius": 0.03,
+      "offset": [
+        0.0,
+        -0.003,
+        0.002
+      ]
+    },
+    {
+      "centre": [
+        0.0,
+        -0.1,
+        0.04
+      ],
+      "radius": 0.02,
+      "offset": [
+        0.0,
+        -0.0025,
+        -0.0015
+      ]
+    }
+  ],
+  "blend_ramp_m": 0.035,
+  "face_measured_m": {
+    "face_width": 0.147,
+    "interocular": 0.0618,
+    "nose_width": 0.0574,
+    "face_height_brow_to_chin": 0.1124,
+    "note": "measured on HERO_HEAD in subject_01_character.blend, rest pose (default head v04.1: 0.1317 / 0.0546 / 0.0460 / 0.1083)"
+  }
+}
