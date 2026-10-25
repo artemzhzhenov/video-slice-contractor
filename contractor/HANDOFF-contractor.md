@@ -90,12 +90,22 @@
 Зубы в профиль выходят за губы; тёмные точки на манжете рукава при сильном сгибе локтя; текстур нет
 (процедурные материалы); пряди — гладкие трубки; платье без складок.
 
+## Q58 (2026-10-25): глаза и веки — сделано
+
+- `build_character.py`: для ребёнка центр глаза (`eye_c`) пересчитывается по хелперам ребёнка сразу после шага 8b; бугры —
+  только на оболочку головы (`head_vset`); выравнивание по кольцу — всегда для ребёнка, без флага (ключ
+  `neck_align_ring` убран из json и плана). Без `--subject` — v04.1 бит в бит (`b292f45e…`).
+- Пересобраны 01, 02, 03 (03 — по плану: цели + бугры); `eye_lid_check.py` — OK у всех девяти (04–09 — пробные головы);
+  `face_shape_distance.py` по 10 головам — 45/45 (по умолчанию–01 3,216, –02 2,011, –03 2,589, –06 2,295);
+  `check_silhouette` — OK у 01, 02, 03.
+- Самопроверка каждого ребёнка теперь: `eye_lid_check.py`, `face_shape_distance.py`, `check_silhouette`, `CHECK_ASSET_QUICK`.
+
 ## Инструменты, добавленные после Q55–Q56
 
 - `tools/blender_bpy_shim` → положить как `~/bin/blender` (`chmod +x`, в PATH): `blender -b [file] -P script -- args` и
   `--version` поверх модуля `bpy`; нужен для `slice/check_asset.sh`.
 - `tools/burst3/face_measure.py` v2 — ширина лица, межглазье, крылья носа лучом, высота (описание, не правило).
-- `tools/burst3/check_plan.py` + `plan/face_basis_v1.npz` — модель правила Q56 без сборок; `plan/basis.py`, `face_vec.py`,
+- `tools/burst3/check_plan.py` + `plan/face_basis_v2.npz` — модель правила Q56 без сборок; `plan/basis.py`, `face_vec.py`,
   `model.py`, `plan_rms.py` — как базис и план получены (пути — среды `restore_env.sh`, рабочая папка `/home/claude/b3`).
 - MPFB2 в модуль: `bpy.ops.extensions.package_install_files(filepath=mpfb.zip, repo="user_default", enable_on_install=True)`,
   затем `bpy.ops.wm.save_userpref()`. Сборка персонажа — ~6 с.

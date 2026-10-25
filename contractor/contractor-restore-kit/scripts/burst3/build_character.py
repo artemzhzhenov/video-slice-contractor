@@ -948,18 +948,17 @@ def main():
         czs = [cme.vertices[i].co.z for i in body_idx]
         cs = args.height / (max(czs) - min(czs))
         co2 = [Vector((v.co.x * cs, v.co.y * cs, (v.co.z - min(czs)) * cs)) for v in cme.vertices]
-        if subj.get("neck_align_ring", False):
-            # Q55 collar seam (opt-in per child, off by default — v04.1 and the accepted children stay bit for bit):
-            # the child's MakeHuman body is normalised to the height on its own, so a head target that changes
-            # its height (head-scale-vert, ...) moves the child's whole head up or down against the default ring,
-            # and the 35-mm ramp stretches or squeezes the neck band — a see-through slit at the collar on the
-            # extreme turn. Translate the child's human so its ring centre coincides with the default ring centre.
-            c_def = sum((co[i] for i in ring_idx), Vector()) / len(ring_idx)
-            c_chd = sum((co2[i] for i in ring_idx), Vector()) / len(ring_idx)
-            shift = c_def - c_chd
-            co2 = [p_ + shift for p_ in co2]
-            print(f"subject {subj['subject']}: neck_align_ring — child human moved {shift.length * 1000:.2f} mm "
-                  f"({shift.x * 1000:+.2f}, {shift.y * 1000:+.2f}, {shift.z * 1000:+.2f}) to the default ring")
+        # Collar seam (Q55; one rule for every child — owner Q58, no flag): the child's MakeHuman body is normalised to
+        # the height on its own, so a head target that changes its height (head-scale-vert, ...) moves the child's
+        # whole head up or down against the default ring, and the 35-mm ramp stretches or squeezes the neck band — a
+        # see-through slit at the collar on the extreme turn. Translate the child's human so its ring centre coincides
+        # with the default ring centre. The default head (no --subject) never comes here: v04.1 stays bit for bit.
+        c_def = sum((co[i] for i in ring_idx), Vector()) / len(ring_idx)
+        c_chd = sum((co2[i] for i in ring_idx), Vector()) / len(ring_idx)
+        shift = c_def - c_chd
+        co2 = [p_ + shift for p_ in co2]
+        print(f"subject {subj['subject']}: ring alignment — child human moved {shift.length * 1000:.2f} mm "
+              f"({shift.x * 1000:+.2f}, {shift.y * 1000:+.2f}, {shift.z * 1000:+.2f}) to the default ring")
         for name in set(bpy.data.objects.keys()) - objs0:
             bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
         for coll, before in ((bpy.data.meshes, meshes0), (bpy.data.materials, mats0), (bpy.data.armatures, arms0)):
@@ -982,12 +981,16 @@ def main():
             t = min(1.0, depth / ramp)
             w = t * t * (3.0 - 2.0 * t)
             sculpt = Vector()
-            for c_, r_, off in bumps:
-                sculpt += off * math.exp(-((co[i] - c_).length / r_) ** 2)
+            for c_, r_, off in (bumps if i in head_vset else ()):   # Q58: bumps on the head shell only — the eye,
+                sculpt += off * math.exp(-((co[i] - c_).length / r_) ** 2)   # teeth and tongue helpers take the targets only
             co[i] = co[i] + ((co2[i] - co[i]) + sculpt) * w
             moved += 1
         print(f"subject {subj['subject']}: {moved} head vertices moved toward the child's identity "
               f"({len(subj['targets'])} targets, {len(bumps)} sculpt bumps, ramp {ramp * 1000:.0f} mm to the ring)")
+        # Q58: the eye centres are the CHILD's eye helpers after the morph — every later use (lid closure gain and push-out,
+        # brows and hair z_eye, the cheek strand, glasses, curls) works on this child's eyes, not the default head's.
+        eye_c = {sd: sum((co[i] for i in groups[g]), Vector()) / len(groups[g]) for sd, g in (("L", "helper-l-eye"), ("R", "helper-r-eye"))}
+        print(f"subject {subj['subject']}: eye centres from the child's helpers — L {tuple(round(x, 4) for x in eye_c['L'])}")
 
     # ---- 9. head shell with the 26-channel face --------------------------------------------
     head, hremap, hused = mesh_from_faces("HERO_HEAD", co, head_faces)

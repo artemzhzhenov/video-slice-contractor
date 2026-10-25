@@ -1,6 +1,6 @@
 """check_plan.py — the plan of nine against the owner's distinctness rule (Q56), by the contractor's linear model.
 
-    python3 check_plan.py [--plan ../../scripts/burst3/subjects_plan.json] [--basis plan/face_basis_v1.npz] [--margin 0.3]
+    python3 check_plan.py [--plan ../../scripts/burst3/subjects_plan.json] [--basis plan/face_basis_v2.npz] [--margin 0.3]
 
 Rule (owner, 2026-10-24): every child differs from the default head and from every other child by an RMS of the
 per-vertex face displacement >= 2.0 mm (slice/measurements/face_shape_distance.py: same face mask, same topology,

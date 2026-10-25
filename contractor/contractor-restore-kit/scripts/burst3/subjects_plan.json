@@ -1,5 +1,5 @@
 {
-  "schema_note": "burst 3 plan of nine synthetic children (TASK §3.6). Only subject_01 is built in the pilot. Girls 7-9, on character v04.1. Re-planned 2026-10-24 (Q56): 03-09 by the whole-face rule. Q57: 03-09 each with 2-3 sculpt bumps (1.5-3 mm) from a seed (tools/burst3/sculpt_bumps.py). Q55 seam: neck_align_ring on 02-09 (the child's human translated to the default ring before the blend).",
+  "schema_note": "burst 3 plan of nine synthetic children (TASK §3.6). Only subject_01 is built in the pilot. Girls 7-9, on character v04.1. Re-planned 2026-10-24 (Q56): 03-09 by the whole-face rule. Q57: 03-09 each with 2-3 sculpt bumps (1.5-3 mm) from a seed (tools/burst3/sculpt_bumps.py). Q55/Q58 seam: every child's human is translated to the default ring before the blend (one rule, no flag).",
   "tones_linear": {
     "lightest": [
       0.9,
@@ -120,8 +120,7 @@
         "face_height_brow_to_chin": 0.1158,
         "nose_band_v1": 0.0476
       },
-      "plan_note": "accepted; stays as built (Q55/Q56)",
-      "neck_align_ring": true
+      "plan_note": "accepted; stays as built (Q55/Q56)"
     },
     {
       "subject": "subject_03",
@@ -236,8 +235,7 @@
         "chin",
         "nasal_bridge"
       ],
-      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
-      "neck_align_ring": true
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)"
     },
     {
       "subject": "subject_04",
@@ -350,8 +348,7 @@
         "forehead",
         "chin"
       ],
-      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
-      "neck_align_ring": true
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)"
     },
     {
       "subject": "subject_05",
@@ -463,8 +460,7 @@
       "sculpt_sites": [
         "brow_ridge"
       ],
-      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
-      "neck_align_ring": true
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)"
     },
     {
       "subject": "subject_06",
@@ -584,8 +580,7 @@
         "cheekbone",
         "forehead"
       ],
-      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
-      "neck_align_ring": true
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)"
     },
     {
       "subject": "subject_07",
@@ -708,8 +703,7 @@
         "temple",
         "nasal_bridge"
       ],
-      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
-      "neck_align_ring": true
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)"
     },
     {
       "subject": "subject_08",
@@ -822,8 +816,7 @@
       "sculpt_sites": [
         "cheek_apple"
       ],
-      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
-      "neck_align_ring": true
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)"
     },
     {
       "subject": "subject_09",
@@ -931,8 +924,7 @@
       "sculpt_sites": [
         "temple"
       ],
-      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
-      "neck_align_ring": true
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)"
     }
   ],
   "distinctness_rule": "owner Q56, 2026-10-24: every child differs from the default head and from every other child by an RMS of the per-vertex face displacement >= 2.0 mm (slice/measurements/face_shape_distance.py). Planned with margin: >= 2.3 mm by the contractor's linear model (tools/burst3/check_plan.py); trial builds checked with the owner's script.",
