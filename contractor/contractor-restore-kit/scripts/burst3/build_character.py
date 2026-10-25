@@ -948,6 +948,18 @@ def main():
         czs = [cme.vertices[i].co.z for i in body_idx]
         cs = args.height / (max(czs) - min(czs))
         co2 = [Vector((v.co.x * cs, v.co.y * cs, (v.co.z - min(czs)) * cs)) for v in cme.vertices]
+        if subj.get("neck_align_ring", False):
+            # Q55 collar seam (opt-in per child, off by default — v04.1 and the accepted children stay bit for bit):
+            # the child's MakeHuman body is normalised to the height on its own, so a head target that changes
+            # its height (head-scale-vert, ...) moves the child's whole head up or down against the default ring,
+            # and the 35-mm ramp stretches or squeezes the neck band — a see-through slit at the collar on the
+            # extreme turn. Translate the child's human so its ring centre coincides with the default ring centre.
+            c_def = sum((co[i] for i in ring_idx), Vector()) / len(ring_idx)
+            c_chd = sum((co2[i] for i in ring_idx), Vector()) / len(ring_idx)
+            shift = c_def - c_chd
+            co2 = [p_ + shift for p_ in co2]
+            print(f"subject {subj['subject']}: neck_align_ring — child human moved {shift.length * 1000:.2f} mm "
+                  f"({shift.x * 1000:+.2f}, {shift.y * 1000:+.2f}, {shift.z * 1000:+.2f}) to the default ring")
         for name in set(bpy.data.objects.keys()) - objs0:
             bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
         for coll, before in ((bpy.data.meshes, meshes0), (bpy.data.materials, mats0), (bpy.data.armatures, arms0)):

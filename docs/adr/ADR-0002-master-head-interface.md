@@ -52,6 +52,13 @@ the same rule on what can move into the tile, 1 where nothing does — measured 
 3D-blurred reference on the slice (`slice/measurements/blur_cost_options_2026-09-30/`, `conventions.json →
 post_composite_blur.tiles`); the blur-fidelity gate re-passed 9/9; the per-order composite 2–8 s per ordinary 4K frame
 against 14–17 s.
+Amended 2026-10-24 (owner's go to settle the thin-hair rule; full text, evidence and alternatives in
+`ADR-0002-amendment-2026-10-24-thin-hair-integration.md`): §Validation criterion 2 — the round-trip integrates the
+shutter along the same piecewise-linear path through the nine samples at instants dense enough that no head or hair
+vertex moves more than 2 px between them (PROVISIONAL), so thin fast hair is swept as the renderer sweeps it; no
+threshold changes, slow frames are integrated exactly as before. Found on the burst-3 pilot child's curls (SHOT_001
+1101: 1.35 px → 0.25 px); every accepted run re-measured — the verdicts hold, the slow frames bitwise unchanged. The
+contract version is unchanged.
 Validated by the Phase 0.5 reference slice (§Validation; the checklist and its state:
 `../experiments/phase-0-5-exit-review.md`); any item that fails validation reopens
 this ADR before any master production begins. Layer: Core (`../architecture/layering.md`).

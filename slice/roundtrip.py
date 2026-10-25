@@ -168,6 +168,40 @@ def trapezoid_weights(n):
     return w
 
 
+def screen_uv(verts, socket_m, cam_m, fx_fy, cx_cy):
+    """Every vertex's pixel position: the re-projection without the raster."""
+    world = (socket_m @ np.c_[verts, np.ones(len(verts))].T).T[:, :3]
+    cam = (np.linalg.inv(cam_m) @ np.c_[world, np.ones(len(world))].T).T[:, :3]
+    return np.asarray([(u, v) for u, v, _ in project(cam, fx_fy, cx_cy)], float)
+
+
+def integration_instants(verts, sock_samples, cam_samples, fx_fy, cx_cy, offsets, max_step_px):
+    """The instants and weights at which the shutter integral is taken (ADR-0002 amendment 2026-10-24). The path is the
+    one the reference renderer integrates: piecewise linear between the exported sub-frame samples (vertices linear,
+    the socket and camera slerped — head_at, sample_at). Between consecutive samples the interval is cut into the
+    fewest equal steps in which no vertex moves more than `max_step_px` on screen, so a thin, fast strand is swept as
+    a band, not stamped as dots; the weights are the trapezoid rule on that grid, in units of the exported spacing —
+    where no interval needs cutting they are exactly the nine-sample trapezoid of the 2026-09-25 amendment and the
+    result is unchanged. Returns (instants, weights, per-interval [screen px, steps])."""
+    at = verts if callable(verts) else (lambda _o: verts)
+    uv = [screen_uv(at(o), sample_at(sock_samples, o), sample_at(cam_samples, o), fx_fy, cx_cy) for o in offsets]
+    inst, per = [offsets[0]], []
+    for k in range(len(offsets) - 1):
+        disp = float(np.linalg.norm(uv[k + 1] - uv[k], axis=1).max())
+        m = max(1, int(math.ceil(disp / max_step_px)))
+        per.append([round(disp, 2), m])
+        inst += [offsets[k] + (offsets[k + 1] - offsets[k]) * j / m for j in range(1, m + 1)]
+    if len(inst) == 1:
+        return inst, [1.0], per
+    base = offsets[1] - offsets[0]
+    t = np.asarray(inst, np.float64)
+    w = np.zeros(len(t))
+    dt = np.diff(t)
+    w[:-1] += dt / 2
+    w[1:] += dt / 2
+    return inst, list(w / base), per
+
+
 def samples_for_quantization(q_at_one_sample, floor_samples):
     """Reference samples that bring the contour quantization to conventions → roundtrip.
     reference_quantization.target_px: the estimate scales as 1/n (matte_metrics), rounded up to the
@@ -183,14 +217,14 @@ def plan_reference_samples(frames, cam_by_frame, sock_by_frame, deformed, first,
     SHOT_002 1209 at 4K (2026-09-25): at 64 samples the reference alone cost the IoU 0.23 of its
     0.15 px budget and a correct export failed; at 256 it passed."""
     rows, need = [], int(floor_samples)
-    weights = trapezoid_weights(len(offsets))
     for frame in frames:
         px = cam_by_frame[frame]["intrinsics"]["px_by_profile"][profile]
         f = scale / 100.0
         w, h = [round(v * f) for v in px["resolution_px"]]
-        cov = coverage_for_frame(head_at(deformed[frame - first], verts, offsets), faces, samples_of(sock_by_frame[frame], "matrix_4x4"),
-                                 samples_of(cam_by_frame[frame], "extrinsic_matrix_4x4"), [v * f for v in px["focal_length_px"]],
-                                 [v * f for v in px["principal_point_px"]], w, h, offsets, weights)
+        hd, sk, cm = head_at(deformed[frame - first], verts, offsets), samples_of(sock_by_frame[frame], "matrix_4x4"), samples_of(cam_by_frame[frame], "extrinsic_matrix_4x4")
+        fxy, cxy = [v * f for v in px["focal_length_px"]], [v * f for v in px["principal_point_px"]]
+        inst, wts, _ = integration_instants(hd, sk, cm, fxy, cxy, offsets, RT["time_integration"]["max_step_px"])
+        cov = coverage_for_frame(hd, faces, sk, cm, fxy, cxy, w, h, inst, wts)
         q1 = reference_quantization_px(cov, 1)
         n = samples_for_quantization(q1, floor_samples)
         rows.append({"frame": frame, "quantization_px_at_one_sample": round(q1, 3), "samples_needed": n})
@@ -475,6 +509,10 @@ def main(argv):
         cam_s = samples_of(cam_by_frame[frame], "extrinsic_matrix_4x4")
         sock_s = samples_of(sock_by_frame[frame], "matrix_4x4")
         head = head_at(deformed[frame - first], verts, want_offsets)
+        if integrate:
+            offsets, weights, steps = integration_instants(head, sock_s, cam_s, fx_fy, cx_cy, want_offsets, RT["time_integration"]["max_step_px"])
+        else:
+            offsets, weights, steps = [0.0], [1.0], []
         cov = coverage_for_frame(head, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, offsets, weights)
         hold, classified = holdout_coverage(rd / "COMPOSITE_BUNDLE" / comp_rows[frame]["file"], classes)
         occ = hold >= 0.5
@@ -541,6 +579,8 @@ def main(argv):
         m_rest = measure(coverage_for_frame(verts, faces, sock_s, cam_s, fx_fy, cx_cy, w, h, offsets, weights))
         t_failed, s_failed, r_failed = gate(m_t, th), gate(m_s, th), gate(m_r, th)
         rec = {"frame": frame, "metrics": m, "thresholds": {**th, "iou_min_resolved": iou_min_of(m, th)}, "failed": failed, "status": "PASS" if not failed else "FAIL",
+               "integration": {"instants": len(offsets), "max_step_px": RT["time_integration"]["max_step_px"] if integrate else None,
+                               "per_interval_screen_px_and_steps": steps},
                "performance_track_max_abs_channel": track_by_frame[frame],
                "rest_head_comparison": {"metrics": m_rest, "gate_failed": gate(m_rest, th),
                                         "note": "the rest head re-projected on this frame, reported only: failing here while the deformed head passes means the facial deformation is visible in the silhouette"},

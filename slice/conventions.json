@@ -687,8 +687,10 @@
   "reference": "HEAD_HOLDOUT — the head+hair silhouette with C_HAND_FG occluders shadow-only (ADR-0002 D5 row 2); cut by C_BODY / C_ENV where they are in front of the head (see body_over_head); mattes, not beauty, so this tests the transform contract and not shading",
   "reprojection": "the default head as rendered — default_head_deformed.npy for the C_HEAD vertices (interpolated linearly between the exported sub-frame samples), default_head_rest.obj for the faces and the rigid hair — placed by socket.json, seen by camera.json, rasterised with the profile's pixel intrinsics (px_by_profile) scaled by the render's resolution_percentage; 4×4 supersampled box coverage",
   "time_integration": {
-   "video": "the exports' nine sub-frame samples themselves (exports.sub_frame_offsets_frames), trapezoid weights — the continuous average of the path through them — against a blur reference rendered at the same nine instants (render_groups.blur_reference.motion_steps); ADR-0002 amendment 2026-09-25. Before it: 9 samples interpolated between three exported ones with equal weights, which a laugh pulse shorter than a frame defeated (0.41-0.64 px along the motion on SHOT_002 1209/1210)",
-   "still": "centre sample only (shutter 0)"
+   "video": "the path through the exports' nine sub-frame samples (exports.sub_frame_offsets_frames), piecewise linear as the blur reference integrates it (render_groups.blur_reference.motion_steps), at the instants of max_step_px below with trapezoid weights — the nine samples themselves wherever the head moves less than that between them (ADR-0002 amendments 2026-09-25 and 2026-10-24). Before it: 9 samples interpolated between three exported ones with equal weights, which a laugh pulse shorter than a frame defeated (0.41-0.64 px along the motion on SHOT_002 1209/1210)",
+   "still": "centre sample only (shutter 0)",
+   "max_step_px": 2.0,
+   "max_step_px_rule": "PROVISIONAL (ADR-0002 amendment 2026-10-24, thin hair): between consecutive exported samples the integral is taken at the fewest equal steps in which no head or hair vertex moves more than this on screen (slice/roundtrip.py integration_instants) — the same piecewise-linear path the blur reference integrates continuously; a frame whose motion needs no cutting is integrated exactly as before"
   },
   "metrics": {
    "p95_boundary_px": "95th percentile of the symmetric nearest-boundary distance between the 0.5 iso-contours of both coverage images upsampled ×4 (bilinear) — sub-pixel, not the integer distance of binary masks",

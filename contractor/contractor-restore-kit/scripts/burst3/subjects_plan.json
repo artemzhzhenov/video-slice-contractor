@@ -1,5 +1,5 @@
 {
-  "schema_note": "burst 3 plan of nine synthetic children (TASK §3.6). Only subject_01 is built in the pilot. Girls 7-9, on character v04.1. Re-planned 2026-10-24 (Q56): 03-09 by the whole-face rule.",
+  "schema_note": "burst 3 plan of nine synthetic children (TASK §3.6). Only subject_01 is built in the pilot. Girls 7-9, on character v04.1. Re-planned 2026-10-24 (Q56): 03-09 by the whole-face rule. Q57: 03-09 each with 2-3 sculpt bumps (1.5-3 mm) from a seed (tools/burst3/sculpt_bumps.py). Q55 seam: neck_align_ring on 02-09 (the child's human translated to the default ring before the blend).",
   "tones_linear": {
     "lightest": [
       0.9,
@@ -120,7 +120,8 @@
         "face_height_brow_to_chin": 0.1158,
         "nose_band_v1": 0.0476
       },
-      "plan_note": "accepted; stays as built (Q55/Q56)"
+      "plan_note": "accepted; stays as built (Q55/Q56)",
+      "neck_align_ring": true
     },
     {
       "subject": "subject_03",
@@ -192,15 +193,51 @@
         "nose-trans-backward": 0.06,
         "nose-trans-up": 0.03
       },
-      "sculpt": [],
+      "sculpt": [
+        {
+          "site": "chin",
+          "centre": [
+            0.0,
+            -0.0921,
+            0.0139
+          ],
+          "radius": 0.017,
+          "offset": [
+            0.0,
+            -0.00156,
+            -0.00088
+          ]
+        },
+        {
+          "site": "nasal_bridge",
+          "centre": [
+            0.0,
+            -0.0961,
+            0.0962
+          ],
+          "radius": 0.0131,
+          "offset": [
+            -0.0,
+            0.00242,
+            -0.0
+          ]
+        }
+      ],
       "face_planned_m": {
         "face_width": 0.1396,
         "interocular": 0.056100000000000004,
         "nose_width": 0.0305,
-        "face_height_brow_to_chin": 0.1161
+        "face_height_brow_to_chin": 0.1162
       },
-      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
-      "trial_rms_min_mm": 2.402
+      "face_planned_note": "measured on the trial build of feature_targets + sculpt (short probe hair, no glasses): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.458,
+      "sculpt_seed": 3000,
+      "sculpt_sites": [
+        "chin",
+        "nasal_bridge"
+      ],
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
+      "neck_align_ring": true
     },
     {
       "subject": "subject_04",
@@ -270,15 +307,51 @@
         "nose-volume-decr": 0.03,
         "nose-volume-incr": 0.03
       },
-      "sculpt": [],
+      "sculpt": [
+        {
+          "site": "forehead",
+          "centre": [
+            0.0,
+            -0.094,
+            0.1465
+          ],
+          "radius": 0.0253,
+          "offset": [
+            0.0,
+            -0.00258,
+            0.00052
+          ]
+        },
+        {
+          "site": "chin",
+          "centre": [
+            0.0,
+            -0.0921,
+            0.0139
+          ],
+          "radius": 0.0198,
+          "offset": [
+            0.0,
+            -0.0025,
+            -0.00141
+          ]
+        }
+      ],
       "face_planned_m": {
         "face_width": 0.1409,
         "interocular": 0.0579,
         "nose_width": 0.0305,
-        "face_height_brow_to_chin": 0.1092
+        "face_height_brow_to_chin": 0.10940000000000001
       },
-      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
-      "trial_rms_min_mm": 2.402
+      "face_planned_note": "measured on the trial build of feature_targets + sculpt (short probe hair, no glasses): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.444,
+      "sculpt_seed": 4000,
+      "sculpt_sites": [
+        "forehead",
+        "chin"
+      ],
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
+      "neck_align_ring": true
     },
     {
       "subject": "subject_05",
@@ -348,15 +421,50 @@
         "nose-scale-vert-decr": 0.08,
         "nose-trans-up": 0.06
       },
-      "sculpt": [],
+      "sculpt": [
+        {
+          "site": "brow_ridge_l",
+          "centre": [
+            0.0309,
+            -0.0916,
+            0.1169
+          ],
+          "radius": 0.0151,
+          "offset": [
+            0.0,
+            -0.0025,
+            0.00103
+          ]
+        },
+        {
+          "site": "brow_ridge_r",
+          "centre": [
+            -0.0309,
+            -0.0916,
+            0.1169
+          ],
+          "radius": 0.0151,
+          "offset": [
+            -0.0,
+            -0.0025,
+            0.00103
+          ]
+        }
+      ],
       "face_planned_m": {
-        "face_width": 0.14,
+        "face_width": 0.1387,
         "interocular": 0.059,
         "nose_width": 0.031,
-        "face_height_brow_to_chin": 0.10740000000000001
+        "face_height_brow_to_chin": 0.10729999999999999
       },
-      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
-      "trial_rms_min_mm": 2.417
+      "face_planned_note": "measured on the trial build of feature_targets + sculpt (short probe hair, no glasses): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.384,
+      "sculpt_seed": 5000,
+      "sculpt_sites": [
+        "brow_ridge"
+      ],
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
+      "neck_align_ring": true
     },
     {
       "subject": "subject_06",
@@ -419,15 +527,65 @@
         "nose-volume-decr": 0.04,
         "nose-volume-incr": 0.05
       },
-      "sculpt": [],
+      "sculpt": [
+        {
+          "site": "cheekbone_l",
+          "centre": [
+            0.0375,
+            -0.0834,
+            0.0789
+          ],
+          "radius": 0.0221,
+          "offset": [
+            0.00094,
+            -0.00156,
+            0.00073
+          ]
+        },
+        {
+          "site": "cheekbone_r",
+          "centre": [
+            -0.0375,
+            -0.0834,
+            0.0789
+          ],
+          "radius": 0.0221,
+          "offset": [
+            -0.00094,
+            -0.00156,
+            0.00073
+          ]
+        },
+        {
+          "site": "forehead",
+          "centre": [
+            0.0,
+            -0.094,
+            0.1465
+          ],
+          "radius": 0.0287,
+          "offset": [
+            0.0,
+            -0.00269,
+            0.00054
+          ]
+        }
+      ],
       "face_planned_m": {
-        "face_width": 0.128,
-        "interocular": 0.0518,
-        "nose_width": 0.0285,
-        "face_height_brow_to_chin": 0.1105
+        "face_width": 0.127,
+        "interocular": 0.0522,
+        "nose_width": 0.029,
+        "face_height_brow_to_chin": 0.11040000000000001
       },
-      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
-      "trial_rms_min_mm": 2.391
+      "face_planned_note": "measured on the trial build of feature_targets + sculpt (short probe hair, no glasses): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.295,
+      "sculpt_seed": 6002,
+      "sculpt_sites": [
+        "cheekbone",
+        "forehead"
+      ],
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
+      "neck_align_ring": true
     },
     {
       "subject": "subject_07",
@@ -493,15 +651,65 @@
         "nose-scale-vert-decr": 0.04,
         "nose-trans-backward": 0.12
       },
-      "sculpt": [],
+      "sculpt": [
+        {
+          "site": "temple_l",
+          "centre": [
+            0.0667,
+            -0.042,
+            0.1091
+          ],
+          "radius": 0.0228,
+          "offset": [
+            0.00245,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "site": "temple_r",
+          "centre": [
+            -0.0667,
+            -0.042,
+            0.1091
+          ],
+          "radius": 0.0228,
+          "offset": [
+            -0.00245,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "site": "nasal_bridge",
+          "centre": [
+            0.0,
+            -0.0961,
+            0.0962
+          ],
+          "radius": 0.0134,
+          "offset": [
+            0.0,
+            -0.00252,
+            0.0
+          ]
+        }
+      ],
       "face_planned_m": {
-        "face_width": 0.1275,
-        "interocular": 0.0514,
+        "face_width": 0.1277,
+        "interocular": 0.0515,
         "nose_width": 0.0285,
         "face_height_brow_to_chin": 0.11359999999999999
       },
-      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
-      "trial_rms_min_mm": 2.394
+      "face_planned_note": "measured on the trial build of feature_targets + sculpt (short probe hair, no glasses): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.323,
+      "sculpt_seed": 7003,
+      "sculpt_sites": [
+        "temple",
+        "nasal_bridge"
+      ],
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
+      "neck_align_ring": true
     },
     {
       "subject": "subject_08",
@@ -572,15 +780,50 @@
         "nose-volume-decr": 0.03,
         "nose-volume-incr": 0.04
       },
-      "sculpt": [],
+      "sculpt": [
+        {
+          "site": "cheek_apple_l",
+          "centre": [
+            0.0258,
+            -0.09,
+            0.0634
+          ],
+          "radius": 0.0222,
+          "offset": [
+            -0.00037,
+            0.00232,
+            -0.0
+          ]
+        },
+        {
+          "site": "cheek_apple_r",
+          "centre": [
+            -0.0258,
+            -0.09,
+            0.0634
+          ],
+          "radius": 0.0222,
+          "offset": [
+            0.00037,
+            0.00232,
+            -0.0
+          ]
+        }
+      ],
       "face_planned_m": {
         "face_width": 0.1397,
         "interocular": 0.059,
-        "nose_width": 0.031,
+        "nose_width": 0.0305,
         "face_height_brow_to_chin": 0.1038
       },
-      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
-      "trial_rms_min_mm": 2.409
+      "face_planned_note": "measured on the trial build of feature_targets + sculpt (short probe hair, no glasses): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.369,
+      "sculpt_seed": 8000,
+      "sculpt_sites": [
+        "cheek_apple"
+      ],
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
+      "neck_align_ring": true
     },
     {
       "subject": "subject_09",
@@ -646,15 +889,50 @@
         "nose-trans-up": 0.04,
         "nose-volume-incr": 0.02
       },
-      "sculpt": [],
+      "sculpt": [
+        {
+          "site": "temple_l",
+          "centre": [
+            0.0667,
+            -0.042,
+            0.1091
+          ],
+          "radius": 0.0219,
+          "offset": [
+            -0.00176,
+            -0.0,
+            -0.0
+          ]
+        },
+        {
+          "site": "temple_r",
+          "centre": [
+            -0.0667,
+            -0.042,
+            0.1091
+          ],
+          "radius": 0.0219,
+          "offset": [
+            0.00176,
+            -0.0,
+            -0.0
+          ]
+        }
+      ],
       "face_planned_m": {
-        "face_width": 0.13119999999999998,
+        "face_width": 0.1308,
         "interocular": 0.052700000000000004,
         "nose_width": 0.0285,
         "face_height_brow_to_chin": 0.116
       },
-      "face_planned_note": "measured on the trial build of these feature_targets (no sculpt, short hair): the description the built child must match within 2 mm",
-      "trial_rms_min_mm": 2.405
+      "face_planned_note": "measured on the trial build of feature_targets + sculpt (short probe hair, no glasses): the description the built child must match within 2 mm",
+      "trial_rms_min_mm": 2.396,
+      "sculpt_seed": 9039,
+      "sculpt_sites": [
+        "temple"
+      ],
+      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)",
+      "neck_align_ring": true
     }
   ],
   "distinctness_rule": "owner Q56, 2026-10-24: every child differs from the default head and from every other child by an RMS of the per-vertex face displacement >= 2.0 mm (slice/measurements/face_shape_distance.py). Planned with margin: >= 2.3 mm by the contractor's linear model (tools/burst3/check_plan.py); trial builds checked with the owner's script.",
