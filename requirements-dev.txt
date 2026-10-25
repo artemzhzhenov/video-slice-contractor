@@ -1,3 +1,4 @@
 jsonschema[format]==4.23.0
 pytest==8.3.3
 numpy==2.3.3
+pillow==12.3.0

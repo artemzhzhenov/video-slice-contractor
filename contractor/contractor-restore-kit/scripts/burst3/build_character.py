@@ -143,11 +143,16 @@ LONG_SIDE_ABOVE_COLLAR_M = 0.046         # long_straight: side strands end ~1 cm
 LONG_NAPE_ABOVE_COLLAR_M = 0.052 
 GLASSES_LENS_RADIUS_M = 0.018
 GLASSES_LENS_UP_M = 0.003
-GLASSES_IN_FRONT_OF_FACE_M = 0.004       # the rims' plane: this far in front of the nose tip
+GLASSES_VERTEX_M = 0.012                 # the lens plane this far in front of the eyes' front points (spec 10-14 mm)
+GLASSES_VERTEX_MAX_M = 0.014             # ... moved forward up to this if a rim comes too close to the skin
+GLASSES_RIM_CLEAR_M = 0.003              # a rim's tube surface at least this far off the skin at rest
+GLASSES_LENS_RADIUS_MIN_M = 0.015        # ... then the lens made smaller down to this
+GLASSES_BRIDGE_GAP_M = 0.001             # the bridge's tube surface off the nose at the nearest point (spec 0-2 mm)
+GLASSES_TEMPLE_CLEAR_M = 0.002           # the temples' tube surface off the skin (spec: skin + ~2 mm)
+GLASSES_BROW_CLEAR_M = 0.0015            # a rim's tube surface off the brows at their lowest (every brow channel down)
 GLASSES_RIM_TUBE_R_M = 0.0016
 GLASSES_RIM_SEGS = 28
-GLASSES_TEMPLE_X_M = 0.072               # temples run along the head at this half-width
-GLASSES_EAR_BACK_M = 0.005               # the ear hook sits behind the head centre by this much        # back strands end ~1 cm above the back neckline
+        # back strands end ~1 cm above the back neckline
 BANGS_ON_FOREHEAD_ABOVE_EYES_M = 0.036   # bangs end just above the brows (brow top ≈ eyes + 32 mm)
 CURL_VOLUME_M = (0.030, 0.034, 0.040)      # cloud beyond the skull-fitted helmet: sides, front/back, top
 CURL_CLOUD_BACK_M = 0.008
@@ -1485,29 +1490,112 @@ def main():
                 for s in range(sides):
                     s1 = (s + 1) % sides
                     gf.append([base + i * sides + s, base + i * sides + s1, base + j * sides + s1, base + j * sides + s])
+        # Seat (Q55/Q59, spec): fitted to THIS child's head after the morph — the lens plane GLASSES_VERTEX_M in front of
+        # the eyes' front points (10-14 mm), moved forward within that range and then the lens made smaller if a rim
+        # would come closer than GLASSES_RIM_CLEAR_M to the skin (brow ridge, cheek); the bridge rests on the nose
+        # (its tube GLASSES_BRIDGE_GAP_M off the skin at the nearest point); the temples run back outside the skin
+        # (tube surface GLASSES_TEMPLE_CLEAR_M off it) over the top of the ear and hook down behind it.
+        from mathutils.bvhtree import BVHTree
+        skin_v = [co[i].copy() for i in range(n_v)]
+        skin = BVHTree.FromPolygons(skin_v, [tuple(f) for f in head_faces])
+        def skin_gap(p, r):                                # tube surface to skin, metres (negative = inside)
+            hit = skin.find_nearest(p)
+            return (hit[3] if hit[0] is not None else 1.0) - r
+        def ray_y(x, z):                                   # the skin's front surface at (x, z), from in front
+            hit = skin.ray_cast(Vector((x, -1.0, z)), Vector((0.0, 1.0, 0.0)), 2.0)
+            return hit[0].y if hit[0] is not None else None
+        def ray_x(sgn, y, z):                              # the skin's side surface at (y, z), from outside
+            hit = skin.ray_cast(Vector((sgn * 1.0, y, z)), Vector((-sgn, 0.0, 0.0)), 2.0)
+            return hit[0].x if hit[0] is not None else None
         eyes_mid = (eye_c["L"] + eye_c["R"]) / 2
-        front_y = min(co[i].y for i in hused) - GLASSES_IN_FRONT_OF_FACE_M       # rims sit in front of the nose tip
-        rim_r = GLASSES_LENS_RADIUS_M
+        eye_r = {S: sum((co[i] - eye_c[S]).length for i in groups[g]) / len(groups[g]) for S, g in (("L", "helper-l-eye"), ("R", "helper-r-eye"))}
+        eye_front_y = min(eye_c[S].y - eye_r[S] for S in ("L", "R"))
+        tr = GLASSES_RIM_TUBE_R_M
+        # the brows at their lowest (every *_neg key at 1): the rims must clear them there too (brows_down, all_squeezed)
+        bk = brows.data.shape_keys.key_blocks
+        bdown = [bk["Basis"].data[i].co.copy() for i in range(len(brows.data.vertices))]
+        for kb in bk:
+            if kb.name.endswith("_neg"):
+                for i in range(len(bdown)):
+                    bdown[i] += kb.data[i].co - bk["Basis"].data[i].co
+        brow_low = BVHTree.FromPolygons([brows.matrix_world @ v for v in bdown], [tuple(p_.vertices) for p_ in brows.data.polygons])
+        def brow_gap(p, r):
+            hit = brow_low.find_nearest(p)
+            return (hit[3] if hit[0] is not None else 1.0) - r
+        lens_up, rim_h = GLASSES_LENS_UP_M, 0.88            # rim_h: the lens's height / width
+        def rim_ring(S, y, r):
+            c_ = Vector((eye_c[S].x, y, eye_c[S].z + lens_up))
+            return c_, [c_ + Vector((r * math.cos(2 * math.pi * k / GLASSES_RIM_SEGS), 0.0, r * rim_h * math.sin(2 * math.pi * k / GLASSES_RIM_SEGS))) for k in range(GLASSES_RIM_SEGS)]
+        def rims_gap(y, r):
+            return min(skin_gap(p, tr) for S in ("L", "R") for p in rim_ring(S, y, r)[1])
+        def rims_brow_gap(y, r):
+            return min(brow_gap(p, tr) for S in ("L", "R") for p in rim_ring(S, y, r)[1])
+        def fits(y, r):
+            return rims_gap(y, r) >= GLASSES_RIM_CLEAR_M and rims_brow_gap(y, r) >= GLASSES_BROW_CLEAR_M
+        vtx, rim_r = GLASSES_VERTEX_M, GLASSES_LENS_RADIUS_M
+        while not fits(eye_front_y - vtx, rim_r) and vtx < GLASSES_VERTEX_MAX_M - 1e-9:
+            vtx = min(GLASSES_VERTEX_MAX_M, vtx + 0.0005)
+        while not fits(eye_front_y - vtx, rim_r) and lens_up > 1e-9:
+            lens_up = max(0.0, lens_up - 0.0005)
+        while not fits(eye_front_y - vtx, rim_r) and rim_h > 0.70 + 1e-9:
+            rim_h = max(0.70, rim_h - 0.01)
+        while not fits(eye_front_y - vtx, rim_r) and rim_r > GLASSES_LENS_RADIUS_MIN_M + 1e-9:
+            rim_r = max(GLASSES_LENS_RADIUS_MIN_M, rim_r - 0.0005)
+        front_y = eye_front_y - vtx
         rims = {}
         for S in ("L", "R"):
-            c_ = Vector((eye_c[S].x, front_y, eye_c[S].z + GLASSES_LENS_UP_M))
-            ring = [c_ + Vector((rim_r * math.cos(2 * math.pi * k / GLASSES_RIM_SEGS), 0.0, rim_r * 0.88 * math.sin(2 * math.pi * k / GLASSES_RIM_SEGS))) for k in range(GLASSES_RIM_SEGS)]
-            tube(ring, GLASSES_RIM_TUBE_R_M, closed=True)
+            c_, ring = rim_ring(S, front_y, rim_r)
+            tube(ring, tr, closed=True)
             rims[S] = c_
-        inner = min(rims, key=lambda s: abs(rims[s].x))
-        bridge = [Vector((rims["R"].x + rim_r, front_y, rims["R"].z + 0.003)), Vector((eyes_mid.x, front_y + 0.004, eyes_mid.z + GLASSES_LENS_UP_M + 0.005)), Vector((rims["L"].x - rim_r, front_y, rims["L"].z + 0.003))]
-        tube(bridge, GLASSES_RIM_TUBE_R_M * 0.9)
+        # bridge: inner rim tops → over the nose → its middle rests on the nasal bridge
+        z_b = eyes_mid.z + lens_up + 0.002
+        y_n = ray_y(0.0, z_b)
+        mid = Vector((0.0, (y_n if y_n is not None else front_y) - GLASSES_BRIDGE_GAP_M - tr * 0.9, z_b))
+        def bridge_path(m):
+            a_ = Vector((rims["R"].x + rim_r * 0.92, front_y, rims["R"].z + 0.004)); b_ = Vector((rims["L"].x - rim_r * 0.92, front_y, rims["L"].z + 0.004))
+            return [a_, (a_ + m) / 2 + Vector((0, 0, 0.002)), m, (b_ + m) / 2 + Vector((0, 0, 0.002)), b_]
+        for _ in range(60):                                # nearest point of the tube to the skin: 0.5-1.5 mm
+            g = min(skin_gap(p, tr * 0.9) for p in bridge_path(mid))
+            if g < GLASSES_BRIDGE_GAP_M - 0.0005: mid.y -= 0.00025
+            elif g > GLASSES_BRIDGE_GAP_M + 0.0005: mid.y += 0.00025
+            else: break
+        tube(bridge_path(mid), tr * 0.9)
+        # temples: hinge at the rim's outer edge → back along the side of the head → over the ear top → hook down
+        ears = groups["ears"] & set(hused)
+        temple_info = {}
         for S, sgn in (("L", 1.0), ("R", -1.0)):
-            ear = Vector((sgn * GLASSES_TEMPLE_X_M, centre.y + GLASSES_EAR_BACK_M, eye_c[S].z + GLASSES_LENS_UP_M + 0.006))
-            start = Vector((rims[S].x + sgn * rim_r, front_y, rims[S].z + 0.004))
-            path = [start, Vector((start.x + sgn * 0.006, start.y + 0.012, start.z + 0.001)), Vector((ear.x, ear.y - 0.035, ear.z)), ear, ear + Vector((0.0, 0.012, -0.012))]
-            tube(path, GLASSES_RIM_TUBE_R_M * 0.85)
+            side = [co[i] for i in ears if co[i].x * sgn > 0]
+            top = max(side, key=lambda p_: p_.z)
+            back_y = max(p_.y for p_ in side if p_.z > top.z - 0.012)
+            hinge = Vector((rims[S].x + sgn * rim_r, front_y, rims[S].z + 0.004))
+            z_top = top.z + tr * 0.85 + GLASSES_TEMPLE_CLEAR_M
+            path = [hinge]
+            for k in range(1, 13):
+                t = k / 12.0; y = hinge.y + (top.y - hinge.y) * t
+                z = hinge.z + (z_top - hinge.z) * (t * t * (3 - 2 * t))
+                xs = ray_x(sgn, y, z)
+                x = sgn * max(sgn * path[-1].x, (sgn * xs + tr * 0.85 + GLASSES_TEMPLE_CLEAR_M) if xs is not None else 0.0)
+                q = Vector((x, y, z))
+                while skin_gap(q, tr * 0.85) < GLASSES_TEMPLE_CLEAR_M:      # the nearest skin, not the sideways ray
+                    q.x += sgn * 0.0002
+                path.append(q)
+            for dy, dz in ((0.004, -0.004), (0.008, -0.011), (0.010, -0.018)):
+                y = back_y + dy; z = top.z + dz
+                xs = ray_x(sgn, y, z)
+                q = Vector(((xs if xs is not None else path[-1].x) + sgn * (tr * 0.85 + GLASSES_TEMPLE_CLEAR_M), y, z))
+                while skin_gap(q, tr * 0.85) < GLASSES_TEMPLE_CLEAR_M:
+                    q.x += sgn * 0.0002
+                path.append(q)
+            tube(path, tr * 0.85)
+            temple_info[S] = (top, min(skin_gap(p_, tr * 0.85) for p_ in path[2:]))
+            if os.environ.get("GLASSES_DEBUG"):
+                print(f"temple {S}: " + " | ".join(f"{k}:y{p_.y:.3f} z{p_.z:.3f} x{p_.x:+.3f} g{skin_gap(p_, tr * 0.85) * 1000:.1f}" for k, p_ in enumerate(path)))
         lens_base = len(gv)
         for S in ("L", "R"):
             c_ = rims[S]; ctr = len(gv); gv.append(c_ + Vector((0, 0.0015, 0)))
             ring_idx_ = []
             for k in range(GLASSES_RIM_SEGS):
-                ring_idx_.append(len(gv)); gv.append(c_ + Vector((rim_r * 0.92 * math.cos(2 * math.pi * k / GLASSES_RIM_SEGS), 0.0015, rim_r * 0.80 * math.sin(2 * math.pi * k / GLASSES_RIM_SEGS))))
+                ring_idx_.append(len(gv)); gv.append(c_ + Vector((rim_r * 0.92 * math.cos(2 * math.pi * k / GLASSES_RIM_SEGS), 0.0015, rim_r * (rim_h - 0.08) * math.sin(2 * math.pi * k / GLASSES_RIM_SEGS))))
             for k in range(GLASSES_RIM_SEGS):
                 gf.append([ctr, ring_idx_[k], ring_idx_[(k + 1) % GLASSES_RIM_SEGS]])
         me_g = bpy.data.meshes.new("HERO_GLASSES"); me_g.from_pydata([v[:] for v in gv], [], gf); me_g.validate(); me_g.update()
@@ -1529,7 +1617,10 @@ def main():
         for p_ in me_g.polygons:
             p_.material_index = 1 if p_.vertices[0] >= lens_base else 0
         head_children.append(glasses)
-        print(f"glasses: {len(gv)} vertices, lens radius {rim_r * 1000:.0f} mm, rims {abs(rims['L'].x - rims['R'].x) * 1000:.0f} mm apart, {(front_y - min(co[i].y for i in hused)) * -1000:.0f} mm in front of the nose tip")
+        print(f"glasses: {len(gv)} vertices, lens {2 * rim_r * 1000:.0f} x {2 * rim_r * rim_h * 1000:.0f} mm, rims {abs(rims['L'].x - rims['R'].x) * 1000:.0f} mm apart, "
+              f"lens plane {vtx * 1000:.1f} mm in front of the eyes, lens centre {lens_up * 1000:+.1f} mm above the eye, rims >= {rims_gap(front_y, rim_r) * 1000:.1f} mm off the skin and {rims_brow_gap(front_y, rim_r) * 1000:.1f} mm off the lowest brows, "
+              f"bridge {min(skin_gap(p, tr * 0.9) for p in bridge_path(mid)) * 1000:.2f} mm off the nose, temples >= "
+              f"{min(v[1] for v in temple_info.values()) * 1000:.2f} mm off the skin, ear tops z {temple_info['L'][0].z:.4f}/{temple_info['R'][0].z:.4f}")
 
     # ---- 11c. burst 3: curly voluminous hair (only with --subject and hair class curly_voluminous) ----
     # Replaces the bob and its strands. A lumpy "cloud" shell well outside the skull-fitted helmet gives the
