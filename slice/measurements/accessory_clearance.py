@@ -14,7 +14,19 @@ Pairs: hair→skin, hair→brows/eyes, hair→body, glasses→skin, glasses→br
 worst frame and value are reported, with the frames under the threshold (3 mm, the contractor's own). With --extremes,
 the rest frame is also measured at the channel extremes (FACE_CTRL animation cleared) — brows up / down, cheeks and
 squint up, nose wrinkle, lids wide / shut, all up, all squeezed. The glasses' seat is reported once at the rest frame:
-the gap from the bridge to the nose skin, and the lens plane's distance in front of each eye's front point."""
+the gap from the bridge to the nose skin, and the lens plane's distance in front of each eye's front point.
+
+The gate on the hair against the head skin is by FACE SET (owner, 2026-10-26): at rest — the first frame, every FACE_CTRL
+channel at 0 — a straight class's helmet crosses the skull with its inner layer (its seating on the scalp, hidden under
+the hair); on every frame of the shot, and at every channel extreme with --extremes, the hair faces and the skin faces
+that cross must be among those that cross at rest. The number of crossing pairs is reported, not gated: on the same
+faces it moves with nearly-touching triangles (03: 140 at rest, 140-142 in the shots). A new face is a strand pressed
+into a raised cheek or a fringe into a brow — what the gate is for. Exit 2 (HAIR_SKIN_FACES_FAIL) when it fails. It is an
+intersection test: a hair face buried whole under the skin, crossing no skin triangle, is not seen by it (the distances
+are reported beside it). Written
+for the synthetic children's hair; the default head's cheek strand is pressed onto the cheek by design and has its own
+gate (slice/measure_cheek_strand.py, Q31), so on the default head this rule fails at the laughs (SHOT_001: 29 strand
+faces on 96 of 120 frames, measured 2026-10-26) — expected there, not a defect."""
 import argparse
 import json
 import sys
@@ -68,18 +80,20 @@ def group(objs, dg):
 
 
 def dist(a, b):
-    """(min vertex-to-surface distance between the two meshes, both ways; the number of their triangle pairs that
-    intersect). Unsigned distance plus an exact intersection test — the head shell is open (neck, eyes, mouth) and an
-    inside test by normals is not reliable on it."""
+    """(min vertex-to-surface distance between the two meshes, both ways; their triangle pairs that intersect, as
+    (face of a, face of b)). Unsigned distance plus an exact intersection test — the head shell is open (neck, eyes,
+    mouth) and an inside test by normals is not reliable on it."""
     (va, fa), (vb, fb) = a, b
     if len(va) == 0 or len(vb) == 0:
         return None, None
     ta, tb = BVHTree.FromPolygons(va.tolist(), fa), BVHTree.FromPolygons(vb.tolist(), fb)
     d = min(min(tb.find_nearest(Vector(p))[3] for p in va), min(ta.find_nearest(Vector(p))[3] for p in vb))
-    return d, len(ta.overlap(tb))
+    return d, ta.overlap(tb)
 
 
-def measure(dg, ob):
+def measure(dg, ob, faces=None):
+    """The pairs' distances and crossings at the current state; with `faces` (a list), the hair-skin crossing's face
+    sets (hair faces, skin faces) are appended to it."""
     head = ob["HERO_HEAD"]
     skin = world_mesh(head, dg)
     parts = group([ob[n] for n in ("HERO_BROWS", "HERO_EYE_L", "HERO_EYE_R") if n in ob], dg)
@@ -90,7 +104,10 @@ def measure(dg, ob):
     r = {"hair_skin": dist(hair, skin), "hair_brows_eyes": dist(hair, parts), "hair_body": dist(hair, body), "hand_hair": dist(hand, hair)}
     if glasses is not None:
         r.update({"glasses_skin": dist(glasses, skin), "glasses_brows_eyes": dist(glasses, parts), "hand_glasses": dist(hand, glasses)})
-    return {k: (None if v[0] is None else {"mm": round(v[0] * 1e3, 2), "crossing": v[1]}) for k, v in r.items()}
+    if faces is not None:
+        hs = r["hair_skin"][1] or []
+        faces.append(({h for h, _ in hs}, {s for _, s in hs}))
+    return {k: (None if v[0] is None else {"mm": round(v[0] * 1e3, 2), "crossing": len(v[1])}) for k, v in r.items()}
 
 
 def glasses_seat(dg, ob):
@@ -128,11 +145,11 @@ def main(argv):
     a = ap.parse_args(argv)
     sc = bpy.data.scenes["SLICE"]
     ob = bpy.data.objects
-    rows = []
+    rows, frame_faces = [], []
     for f in range(sc.frame_start, sc.frame_end + 1, a.every):
         sc.frame_set(f)
         dg = bpy.context.evaluated_depsgraph_get()
-        rows.append({"frame": f, **measure(dg, ob)})
+        rows.append({"frame": f, **measure(dg, ob, frame_faces)})
     pairs = [k for k in rows[0] if k != "frame"]
     worst = {}
     for k in pairs:
@@ -144,25 +161,49 @@ def main(argv):
     rec = {"rule": __doc__.split("\n\n")[1].replace("\n", " "), "source": bpy.data.filepath, "shot": sc.get("shot_id"),
            "frames": [sc.frame_start, sc.frame_end, a.every], "threshold_mm": THRESHOLD_MM, "worst": worst}
     ctrl = ob["FACE_CTRL"]
+    ctrl.animation_data_clear()                # from here the states are set by hand (the file is never saved)
+
+    def set_state(vals):
+        for ch in CMAP["channels"]:
+            ctrl[ch["channel"]] = float(vals.get(ch["channel"], 0.0))
+        ctrl.update_tag()                      # a property set from Python does not tag the drivers; frame_set on the
+        sc.frame_set(sc.frame_start)           # same frame would not re-evaluate them (measured: the brows did not move)
+        bpy.context.view_layer.update()
+
+    rest_faces, ext_faces = [], {}
+    set_state({})
+    measure(bpy.context.evaluated_depsgraph_get(), ob, rest_faces)
     if a.extremes:
-        ctrl.animation_data_clear()
         ext = {}
         for name, vals in EXTREMES.items():
-            for ch in CMAP["channels"]:
-                ctrl[ch["channel"]] = float(vals.get(ch["channel"], 0.0))
-            ctrl.update_tag()                  # a property set from Python does not tag the drivers; frame_set on the
-            sc.frame_set(sc.frame_start)       # same frame would not re-evaluate them (measured: the brows did not move)
-            bpy.context.view_layer.update()
-            ext[name] = measure(bpy.context.evaluated_depsgraph_get(), ob)
+            set_state(vals)
+            got = []
+            ext[name] = measure(bpy.context.evaluated_depsgraph_get(), ob, got)
+            ext_faces[name] = got[0]
         rec["extremes_at_rest_frame"] = ext
-        for ch in CMAP["channels"]:
-            ctrl[ch["channel"]] = 0.0
-        ctrl.update_tag()
-        sc.frame_set(sc.frame_start)
-        bpy.context.view_layer.update()
+        set_state({})
         rec["glasses_seat"] = glasses_seat(bpy.context.evaluated_depsgraph_get(), ob)
+    h0, s0 = rest_faces[0]
+
+    def new(fs):
+        return sorted(fs[0] - h0), sorted(fs[1] - s0)
+
+    bad_frames = {r["frame"]: new(fs) for r, fs in zip(rows, frame_faces) if any(new(fs))}
+    bad_ext = {n: new(fs) for n, fs in ext_faces.items() if any(new(fs))}
+    rec["hair_skin_faces"] = {
+        "rule": "the hair and skin faces that cross on any frame or channel extreme are among those that cross at rest (owner, 2026-10-26)",
+        "rest": {"hair_faces": len(h0), "skin_faces": len(s0)},
+        "frames_with_faces_not_crossing_at_rest": {f: {"hair_faces": h, "skin_faces": s} for f, (h, s) in bad_frames.items()},
+        "extremes_with_faces_not_crossing_at_rest": {n: {"hair_faces": h, "skin_faces": s} for n, (h, s) in bad_ext.items()},
+        "status": "FAIL" if bad_frames or bad_ext else "PASS"}
     Path(a.out).write_text(json.dumps(rec, indent=1) + "\n")
     print("ACCESSORY_CLEARANCE " + json.dumps({k: (v["min_mm"], v["frame"], len(v["frames_under_threshold"]), len(v["frames_crossing"])) for k, v in worst.items()}))
+    if bad_frames or bad_ext:
+        print(f"HAIR_SKIN_FACES_FAIL hair or skin faces not crossing at rest cross on {len(bad_frames)} frame(s) "
+              f"{sorted(bad_frames)[:8]} and {len(bad_ext)} extreme(s) {sorted(bad_ext)}", file=sys.stderr)
+        sys.exit(2)
+    print(f"HAIR_SKIN_FACES_OK the crossing faces stay those at rest ({len(h0)} hair, {len(s0)} skin) on {len(rows)} frame(s)"
+          + (f" and {len(ext_faces)} extremes" if ext_faces else ""))
 
 
 main(sys.argv[sys.argv.index("--") + 1:])
