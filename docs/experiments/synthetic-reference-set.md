@@ -108,6 +108,11 @@ provenance, file hashes) in the bake-off record; one `AVATAR` per child with `ca
 - The character file wears the master's dress; the child's own simple clothes appear only in the parent-photo scene.
 - 2026-10-23 (owner, after the pilot): the master's skirt visible below the child's own top in the parent-photo scene is kept
   as is — it touches no measurement; the same for all nine.
+- 2026-10-26 (owner, Q63, after the show of 01, 02, 03): the expression sheet (item 5) is ours — rendered on our GPU from his
+  character files in the three shots' lighting, not part of his work; the turntable stays his. The other six come in
+  pairs (04–05, 06–07, 08–09), each stopping for our acceptance; the three new packet lights come with the first pair, the
+  negative controls and the final report with the last. The master's palm through a fringe in the SHOT_003 window is
+  accepted as is (the exclusion of 2026-10-24) — measured and reported for 04, 05, 09, never fixed in the asset.
 
 ## The pilot, accepted 2026-10-18 (`slice/measurements/subject_01_acceptance_2026-10-18.json`)
 
