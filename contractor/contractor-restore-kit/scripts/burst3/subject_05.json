@@ -1,0 +1,211 @@
+{
+  "subject": "subject_05",
+  "note": "Burst 3 (Q63, pair 04-05). Synthetic child, girl 7-9, built on character v04.1. No photograph of any real person was an input, a seed or a reference.",
+  "seed": 501,
+  "tone_albedo_linear": [
+    0.55,
+    0.38,
+    0.28
+  ],
+  "iris_color_linear": [
+    0.12,
+    0.07,
+    0.035
+  ],
+  "brow_color_linear": [
+    0.081,
+    0.0495,
+    0.027
+  ],
+  "hair": {
+    "class": "long_straight",
+    "color_linear": [
+      0.09,
+      0.055,
+      0.03
+    ],
+    "bangs": true
+  },
+  "glasses": false,
+  "targets": [
+    [
+      "cheek",
+      "l-cheek-bones-incr",
+      0.03
+    ],
+    [
+      "cheek",
+      "r-cheek-bones-incr",
+      0.03
+    ],
+    [
+      "cheek",
+      "l-cheek-volume-incr",
+      0.05
+    ],
+    [
+      "cheek",
+      "r-cheek-volume-incr",
+      0.05
+    ],
+    [
+      "chin",
+      "chin-bones-incr",
+      0.02
+    ],
+    [
+      "chin",
+      "chin-height-incr",
+      0.37
+    ],
+    [
+      "chin",
+      "chin-prognathism-incr",
+      0.06
+    ],
+    [
+      "chin",
+      "chin-triangle",
+      0.11
+    ],
+    [
+      "chin",
+      "chin-width-incr",
+      0.03
+    ],
+    [
+      "eyes",
+      "l-eye-trans-down",
+      0.05
+    ],
+    [
+      "eyes",
+      "r-eye-trans-down",
+      0.05
+    ],
+    [
+      "eyes",
+      "l-eye-trans-out",
+      0.25
+    ],
+    [
+      "eyes",
+      "r-eye-trans-out",
+      0.25
+    ],
+    [
+      "eyebrows",
+      "eyebrows-trans-down",
+      0.04
+    ],
+    [
+      "forehead",
+      "forehead-nubian-decr",
+      0.09
+    ],
+    [
+      "forehead",
+      "forehead-scale-vert-decr",
+      0.07
+    ],
+    [
+      "head",
+      "head-fat-incr",
+      0.04
+    ],
+    [
+      "head",
+      "head-oval",
+      0.03
+    ],
+    [
+      "head",
+      "head-rectangular",
+      0.03
+    ],
+    [
+      "head",
+      "head-round",
+      0.07
+    ],
+    [
+      "head",
+      "head-scale-horiz-incr",
+      0.15
+    ],
+    [
+      "head",
+      "head-scale-vert-decr",
+      0.15
+    ],
+    [
+      "head",
+      "head-square",
+      0.05
+    ],
+    [
+      "mouth",
+      "mouth-scale-horiz-incr",
+      0.06
+    ],
+    [
+      "mouth",
+      "mouth-trans-forward",
+      0.15
+    ],
+    [
+      "mouth",
+      "mouth-trans-up",
+      0.15
+    ],
+    [
+      "nose",
+      "nose-scale-depth-decr",
+      0.02
+    ],
+    [
+      "nose",
+      "nose-scale-vert-decr",
+      0.08
+    ],
+    [
+      "nose",
+      "nose-trans-up",
+      0.06
+    ]
+  ],
+  "sculpt": [
+    {
+      "site": "brow_ridge_l",
+      "centre": [
+        0.0309,
+        -0.0916,
+        0.1169
+      ],
+      "radius": 0.0151,
+      "offset": [
+        0.0,
+        -0.0025,
+        0.00103
+      ]
+    },
+    {
+      "site": "brow_ridge_r",
+      "centre": [
+        -0.0309,
+        -0.0916,
+        0.1169
+      ],
+      "radius": 0.0151,
+      "offset": [
+        -0.0,
+        -0.0025,
+        0.00103
+      ]
+    }
+  ],
+  "sculpt_seed": 5000,
+  "sculpt_note": "Own deviation outside the MPFB targets: Gaussian bumps in metres, centre relative to the socket ring centre.",
+  "blend_ramp_m": 0.035,
+  "face_note": "Q56/Q57 plan: feature_targets + seeded bumps (subjects_plan.json)"
+}

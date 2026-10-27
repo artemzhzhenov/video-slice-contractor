@@ -113,6 +113,10 @@ provenance, file hashes) in the bake-off record; one `AVATAR` per child with `ca
   pairs (04–05, 06–07, 08–09), each stopping for our acceptance; the three new packet lights come with the first pair, the
   negative controls and the final report with the last. The master's palm through a fringe in the SHOT_003 window is
   accepted as is (the exclusion of 2026-10-24) — measured and reported for 04, 05, 09, never fixed in the asset.
+- 2026-10-27 (owner, Q64, after the first pair): the four packet lights (window daylight, warm evening indoor, overhead
+  panel, open shade) look right — accepted. In `open_shade` no direct sun reaches the child (the sky only; his first cut
+  had the sun in front, a hard shadow on the wall behind — fixed). Each of the nine children wears their own top colour,
+  none repeated (01 keeps the pilot's mustard).
 
 ## The pilot, accepted 2026-10-18 (`slice/measurements/subject_01_acceptance_2026-10-18.json`)
 
