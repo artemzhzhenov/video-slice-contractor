@@ -32,6 +32,16 @@ a part hidden anyway, by the head or by the teeth themselves, is not counted). T
 with it: a tooth ahead of the lips whose ray goes on through the lip opening into the sack passes. Without a sack the
 rule and its numbers are as before.
 
+The corner plugs (owner, 2026-10-28, Q68): the head's mouth corners open through when stretched, so in profile a ray
+that leaves by the far corner came in by the near one at the mirror point — whatever closes the far corner closes the
+near one on the same rays and hides what the camera saw through it. A real corner is a closed fold, and teeth through
+the corners were the defect (Q65); so the sack's faces of the material HERO_MOUTH_PLUG — plugs lying in the corners,
+flush with the skin — may hide the teeth and the tongue: counted apart ("hidden by the plug", `plug_ndc`), not a
+failure, judged on the close-ups. The rest of the sack still hides nothing — a ray meeting the sack's other faces short
+of the sample fails as before, a plug in front or not. In all else the plugs are the sack: they cross no skin, the
+face's outer skin is never behind them. `plug_skin_gap_mm`: how far the plugs' vertices stand off the skin at most, a
+number to look at. Without plug faces the rule and its numbers are as with the sack alone.
+
 MOUTH_OK when nothing is outside, hidden by the sack or crossing on any frame; MOUTH_FAIL (exit 2) otherwise, with the
 frames and the counts per part; every failing sample's place in the frame is kept (`outside_ndc`, `hidden_ndc`, 0-1 from
 the lower left) for a look on the render; `seen_by_part` counts what the camera sees of each part. --control-forward-mm
@@ -50,12 +60,13 @@ from mathutils.bvhtree import BVHTree
 
 PARTS = ("HERO_TEETH_UPPER", "HERO_TEETH_LOWER", "HERO_TONGUE")
 SACK = "HERO_MOUTH_SACK"                         # the child build's mouth interior (Q67), absent on the default head
+PLUG = "HERO_MOUTH_PLUG"                         # the material of the sack's corner plugs (Q68)
 NEAR_M = 3e-4                                    # 0.3 mm: a hit this close to the sample is the sample itself
 GRID_M = 1e-3                                    # sample spacing on the teeth's surface
 FORWARD_LOCAL = Vector((0.0, -1.0, 0.0))         # the socket's forward in its own Blender axes (contract +Z = −Y_b)
 
 
-def world_mesh(obj, dg):
+def world_mesh(obj, dg, plug=False):
     ev = obj.evaluated_get(dg)
     me = ev.to_mesh()
     try:
@@ -65,9 +76,12 @@ def world_mesh(obj, dg):
         M = np.array(ev.matrix_world)
         v = co.reshape(n, 3) @ M[:3, :3].T + M[:3, 3]
         faces = [list(p.vertices) for p in me.polygons]
+        if plug:                                  # the faces of the plugs' material
+            slots = [m.material.name if m.material else "" for m in ev.material_slots]
+            plugs = {p.index for p in me.polygons if p.material_index < len(slots) and slots[p.material_index] == PLUG}
     finally:
         ev.to_mesh_clear()
-    return v, faces
+    return (v, faces, plugs) if plug else (v, faces)
 
 
 def surface_samples(v, faces):
@@ -118,10 +132,14 @@ def measure(sc, dg, outer, shift):
     others = BVHTree.FromPolygons(np.concatenate(others_v).tolist(), others_f) if others_v else None
     head_v, head_f = world_mesh(bpy.data.objects["HERO_HEAD"], dg)
     head = BVHTree.FromPolygons(head_v.tolist(), head_f)
-    sack = sack_v = None
+    sack = body = sack_v = None
+    plugs = set()
     if SACK in bpy.data.objects:
-        sack_v, sack_f = world_mesh(bpy.data.objects[SACK], dg)
-        sack = BVHTree.FromPolygons(sack_v.tolist(), sack_f)
+        sack_v, sack_f, plugs = world_mesh(bpy.data.objects[SACK], dg, plug=True)
+        sack = body = BVHTree.FromPolygons(sack_v.tolist(), sack_f)
+        if plugs:                                 # the sack less its plugs: it still hides nothing (Q68)
+            rest = [f for i, f in enumerate(sack_f) if i not in plugs]
+            body = BVHTree.FromPolygons(sack_v.tolist(), rest) if rest else None
     parts = {}
     for n in PARTS:
         if n in bpy.data.objects:
@@ -134,8 +152,8 @@ def measure(sc, dg, outer, shift):
     mouth = BVHTree.FromPolygons(mouth_v.tolist(), mouth_f)
     names = list(parts) + ([SACK] if sack else [])
     seen, outside = {n: 0 for n in names}, {n: 0 for n in names}
-    hidden = {n: 0 for n in parts}
-    where, marks, hmarks = [], [], []
+    hidden, by_plug = {n: 0 for n in parts}, {n: 0 for n in parts}
+    where, marks, hmarks, pmarks = [], [], [], []
 
     def note(n, p, ndc, behind):
         marks.append([round(ndc.x, 4), round(ndc.y, 4)])
@@ -160,7 +178,10 @@ def measure(sc, dg, outer, shift):
             if h is not None and (h - p).length > NEAR_M:
                 continue
             if first(sack, origin, d, dist - NEAR_M) is not None:
-                if not is_sack:                   # the camera would see it but for the sack: outside the sack
+                if not is_sack and first(body, origin, d, dist - NEAR_M) is None:
+                    by_plug[n] += 1               # a corner plug alone in front: allowed, counted (Q68)
+                    pmarks.append([round(ndc.x, 4), round(ndc.y, 4)])
+                elif not is_sack:                 # the camera would see it but for the sack: outside the sack
                     hidden[n] += 1
                     hmarks.append([round(ndc.x, 4), round(ndc.y, 4)])
                 continue
@@ -180,6 +201,9 @@ def measure(sc, dg, outer, shift):
     row = {"seen": sum(seen[n] for n in parts), "seen_by_part": seen, "outside": outside, "examples": where, "outside_ndc": marks}
     if sack:
         row.update({"hidden_by_sack": hidden, "hidden_ndc": hmarks, "sack_skin_crossings": len(head.overlap(sack))})
+    if plugs:
+        gap = max(head.find_nearest(Vector(sack_v[i]))[3] for i in {i for f in plugs for i in sack_f[f]})
+        row.update({"hidden_by_plug": by_plug, "plug_ndc": pmarks, "plug_skin_gap_mm": round(gap * 1e3, 2)})
     return row
 
 
@@ -219,14 +243,18 @@ def main(argv):
         else:
             runs.append([r["frame"], r["frame"], n])
     paras = __doc__.split("\n\n")
-    rec = {"rule": paras[0].replace("\n", " "), "method": " ".join(x.replace("\n", " ") for x in paras[2:4]),
+    rec = {"rule": paras[0].replace("\n", " "), "method": " ".join(x.replace("\n", " ") for x in paras[2:5]),
            "source": bpy.data.filepath, "shot": sc.get("shot_id"), "frames": [f0, f1, a.every],
            "control_forward_mm": a.control_forward_mm, "mouth_sack": SACK in bpy.data.objects,
+           "corner_plugs": any("hidden_by_plug" in r for r in rows),
            "outer_skin_faces_at_rest": len(outer), "skin_faces": nfaces,
            "frames_outside": [r["frame"] for r in bad], "runs_first_last_max_samples": runs,
            "status": "FAIL" if bad else "PASS", "rows": rows}
     Path(a.out).write_text(json.dumps(rec, indent=1) + "\n")
     seen = [r["seen"] for r in rows]
+    plugged = [r for r in rows if sum(r.get("hidden_by_plug", {}).values())]
+    plug = (f"; hidden by the corner plugs (allowed, Q68 — look at the close-ups) on {len(plugged)} frame(s), most "
+            f"{max(sum(r['hidden_by_plug'].values()) for r in plugged)} samples" if plugged else "")
     if bad:
         w = max(bad, key=failures)
         sack = (f", hidden by the sack {w['hidden_by_sack']}, sack-skin crossings {w['sack_skin_crossings']}"
@@ -234,10 +262,10 @@ def main(argv):
         what = ("outside the lips, hidden by the sack or the sack through the skin" if sack
                 else "teeth or tongue seen outside the lips")
         print(f"MOUTH_FAIL {what} on {len(bad)} of {len(rows)} frame(s), runs {runs[:6]}; "
-              f"worst {w['frame']}: {w['outside']}{sack}", file=sys.stderr)
+              f"worst {w['frame']}: {w['outside']}{sack}{plug}", file=sys.stderr)
         sys.exit(2)
     print(f"MOUTH_OK nothing of the teeth or tongue seen outside the lips on {len(rows)} frame(s) "
-          f"(seen samples per frame {min(seen)}-{max(seen)}{', mouth sack checked' if rec['mouth_sack'] else ''})")
+          f"(seen samples per frame {min(seen)}-{max(seen)}{', mouth sack checked' if rec['mouth_sack'] else ''}){plug}")
 
 
 main(sys.argv[sys.argv.index("--") + 1:])
