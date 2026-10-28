@@ -21,10 +21,22 @@ the profile 1172-1240, the marks on the teeth out through the corners and ahead 
 (SHOT_001 1066, SHOT_002 1165) and SHOT_003 pass, unmarked; the teeth moved 10 mm forward at rest fail on 18 of 18
 frames, unmoved pass.
 
-MOUTH_OK when no seen sample is outside on any frame; MOUTH_FAIL (exit 2) otherwise, with the frames and the counts per
-part; every outside sample's place in the frame is kept (`outside_ndc`, 0-1 from the lower left) for a look on the
-render. --control-forward-mm moves the samples and the teeth's own triangles that far forward in the head socket's frame —
-a positive control: teeth set ahead of the lips must fail."""
+The mouth sack (owner, 2026-10-28, Q67): the head has no back wall to the mouth — in profile a ray enters the open mouth
+at the near side, passes a tooth and leaves at the far side, the air behind the tooth. The child build adds
+HERO_MOUTH_SACK, a dark shell behind the teeth; when it is in the file, the sack met beyond a seen tooth before the head
+skin is the mouth's inside. The verdict now leans on the sack, so the sack is checked itself, on every frame: no triangle
+of it crosses a skin triangle; no seen sample of it (the same 1 mm grid) has the face's outer skin behind it — the air
+behind it is allowed, it is the back wall; and it hides nothing of the teeth or the tongue — a sample the camera would
+see but for the sack, its ray meeting the sack and nothing else, lies outside the sack and fails ("hidden by the sack";
+a part hidden anyway, by the head or by the teeth themselves, is not counted). The blind spot grows
+with it: a tooth ahead of the lips whose ray goes on through the lip opening into the sack passes. Without a sack the
+rule and its numbers are as before.
+
+MOUTH_OK when nothing is outside, hidden by the sack or crossing on any frame; MOUTH_FAIL (exit 2) otherwise, with the
+frames and the counts per part; every failing sample's place in the frame is kept (`outside_ndc`, `hidden_ndc`, 0-1 from
+the lower left) for a look on the render; `seen_by_part` counts what the camera sees of each part. --control-forward-mm
+moves the samples and the teeth's own triangles (not the sack) that far forward in the head socket's frame — a positive
+control: teeth set ahead of the lips must fail."""
 import argparse
 import json
 import sys
@@ -37,6 +49,7 @@ from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
 PARTS = ("HERO_TEETH_UPPER", "HERO_TEETH_LOWER", "HERO_TONGUE")
+SACK = "HERO_MOUTH_SACK"                         # the child build's mouth interior (Q67), absent on the default head
 NEAR_M = 3e-4                                    # 0.3 mm: a hit this close to the sample is the sample itself
 GRID_M = 1e-3                                    # sample spacing on the teeth's surface
 FORWARD_LOCAL = Vector((0.0, -1.0, 0.0))         # the socket's forward in its own Blender axes (contract +Z = −Y_b)
@@ -82,8 +95,16 @@ def outer_faces(head):
 
 
 def occluders(sc):
-    return [o for o in sc.objects if o.type == "MESH" and o.name not in PARTS and not o.hide_render and o.visible_get()
-            and not any(c.name == "C_PROXIES" or c.hide_render for c in o.users_collection)]
+    return [o for o in sc.objects if o.type == "MESH" and o.name not in PARTS + (SACK,) and not o.hide_render
+            and o.visible_get() and not any(c.name == "C_PROXIES" or c.hide_render for c in o.users_collection)]
+
+
+def first(tree, origin, d, dist):
+    """Distance to the first hit of the ray within dist, or None."""
+    if tree is None:
+        return None
+    loc = tree.ray_cast(origin, d, dist)[0]
+    return None if loc is None else (loc - origin).length
 
 
 def measure(sc, dg, outer, shift):
@@ -97,6 +118,10 @@ def measure(sc, dg, outer, shift):
     others = BVHTree.FromPolygons(np.concatenate(others_v).tolist(), others_f) if others_v else None
     head_v, head_f = world_mesh(bpy.data.objects["HERO_HEAD"], dg)
     head = BVHTree.FromPolygons(head_v.tolist(), head_f)
+    sack = sack_v = None
+    if SACK in bpy.data.objects:
+        sack_v, sack_f = world_mesh(bpy.data.objects[SACK], dg)
+        sack = BVHTree.FromPolygons(sack_v.tolist(), sack_f)
     parts = {}
     for n in PARTS:
         if n in bpy.data.objects:
@@ -107,9 +132,21 @@ def measure(sc, dg, outer, shift):
     for v, f in parts.values():
         mouth_f += [[i + off for i in p] for p in f]; off += len(v)
     mouth = BVHTree.FromPolygons(mouth_v.tolist(), mouth_f)
-    seen, outside, where, marks = 0, {n: 0 for n in parts}, [], []
-    for n, (v, f) in parts.items():
-        for s in surface_samples(v, f):
+    names = list(parts) + ([SACK] if sack else [])
+    seen, outside = {n: 0 for n in names}, {n: 0 for n in names}
+    hidden = {n: 0 for n in parts}
+    where, marks, hmarks = [], [], []
+
+    def note(n, p, ndc, behind):
+        marks.append([round(ndc.x, 4), round(ndc.y, 4)])
+        if len(where) < 12:
+            q = S @ p                             # the socket's contract frame: X the character's left, Y up, Z forward
+            where.append({"part": n, "socket_mm": [round(q.x * 1e3, 1), round(q.z * 1e3, 1), round(-q.y * 1e3, 1)],
+                          "behind": behind})
+
+    for n in names:
+        is_sack = n == SACK
+        for s in surface_samples(*((sack_v, sack_f) if is_sack else parts[n])):
             p = Vector(s)
             ndc = world_to_camera_view(sc, cam, p)
             if not (0.0 <= ndc.x <= 1.0 and 0.0 <= ndc.y <= 1.0 and ndc.z > 0.0):
@@ -117,22 +154,37 @@ def measure(sc, dg, outer, shift):
             d = p - origin
             dist = d.length
             d.normalize()
-            hit = others.ray_cast(origin, d, dist - NEAR_M)[0] if others else None
-            if hit is not None:
+            if first(others, origin, d, dist - NEAR_M) is not None:
                 continue
             h = mouth.ray_cast(origin, d, dist - NEAR_M)[0]
             if h is not None and (h - p).length > NEAR_M:
                 continue
-            seen += 1
+            if first(sack, origin, d, dist - NEAR_M) is not None:
+                if not is_sack:                   # the camera would see it but for the sack: outside the sack
+                    hidden[n] += 1
+                    hmarks.append([round(ndc.x, 4), round(ndc.y, 4)])
+                continue
+            seen[n] += 1
             loc, nrm, idx, _ = head.ray_cast(p + d * NEAR_M, d)
-            if loc is None or (idx in outer and nrm.dot(d) < 0.0):
-                outside[n] += 1
-                marks.append([round(ndc.x, 4), round(ndc.y, 4)])
-                if len(where) < 12:
-                    q = S @ p                     # the socket's contract frame: X the character's left, Y up, Z forward
-                    where.append({"part": n, "socket_mm": [round(q.x * 1e3, 1), round(q.z * 1e3, 1), round(-q.y * 1e3, 1)],
-                                  "behind": "nothing" if loc is None else f"outer skin face {idx}"})
-    return {"seen": seen, "outside": outside, "examples": where, "outside_ndc": marks}
+            front_outer = loc is not None and idx in outer and nrm.dot(d) < 0.0
+            if is_sack:
+                if front_outer:                   # the sack out through the face; the air behind it is allowed
+                    outside[n] += 1; note(n, p, ndc, f"outer skin face {idx}")
+                continue
+            if sack is not None:                  # the sack met before the skin: the mouth's inside (Q67)
+                sl = sack.ray_cast(p + d * NEAR_M, d)[0]
+                if sl is not None and (loc is None or (sl - p).length < (loc - p).length):
+                    continue
+            if loc is None or front_outer:
+                outside[n] += 1; note(n, p, ndc, "nothing" if loc is None else f"outer skin face {idx}")
+    row = {"seen": sum(seen[n] for n in parts), "seen_by_part": seen, "outside": outside, "examples": where, "outside_ndc": marks}
+    if sack:
+        row.update({"hidden_by_sack": hidden, "hidden_ndc": hmarks, "sack_skin_crossings": len(head.overlap(sack))})
+    return row
+
+
+def failures(r):
+    return sum(r["outside"].values()) + sum(r.get("hidden_by_sack", {}).values()) + r.get("sack_skin_crossings", 0)
 
 
 def main(argv):
@@ -158,28 +210,34 @@ def main(argv):
             R = bpy.data.objects["SOCKET_HEAD"].evaluated_get(dg).matrix_world.to_3x3()
             shift = np.array(R @ FORWARD_LOCAL) * a.control_forward_mm * 1e-3
         rows.append({"frame": f, **measure(sc, dg, outer, shift)})
-    bad = [r for r in rows if any(r["outside"].values())]
+    bad = [r for r in rows if failures(r)]
     runs = []
     for r in bad:
-        n = sum(r["outside"].values())
+        n = failures(r)
         if runs and r["frame"] == runs[-1][1] + a.every:
             runs[-1][1] = r["frame"]; runs[-1][2] = max(runs[-1][2], n)
         else:
             runs.append([r["frame"], r["frame"], n])
-    rec = {"rule": __doc__.split("\n\n")[0].replace("\n", " "), "method": __doc__.split("\n\n")[2].replace("\n", " "),
+    paras = __doc__.split("\n\n")
+    rec = {"rule": paras[0].replace("\n", " "), "method": " ".join(x.replace("\n", " ") for x in paras[2:4]),
            "source": bpy.data.filepath, "shot": sc.get("shot_id"), "frames": [f0, f1, a.every],
-           "control_forward_mm": a.control_forward_mm, "outer_skin_faces_at_rest": len(outer), "skin_faces": nfaces,
+           "control_forward_mm": a.control_forward_mm, "mouth_sack": SACK in bpy.data.objects,
+           "outer_skin_faces_at_rest": len(outer), "skin_faces": nfaces,
            "frames_outside": [r["frame"] for r in bad], "runs_first_last_max_samples": runs,
            "status": "FAIL" if bad else "PASS", "rows": rows}
     Path(a.out).write_text(json.dumps(rec, indent=1) + "\n")
     seen = [r["seen"] for r in rows]
     if bad:
-        worst = max(bad, key=lambda r: sum(r["outside"].values()))
-        print(f"MOUTH_FAIL teeth or tongue seen outside the lips on {len(bad)} of {len(rows)} frame(s), runs {runs[:6]}; "
-              f"worst {worst['frame']}: {worst['outside']}", file=sys.stderr)
+        w = max(bad, key=failures)
+        sack = (f", hidden by the sack {w['hidden_by_sack']}, sack-skin crossings {w['sack_skin_crossings']}"
+                if "hidden_by_sack" in w else "")
+        what = ("outside the lips, hidden by the sack or the sack through the skin" if sack
+                else "teeth or tongue seen outside the lips")
+        print(f"MOUTH_FAIL {what} on {len(bad)} of {len(rows)} frame(s), runs {runs[:6]}; "
+              f"worst {w['frame']}: {w['outside']}{sack}", file=sys.stderr)
         sys.exit(2)
     print(f"MOUTH_OK nothing of the teeth or tongue seen outside the lips on {len(rows)} frame(s) "
-          f"(seen samples per frame {min(seen)}-{max(seen)})")
+          f"(seen samples per frame {min(seen)}-{max(seen)}{', mouth sack checked' if rec['mouth_sack'] else ''})")
 
 
 main(sys.argv[sys.argv.index("--") + 1:])
