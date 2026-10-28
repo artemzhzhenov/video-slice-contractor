@@ -5,7 +5,7 @@
 
 Generalised from packet_subject_01.py (the accepted pilot): subject_01 in window_day is the pilot's scene exactly (camera,
 smile, the mustard tunic); every other child / scene takes its camera (24-28 mm, 0.45-0.75 m — within the spec's 0.4-1.2 m, the face large enough, height, tilt, azimuth) and
-its clothes (tunic / t-shirt / sweater, a cotton colour) deterministically from the child's seed and the scene name.
+its clothes (tunic / t-shirt / sweater by the seed; the cotton colour by the child's number, Q64 — no repeats) deterministically.
 Scenes: window_day — daylight through a side window (the pilot); warm_indoor — evening, warm ceiling lamp + table lamp,
 the window dark; overhead — a ceiling panel straight above, little fill (top-down shadows); open_shade — outdoors in the
 shade of a wall: sky light only, no direct sun on the child. Expressions: smile in window_day and overhead, neutral in
@@ -200,7 +200,7 @@ def flat(name, rgb, rough=0.8):
 
 SCENES = ("window_day", "warm_indoor", "overhead", "open_shade")
 SCENE_SMILE = {"window_day": True, "warm_indoor": False, "overhead": True, "open_shade": False}
-SCENE_EXPOSURE = {"window_day": PHONE_EXPOSURE, "warm_indoor": 0.7, "overhead": 0.3, "open_shade": 0.6}
+SCENE_EXPOSURE = {"window_day": PHONE_EXPOSURE, "warm_indoor": 0.7, "overhead": 0.3, "open_shade": 1.1}
 TOPS = {"tunic": TOP_HEM_Z_M, "tshirt": 0.80, "sweater": 0.76}           # hem height of the top (m)
 COTTON = [(0.58, 0.40, 0.07), (0.10, 0.25, 0.45), (0.45, 0.08, 0.10), (0.12, 0.33, 0.18), (0.55, 0.30, 0.42),
           (0.70, 0.66, 0.58), (0.06, 0.06, 0.07), (0.62, 0.22, 0.06), (0.28, 0.45, 0.55)]
@@ -224,7 +224,8 @@ def clothes_for(subj):
         return "tunic", TOP_COLOUR
     import random
     r = random.Random(int(subj.get("seed", 0)) * 7 + 3)
-    return r.choice(sorted(TOPS)), r.choice(COTTON)
+    kind = r.choice(sorted(TOPS))                    # the cut by the child's seed (as accepted in pair 04-05)
+    return kind, COTTON[int(subj["subject"].split("_")[1]) - 1]   # Q64: the colour by the child's number — no repeats among the nine
 
 
 def area(name, size, size_y, energy, colour, loc, aim, coll):
@@ -393,7 +394,7 @@ def main():
         box("YARD_HEDGE", (-4, -4.5, 0.0), (4, -3.7, 1.4), hedge, env)
         sun_d = bpy.data.lights.new("YARD_SUN", "SUN"); sun_d.energy = 4.0; sun_d.color = (1.0, 0.95, 0.88); sun_d.angle = math.radians(0.6)
         sun = bpy.data.objects.new("YARD_SUN", sun_d); lights.objects.link(sun)
-        sun.rotation_euler = (Vector((0.3, 0.9, -0.55))).to_track_quat("-Z", "Y").to_euler()   # from behind the wall
+        sun.rotation_euler = (Vector((0.3, -0.9, -0.55))).to_track_quat("-Z", "Y").to_euler()  # Q64: travels from behind the wall (+Y) toward the camera — the child in the wall's shade
         bg.inputs[0].default_value = (0.50, 0.65, 0.95, 1.0)
         bg.inputs[1].default_value = 1.6
 

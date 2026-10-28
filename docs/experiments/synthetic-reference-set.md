@@ -82,11 +82,21 @@ Rendering is ours (the contractor works on one CPU core; we have the GPU): his s
 | channels | every channel the default head moves visibly moves the child (`slice/channel_reference.py`) |
 | tone | the skin's albedo is the assigned tone (measured on the material and on a flat-lit render) |
 | eyes and lids | added 2026-10-25 (five of the nine children's lids failed on the eye while every other gate passed): at rest and at every lid extreme no lid vertex inside the eyeball (contact within 0.05 mm); shut (blink, `lid_aperture` −1) nothing of the eye visible from the front or 35° to either side; shut, the lid lies on the eye (median standoff ≤ 2.8 mm, PROVISIONAL — calibrated on the default head and 26 child builds, `slice/measurements/eye_lid_2026-10-25/`); the close-up sheet seen by us (`slice/measurements/eye_lid_check.py`) |
-| hair, glasses | the class declared and visible; the forehead crossing where assigned; glasses present on their children in every shot and seated (above); on any frame of the three shots and at the channel extremes, no glasses triangle crossing the skin, brows, eyes or body, no hair triangle crossing the brows, eyes or body, and the hair's crossings with the head skin only on the faces that cross at rest — its own seating on the scalp; by face set, not by the number of pairs, which moves on the same faces (owner, 2026-10-26; the default head's cheek strand is pressed onto the cheek by design and has its own gate, Q31); the gaps reported (`slice/measurements/accessory_clearance.py`) — except the master's own SHOT_003 hand window, excluded from the metrics of the children with a fringe or glasses (owner, 2026-10-24; `benchmarks/bakeoff/01J7B000000000000000BAKEXP/declared_exclusions.json`) |
+| mouth | added 2026-10-28 (the lower teeth out through both mouth corners at the SHOT_001 laughter peak and the upper teeth ahead of the lip in the SHOT_002 profile — on the default head of the accepted master shots and on all seven children, while every gate and the full check passed; found on our expression sheet): on any frame of the three shots no part of the teeth or the tongue seen by the shot camera outside the lips; the mouth close-ups (smile, open mouth, laughter, the SHOT_002 profile) seen by us. The tool is ours, given to him before his fix comes back |
+| hair, glasses | the class declared and visible; the forehead crossing where assigned; glasses present on their children in every shot and seated (above); on any frame of the three shots and at the channel extremes, no glasses triangle crossing the skin, brows, eyes or body, no hair triangle crossing the brows, eyes or body, and the hair's crossings with the head skin only on the faces that cross at rest — its own seating on the scalp; by face set, not by the number of pairs, which moves on the same faces (owner, 2026-10-26; the default head's cheek strand is pressed onto the cheek by design and has its own gate, Q31); the gaps reported (`slice/measurements/accessory_clearance.py`) — except the master's own SHOT_003 hand window, excluded from the metrics of the children with a fringe or glasses (owner, 2026-10-24; `benchmarks/bakeoff/01J7B000000000000000BAKEXP/declared_exclusions.json`); the fingertips under the edge of short hair without a fringe (06, 07; the default head's own 44 pairs) are not a fringe — the window is kept for them (owner, 2026-10-28) |
 | features | the **minimum difference** (owner, 2026-10-24, replacing the same day's 12-mm feature sum): every child's face differs from the default head's and from every other child's by **≥ 2.0 mm** — the RMS of the per-vertex displacement over the face, the same topology vertex to vertex, translation removed (`slice/measurements/face_shape_distance.py`); faces stay natural (no extreme target weights to buy the difference) and the owner sees the sheet of faces; the feature table (face width, interocular, nose wing width — the contractor's `face_measure.py` v2) is a description, matched to the plan within 2 mm, not the rule |
 | home advantage | the residual of the best MPFB fit reported per child (not a gate until a calibration exists) |
-| packet | 3–5 scenes per child render deterministically on our GPU; no metadata in the files |
-| controls | the variants differ from their source in the one property and nothing else (content hash per object) |
+| packet | 3–5 scenes per child render deterministically on our GPU; no metadata in the files; in `open_shade` no sun reaches any vertex of the child — the set shades the whole child, ray-tested against the set's geometry over the sun's disc; each child's top at least ΔE76 10 from every other child's in the same light, 01 the pilot's mustard (owner, 2026-10-27, Q64; `slice/measurements/packet_scene_check.py` per scene, `packet_set_check.py` over the set) |
+| controls | the variants differ from their source in the one property and nothing else (content hash per object); the hair swapped between two children of different classes — a class's hair is one function of the head (`hair_on_head.py`), so a swap within a class changes nothing (06 and 07 wear the same cut) |
+
+Every pair is accepted by the same steps, one command each (`slice/measurements/accept_pair.sh <run dir> cpu`, then
+`render` and `full` on the GPU): his checksums; every earlier child and every scene he did not re-save must not move
+under his changed scripts; the gates above; the newest scenes of every child for the packet row. The expression sheet
+(item 5) is ours: `slice/expression_sheet.py` places each shot's lighting reference in the head's frame at the
+reference's sampled frame and keys the master's own face at the peak of each state's window; its neutral front view
+in SHOT_001's light equals his turntable's first view (2026-10-27: silhouette IoU 1.0, mean difference 1e-5; the smile
+against the same view 6·10⁻³ — `slice/measurements/expression_sheet_2026-10-27/`); `slice/expression_sheets.sh`
+renders the set.
 
 ## Delivery in two steps
 
@@ -117,6 +127,14 @@ provenance, file hashes) in the bake-off record; one `AVATAR` per child with `ca
   panel, open shade) look right — accepted. In `open_shade` no direct sun reaches the child (the sky only; his first cut
   had the sun in front, a hard shadow on the wall behind — fixed). Each of the nine children wears their own top colour,
   none repeated (01 keeps the pilot's mustard).
+- 2026-10-28 (owner, Q65, after the second pair): the palm in the SHOT_003 window passes under the edge of 06's and 07's
+  short hair (no fringe; 59 and 62 pairs, the default head 44; on camera the fingertips go under the hair, nothing seen
+  through it) — **kept as is, the window not excluded for them**; it stays measured on 01, 06, 07, 08. **The teeth through
+  the skin** (the mouth row above) **are fixed by the contractor in the common head build**, once for all — 01–07 rebuilt
+  by script, 08–09 built with the fix; his diagnosis and estimate first, within the 40-h cap. **The default head of the
+  master's shots keeps the defect for now — recorded, not fixed** (SHOT_001 v02 laughter, SHOT_002 v03 profile; the
+  teeth cross skin faces they do not cross at rest on SHOT_001 1041–1120, SHOT_002 1136–1240, SHOT_003 up to 12 faces —
+  `slice/measurements/burst3_pair_06_07_2026-10-28/teeth_probe/`).
 
 ## The pilot, accepted 2026-10-18 (`slice/measurements/subject_01_acceptance_2026-10-18.json`)
 
