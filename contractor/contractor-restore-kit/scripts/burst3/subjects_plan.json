@@ -884,31 +884,31 @@
       },
       "sculpt": [
         {
-          "site": "temple_l",
+          "site": "cheekbone_l",
           "centre": [
-            0.0667,
-            -0.042,
-            0.1091
+            0.0375,
+            -0.0834,
+            0.0789
           ],
-          "radius": 0.0219,
+          "radius": 0.0184,
           "offset": [
-            -0.00176,
-            -0.0,
-            -0.0
+            0.00083,
+            -0.00138,
+            0.00065
           ]
         },
         {
-          "site": "temple_r",
+          "site": "cheekbone_r",
           "centre": [
-            -0.0667,
-            -0.042,
-            0.1091
+            -0.0375,
+            -0.0834,
+            0.0789
           ],
-          "radius": 0.0219,
+          "radius": 0.0184,
           "offset": [
-            0.00176,
-            -0.0,
-            -0.0
+            -0.00083,
+            -0.00138,
+            0.00065
           ]
         }
       ],
@@ -920,11 +920,11 @@
       },
       "face_planned_note": "measured on the trial build of feature_targets + sculpt (short probe hair, no glasses): the description the built child must match within 2 mm",
       "trial_rms_min_mm": 2.396,
-      "sculpt_seed": 9039,
+      "sculpt_seed": 9040,
       "sculpt_sites": [
-        "temple"
+        "cheekbone"
       ],
-      "sculpt_note": "sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 1000*N+j whose sites differ from earlier children's (each site on <= 2 children) and keep every pair >= 2.3 mm by the model (plan/pick_bumps.py)"
+      "sculpt_note": "Q70 (owner): bumps inside the face mask. sculpt_bumps.bumps_from_seed(sculpt_seed): first seed 9000+j after the v01 seed 9039 whose sites are pair sites on at most one other child, whose site set differs from every other child's, with a home-advantage residual >= 0.2 mm and every pair >= 2.3 mm by the model on the built heads (q70/plan09.py). v01: seed 9039, temples (residual 0.029 mm)."
     }
   ],
   "distinctness_rule": "owner Q56, 2026-10-24: every child differs from the default head and from every other child by an RMS of the per-vertex face displacement >= 2.0 mm (slice/measurements/face_shape_distance.py). Planned with margin: >= 2.3 mm by the contractor's linear model (tools/burst3/check_plan.py); trial builds checked with the owner's script.",

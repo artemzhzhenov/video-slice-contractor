@@ -41,9 +41,9 @@
 | `SHOT_002_v03.blend` | `a44a691208b31fb1977e4960236f99329a23738a7c2c268a2b3dd8f8b63d6c5d` |
 | `SHOT_003_v06.blend` | `14a36b5fa1930421f4693b76689f79e9c239aea5bde002db1b2c1c4c6dbdce65` |
 
-| `subject_01_character.blend` (хэш содержимого) | `dd2a2f277e46755dae82d1af01c6df8a7810b6b50bdafdbe8b8712cda9599eb7` |
-| `subject_02_character.blend` (хэш содержимого, точка) | `166d1c57f97ca1140f734ec4093053cf43644e321fa97d40bee3d8e6c79ac5d8` |
-| `subject_03_character.blend` (хэш содержимого, точка) | `a734833fbb0fa15009861dd83508651961bae07e5dd0d4ca11e08508b2f17d63` |
+| `subject_01_character.blend` (хэш содержимого, после починки зубов — Q69) | `03f94e3d080c7c65c2a521a9ed915d503e47e686fc29acb5efa303d67a293c11` |
+| `subject_02_character.blend` (хэш содержимого, после починки зубов — Q69) | `32b429f9c78e5ea113194c104f7e81921c2ac19ad88a84246ebc86b22e5c1f29` |
+| `subject_03_character.blend` (хэш содержимого, после починки зубов — Q69) | `231d704db4372a5ca09ad52ed5d1312d00a41907601921d2c1597895c7e555bd` |
 
 Хэш содержимого v04.1 (`slice/blend_content_hash.py`) — `b292f45e…`; текущий `build_character.py` без `--subject`
 обязан его давать — проверять после каждой правки скрипта.

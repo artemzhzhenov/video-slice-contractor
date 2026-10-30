@@ -116,6 +116,41 @@ def fill_hidden_back(half_rgb, hidden_full, filter_reach_px):
                                     "filter_reach_px": filter_reach_px}
 
 
+def _without_contour(mask, edge_px):
+    """mask less its contour band of Chebyshev width edge_px (8-neighbour growth of the outside; the frame's edge counts as
+    outside)."""
+    out = ~mask
+    for _ in range(edge_px):
+        g = np.pad(out, 1, constant_values=True)
+        out = np.logical_or.reduce([g[1 + dy:1 + dy + out.shape[0], 1 + dx:1 + dx + out.shape[1]] for dy in (-1, 0, 1) for dx in (-1, 0, 1)])
+    return mask & ~out
+
+
+def head_fill(head_alpha, silhouette, holdout, seam_zone, fill=0.5, edge_px=0, seam_edge_px=0):
+    """The per-order gate's fill (owner 2026-10-30, ADR-0002 amendment 2026-10-30): the head layer must fill the ORDER
+    head's own silhouette (silhouette: its coverage as L_HEAD sees it — the default head's is HEAD_HOLDOUT, any other
+    head's comes from its mattes), and, inside the seam zone only, the default head's silhouette too — there the body
+    plate shows the open neck. Fractions of the silhouette's (resp. the zone's default-silhouette) pixels >= fill where
+    the head layer's alpha < fill; None where there is nothing to fill. The default head's silhouette beyond the zone is
+    reported, not gated: a narrower jaw or other hair is a legitimate head, and behind it the body plate (L_BODY, the head
+    excluded) shows what is behind the head. edge_px: the own silhouette's contour band left out (a geometric silhouette
+    against a filtered render); seam_edge_px: the default silhouette's contour band left out at the seam (another head's
+    neck contour a pixel inside the default one's is not the open neck)."""
+    shapes = {np.shape(head_alpha), np.shape(silhouette), np.shape(holdout), np.shape(seam_zone)}
+    if len(shapes) != 1:
+        raise OrderInputError(f"head_fill: shapes differ {sorted(shapes)}")
+    a = np.asarray(head_alpha) >= fill
+    own, dflt = np.asarray(silhouette) >= fill, np.asarray(holdout) >= fill
+    if edge_px:      # a geometric silhouette's contour and a filtered render's differ by up to a pixel in any direction
+        own = _without_contour(own, edge_px)
+    # at the seam another head's neck contour may lie a pixel inside the default one's; a gap is still a gap
+    seam = (_without_contour(dflt, seam_edge_px) if seam_edge_px else dflt) & np.asarray(seam_zone, bool)
+    frac = lambda m: float((m & ~a).sum() / m.sum()) if m.any() else None  # noqa: E731
+    return {"unfilled_fraction": frac(own) if own.any() else 1.0, "seam_unfilled_fraction": frac(seam),
+            "default_silhouette_unfilled_fraction": frac(dflt), "beyond_default_silhouette_fraction": float((a & ~dflt).sum() / max(int(dflt.sum()), 1)),
+            "silhouette_px": int(own.sum()), "seam_zone_default_px": int(seam.sum())}
+
+
 def pixel_rect(box, width, height):
     """(c0, c1, r0, r1) — columns, then rows top-down, ends exclusive — of a box (x0, x1, y0, y1) in frame fractions with
     y up: widened outward to whole pixels and clipped to the frame."""

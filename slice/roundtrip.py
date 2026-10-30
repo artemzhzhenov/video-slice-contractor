@@ -37,7 +37,10 @@ reference, the centre sample is ALSO gated against the plates' own sharp HEAD_HO
 are rendered with the time stretched so their vectors reach the shutter's ends, and nothing else
 compares their head with the exports.
 The bundle manifest's roundtrip status is set to ERROR before the first frame and to the result
-after the last, so an aborted run never leaves a stale PASS. Writes roundtrip_report.<profile>.json."""
+after the last, so an aborted run never leaves a stale PASS. Writes roundtrip_report.<profile>.json.
+--frames gates the named frames of the bundle only (slice/frame_subset.py; the master's full-range render, owner
+2026-10-30: option (c) — its blur reference is rendered on those frames); the report and the bundle manifest's record
+carry frames_gated, frames_in_bundle and the coverage."""
 import argparse
 import hashlib
 import json
@@ -53,6 +56,7 @@ from slice.camera_model import project  # noqa: E402
 from slice import motion_blur  # noqa: E402
 from slice.composite import coverage, crypto_manifest, read_parts, vector_reach  # noqa: E402
 from slice.cryptomatte import float_id_from_hex  # noqa: E402
+from slice.frame_subset import select  # noqa: E402
 from slice.matte_metrics import SS, MatteError, iou_min_for, metrics, rasterize, reference_quantization_px  # noqa: E402
 
 CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
@@ -378,6 +382,7 @@ def main(argv):
                         "quantization does not decide the comparison (conventions → roundtrip.reference_quantization); "
                         "writes reference_plan.<profile>.json and leaves the bundle manifest alone")
     p.add_argument("--min-samples", type=int, default=None, help="with --plan-reference-samples: the floor (default: the plates' samples)")
+    p.add_argument("--frames", default=None, help="comma list: gate (or plan) these frames of the bundle only (default: every frame)")
     p.add_argument("--blur-reference", default=None,
                    help="the --blur-reference render of the same frames. Since the 2026-09-22 amendment the plates are "
                         "rendered sharp, so the matte to compare a shutter-integrated re-projection with lives there; "
@@ -388,6 +393,7 @@ def main(argv):
     if len(manifests) != 1:
         raise RoundTripError(f"expected one bundle_manifest in {rd}, found {len(manifests)} — run split_bundles.py first")
     bm = json.loads(manifests[0].read_text())
+    gated, coverage = select([r["frame"] for r in bm["bundles"]["HEAD_RENDER_BUNDLE"]["frames"]], args.frames)
     if not args.ignore_subframes and not args.plan_reference_samples:
         # First thing after the manifest is read: an aborted run (missing export, bad OBJ, a frame
         # that raises) must leave ERROR behind, never the previous run's status.
@@ -426,12 +432,12 @@ def main(argv):
     if args.plan_reference_samples:
         if prof["shutter_angle_deg"] <= 0:
             raise RoundTripError(f"profile {profile} has no shutter: there is no blur reference to plan")
-        frames = [r["frame"] for r in bm["bundles"]["HEAD_RENDER_BUNDLE"]["frames"]]
+        frames = gated
         floor = args.min_samples if args.min_samples is not None else rm["settings"]["samples"]
         need, rows = plan_reference_samples(frames, {f["frame"]: f for f in cam_rec["frames"]}, {f["frame"]: f for f in sock_rec["frames"]},
                                             deformed, first, verts, faces, want_offsets, profile, scale, floor)
         plan = {"schema_note": "blur-reference sample plan; conventions.json → roundtrip.reference_quantization", "shot_id": shot, "profile": profile,
-                "resolution_percentage": scale, "floor_samples": floor, "samples": need, "frames": rows, "rule": RT["reference_quantization"]}
+                "resolution_percentage": scale, "floor_samples": floor, "samples": need, "frames": rows, "rule": RT["reference_quantization"], **coverage}
         (rd / f"reference_plan.{profile}.json").write_text(json.dumps(plan, indent=1) + "\n")
         for r in rows:
             print(f"PLAN_FRAME {r['frame']} quantization_at_one_sample={r['quantization_px_at_one_sample']}px needs={r['samples_needed']}")
@@ -479,11 +485,13 @@ def main(argv):
               "head_geometry": exman["default_head_rest"], "head_geometry_deformed": dh, "time_offsets_frames": [float(o) for o in offsets], "time_weights": [float(x) for x in weights],
               "supersampling": SS, "gate_status_of_thresholds": RT["gate"]["status"],
               "exports": {"export_manifest_sha256": hashlib.sha256((ex / "export_manifest.json").read_bytes()).hexdigest()},  # identity by hash, never by path
-              "frames": [], "negative_control": RT["negative_control"]}
+              "frames": [], "negative_control": RT["negative_control"], **coverage}
     all_failed, ctrl_not_failed, rot_validated, pos_discriminating = [], [], [], []
     comp_rows = {r["frame"]: r for r in bm["bundles"]["COMPOSITE_BUNDLE"]["frames"]}
     for row in bm["bundles"]["HEAD_RENDER_BUNDLE"]["frames"]:
         frame = row["frame"]
+        if frame not in gated:
+            continue
         if frame not in cam_by_frame or frame not in sock_by_frame or frame not in track_by_frame:
             raise RoundTripError(f"frame {frame} rendered but not exported")
         parts = read_parts(rd / "HEAD_RENDER_BUNDLE" / row["file"])
@@ -631,7 +639,7 @@ def main(argv):
     out.write_text(json.dumps(report, indent=1, allow_nan=False) + "\n")
     if not args.ignore_subframes:
         bm["roundtrip"] = {"report": out.name, "status": report["status"], "script": RT["script"], "failed_frames": all_failed, "control_not_failing_frames": ctrl_not_failed,
-                           "exports": report["exports"]}
+                           "exports": report["exports"], **coverage}
         manifests[0].write_text(json.dumps(bm, indent=1) + "\n")
     if all_failed:
         hints = [r for r in report["frames"] if r["frame"] in all_failed and r.get("failure_hint")]
@@ -640,7 +648,7 @@ def main(argv):
         raise RoundTripError(f"round-trip FAIL on frames {all_failed} — the export does not place the head where the render did")
     if ctrl_not_failed:
         raise RoundTripError(f"negative control did not fail on frames {ctrl_not_failed} — the metric is NOT VALIDATED at this resolution")
-    print(f"ROUNDTRIP_OK {profile} {len(report['frames'])} frames rotation_control={report['rotation_control'][:13]} positive_control={report.get('positive_control', 'n/a (still)')} -> {out}")
+    print(f"ROUNDTRIP_OK {profile} {len(report['frames'])} of {coverage['frames_in_bundle']} frames rotation_control={report['rotation_control'][:13]} positive_control={report.get('positive_control', 'n/a (still)')} -> {out}")
 
 
 if __name__ == "__main__":

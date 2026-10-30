@@ -70,6 +70,11 @@ its shadow renders; D5 row 14 — the head layer may be rendered in its screen b
 (colour 0, vectors 0, the empty depth), a box that cut the head stopping the frame. The delivered layers keep their
 format; the still profile is unchanged. Contract version `master_contract_version = 6` (additive: every v5 plate and
 consumer unchanged).
+Amended 2026-10-30 (owner: «голову мерить по заказу по собственным силуэтам из масок … силуэт головы по умолчанию —
+только у шва»; full text and measurements in `ADR-0002-amendment-2026-10-30-order-gate-own-silhouette.md`): the per-order
+composite's `unfilled` gate holds the order's head layer to its OWN head's silhouette (`--head-silhouette`: the default
+head's is `HEAD_HOLDOUT`, any other head's comes from its mattes) and the default head's silhouette only inside the seam
+zone, where the body plate shows the open neck. Contract version unchanged.
 Validated by the Phase 0.5 reference slice (§Validation; the checklist and its state:
 `../experiments/phase-0-5-exit-review.md`); any item that fails validation reopens
 this ADR before any master production begins. Layer: Core (`../architecture/layering.md`).
