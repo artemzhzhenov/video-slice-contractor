@@ -274,6 +274,272 @@ def side_mask(x, side):
     return max(0.0, min(1.0, 0.5 + 0.5 * t))
 
 
+# ---- Q65/Q66: the child's teeth and tongue -------------------------------------------------------------------------
+# The MakeHuman teeth helpers are a full arch (molars included) wider than the child's mouth in a laugh, and they did
+# not follow the face: the upper teeth stood still, the lower teeth and the tongue slid by one mean vector on jaw_open
+# only. For a child (never the default head):
+#   * rest fit — the arch narrowed toward the middle behind the incisors (TEETH_NARROW_K, ramp TEETH_NARROW_SPAN_M),
+#     the lower teeth and the tongue set back by LOWER_TEETH_BACK_M: no crossing of the skin at rest;
+#   * the lower teeth and the tongue move as ONE RIGID BODY: for jaw_open (+1) and jaw_lateral (+1 / -1) the rigid motion
+#     (Kabsch) of the chin and the front of the lower lip (jaw_open), of the skin within 12 mm of the lower teeth
+#     (jaw_lateral), written as a screw (a turn about an axis + a slide along it) and baked into stepped shape keys that
+#     hold the exact rigid pose at every step (jaw_open: 4 steps, jaw_lateral: 2 per side) — between steps the chord of a
+#     3.6-degree turn, < 0.05 mm off the rigid pose.
+TEETH_NARROW_K = 0.38           # the arch's half-width behind the incisors x (1 - k)
+TEETH_NARROW_SPAN_M = 0.015     # ... reached this far behind the front of the teeth (smoothstep)
+LOWER_TEETH_BACK_M = 0.004      # the lower teeth and the tongue set back (+Y) at rest
+UPPER_TEETH_BACK_M = 0.0   # the upper teeth set back (+Y) at rest — the upper lip retracts in a smile
+JAW_OPEN_STEPS, JAW_LATERAL_STEPS = 4, 2
+
+
+def _driver_value(expr, env):
+    """A driver expression of the template evaluated without eval (Q69): numbers, the driver's variable names, unary
+    minus / plus, + - * /, and calls of max, min, abs — anything else is an error."""
+    import ast
+    fns = {"max": max, "min": min, "abs": abs}
+    def ev(n):
+        if isinstance(n, ast.Expression):
+            return ev(n.body)
+        if isinstance(n, ast.Constant) and isinstance(n.value, (int, float)):
+            return float(n.value)
+        if isinstance(n, ast.Name) and n.id in env:
+            return float(env[n.id])
+        if isinstance(n, ast.UnaryOp) and isinstance(n.op, (ast.USub, ast.UAdd)):
+            x = ev(n.operand)
+            return -x if isinstance(n.op, ast.USub) else x
+        if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
+            a, b = ev(n.left), ev(n.right)
+            return a + b if isinstance(n.op, ast.Add) else a - b if isinstance(n.op, ast.Sub) else a * b if isinstance(n.op, ast.Mult) else a / b
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in fns and not n.keywords:
+            return float(fns[n.func.id](*[ev(a) for a in n.args]))
+        raise ValueError(f"driver expression not allowed: {expr!r} ({type(n).__name__})")
+    return ev(ast.parse(expr, mode="eval"))
+
+
+def _kabsch(P, Q):
+    import numpy as np
+    P, Q = np.asarray(P), np.asarray(Q); pc, qc = P.mean(0), Q.mean(0)
+    U, _s, Vt = np.linalg.svd((P - pc).T @ (Q - qc)); D = np.diag([1.0, 1.0, np.sign(np.linalg.det(Vt.T @ U.T))])
+    R = Vt.T @ D @ U.T
+    return R, qc - R @ pc
+
+
+def _screw(R, t):
+    """(axis a, angle th, point c on the axis, slide d along a) of p -> R p + t."""
+    import numpy as np
+    th = math.acos(max(-1.0, min(1.0, (np.trace(R) - 1.0) / 2.0)))
+    if th < 1e-9:
+        return np.array([1.0, 0.0, 0.0]), 0.0, np.zeros(3), np.asarray(t)
+    a = np.array([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]]) / (2.0 * math.sin(th))
+    d = float(np.dot(t, a)) * a
+    c = np.linalg.lstsq(np.eye(3) - R, np.asarray(t) - d, rcond=None)[0]
+    return a, th, c, d
+
+
+def _screw_at(sc_, v, P):
+    import numpy as np
+    a, th, c, d = sc_; ang = th * v
+    K = np.array([[0, -a[2], a[1]], [a[2], 0, -a[0]], [-a[1], a[0], 0]])
+    Rv = np.eye(3) + math.sin(ang) * K + (1 - math.cos(ang)) * (K @ K)
+    return (np.asarray(P) - c) @ Rv.T + c + v * d
+
+
+def teeth_fit(head, ctrl, co, hused, groups):
+    """The rest fit of the teeth and the rigid jaw motions from the finished head's channels (child only)."""
+    import numpy as np
+    up = np.array([co[i][:] for i in groups["helper-upper-teeth"]]); lo = np.array([co[i][:] for i in groups["helper-lower-teeth"]])
+    c_up = up.mean(0); front = min(up[:, 1].min(), lo[:, 1].min())
+    rest = np.array([co[i][:] for i in hused])
+    keys = head.data.shape_keys.key_blocks; basis = np.array([x.co[:] for x in keys[0].data])
+    deltas = {kb.name: np.array([x.co[:] for x in kb.data]) - basis for kb in keys[1:]}
+    drivers = [(fc.data_path.split('"')[1], fc.driver) for fc in head.data.shape_keys.animation_data.drivers]
+    def skin_at(ch, val=None):
+        """The head with channel ch at val (or a dict {channel: value}), every other at 0: each key's driver expression
+        evaluated by _driver_value (a whitelist ast reader — Q69: no eval) exactly as Blender does."""
+        state = ch if isinstance(ch, dict) else {ch: val}
+        out = basis.copy()
+        for kname, drv in drivers:
+            env = {var.name: state.get(var.targets[0].data_path.strip('[]"'), 0.0) for var in drv.variables}
+            w = _driver_value(drv.expression, env)
+            if w != 0.0:
+                out += w * deltas[kname]
+        return out
+    def narrowed(P, back):
+        P = np.array(P, dtype=float); w = np.clip((P[:, 1] - front) / TEETH_NARROW_SPAN_M, 0.0, 1.0); w = w * w * (3 - 2 * w)
+        P[:, 0] = c_up[0] + (P[:, 0] - c_up[0]) * (1.0 - TEETH_NARROW_K * w); P[:, 1] += back
+        return P
+    lo_fit = narrowed(lo, LOWER_TEETH_BACK_M)
+    motions = {}
+    s1 = skin_at("jaw_open", 1.0); d = s1 - rest
+    m = (np.linalg.norm(d, axis=1) > 0.001) & (rest[:, 2] < c_up[2]) & (rest[:, 1] < lo_fit[:, 1].min() + 0.010) & (np.abs(rest[:, 0] - c_up[0]) < 0.025)
+    motions["jaw_open"] = _screw(*_kabsch(rest[m], s1[m]))
+    near = np.min(np.linalg.norm(rest[:, None, :] - lo_fit[None, ::7, :], axis=2), axis=1) < 0.012
+    for sgn in (1.0, -1.0):
+        s1 = skin_at("jaw_lateral", sgn); d = s1 - rest
+        m = (np.linalg.norm(d, axis=1) > 0.0005) & (rest[:, 2] < c_up[2]) & near
+        motions["jaw_lateral_pos" if sgn > 0 else "jaw_lateral_neg"] = _screw(*_kabsch(rest[m], s1[m]))
+    for k, v in motions.items():
+        print(f"teeth: {k} — a rigid turn of {math.degrees(v[1]):.2f} deg + a slide of {np.linalg.norm(v[3]) * 1000:.2f} mm")
+    return {"narrowed": narrowed, "motions": motions, "skin_at": skin_at}
+
+
+MOUTH_SACK_STEPS_U, MOUTH_SACK_STEPS_V = 28, 14   # the bowl's grid
+_MS = ("cheek_raise_l", "cheek_raise_r", "mouth_corner_l", "mouth_corner_r", "mouth_width", "lip_funnel", "lip_purse",
+       "lip_press", "upper_lip_raise_l", "upper_lip_raise_r", "nose_wrinkle", "squint_l", "squint_r")
+MOUTH_SACK_STATES = ([{c: v} for c in _MS + ("jaw_open", "jaw_lateral") for v in (-1.0, 1.0)] +
+                     [{"jaw_open": j, "cheek_raise_l": c, "cheek_raise_r": c, "mouth_corner_l": m, "mouth_corner_r": m,
+                       "mouth_width": w, "upper_lip_raise_l": u, "upper_lip_raise_r": u, "squint_l": c, "squint_r": c}
+                      for j in (0.0, 0.5, 1.0) for c in (0.0, 1.0) for m in (0.0, 1.0) for w in (-1.0, 0.3, 1.0) for u in (0.0, 1.0)])
+MOUTH_SACK_MARGIN_M = 0.003                        # the bowl clear of the teeth's outer extent
+MOUTH_SACK_WRAP = math.radians(90.0)   # the bowl wraps the sides forward, open only in front of the lips
+MOUTH_SACK_COLOR = (0.035, 0.010, 0.012)            # dark: the inside of a mouth reads as shadow
+MOUTH_SACK_PULL_CUT_M = 0.0025   # bowl faces pulled in further than this are cut out
+MOUTH_SACK_SEAM_M = 0.001   # the halves' blend at the middle (sharp: the lower half follows the jaw whole)
+MOUTH_SACK_FRONT_M = -0.002                          # the bowl's open rim this far in front of the front teeth (behind the lips)
+MOUTH_SACK_SKIN_CLEAR_M = 0.0015                   # every bowl vertex at least this far inside the skin (along the ray from the mouth's centre)
+
+
+def mouth_sack(co, groups, hused, head_faces, jr, ctrl, mats):
+    """HERO_MOUTH_SACK (child only, Q66 (a)): a dark bowl behind the teeth, open toward the lips — the inside of the mouth
+    a tooth seen through an open mouth has behind it. The upper half stands still, the lower half follows the jaw's
+    stepped rigid keys (as the lower teeth), blended over 6 mm at the middle. Built large, each vertex pulled inside the skin along the ray from the mouth's centre."""
+    import numpy as np
+    from mathutils.bvhtree import BVHTree
+    up = jr["narrowed"](np.array([co[i][:] for i in groups["helper-upper-teeth"]]), UPPER_TEETH_BACK_M)
+    lo = jr["narrowed"](np.array([co[i][:] for i in groups["helper-lower-teeth"]]), LOWER_TEETH_BACK_M)
+    tg = jr["narrowed"](np.array([co[i][:] for i in groups["helper-tongue"]]), LOWER_TEETH_BACK_M)
+    allp = np.concatenate([up, lo, tg]); cx = allp[:, 0].mean(); cz = (up[:, 2].min() + lo[:, 2].max()) / 2
+    front = allp[:, 1].min() - MOUTH_SACK_FRONT_M; back = allp[:, 1].max() + 0.008
+    hx = np.abs(allp[:, 0] - cx).max() + MOUTH_SACK_MARGIN_M
+    hz_up = up[:, 2].max() - cz + MOUTH_SACK_MARGIN_M + 0.003; hz_lo = cz - min(lo[:, 2].min(), tg[:, 2].min()) + MOUTH_SACK_MARGIN_M + 0.003
+    skin = BVHTree.FromPolygons([co[i][:] for i in range(len(co))], [list(f) for f in head_faces])
+    remap = {old_i: k for k, old_i in enumerate(hused)}
+    head_faces_local = [[remap[i] for i in f] for f in head_faces]
+    def bowl(s):
+        V, F = [], []
+        for j in range(MOUTH_SACK_STEPS_V + 1):            # phi from top (0) to bottom (pi)
+            ph = math.pi * j / MOUTH_SACK_STEPS_V
+            for i in range(MOUTH_SACK_STEPS_U + 1):        # theta: the back half and around the sides to +-WRAP (open only at the lips)
+                th = -MOUTH_SACK_WRAP + 2 * MOUTH_SACK_WRAP * i / MOUTH_SACK_STEPS_U
+                hz = hz_up if ph < math.pi / 2 else hz_lo
+                V.append((cx + s * hx * math.sin(ph) * math.sin(th), front + s * (back - front) * math.sin(ph) * math.cos(th),
+                          cz + s * hz * math.cos(ph)))
+        W = MOUTH_SACK_STEPS_U + 1
+        for j in range(MOUTH_SACK_STEPS_V):
+            for i in range(MOUTH_SACK_STEPS_U):
+                F.append((j * W + i, j * W + i + 1, (j + 1) * W + i + 1, (j + 1) * W + i))
+        return V, F
+    s = 1.15                                                 # large, then every vertex kept inside the skin:
+    V, F = bowl(s)
+    # Q67: nowhere in front of the teeth — a sack vertex with a tooth (or the tongue) within 4 mm in x and z goes behind
+    # the deepest such point + 2 mm, so the bowl never covers the arch seen from the front
+    lo_open = _screw_at(jr["motions"]["jaw_open"], 1.0, np.concatenate([lo, tg]))
+    T = np.concatenate([up, lo, tg]); V3 = []
+    for v in V:
+        TT = T if v[2] >= cz else np.concatenate([T, lo_open])   # the lower half also behind the open jaw's teeth
+        near_t = TT[(np.abs(TT[:, 0] - v[0]) < 0.004) & (np.abs(TT[:, 2] - v[2]) < 0.004)]
+        if len(near_t) and v[1] < near_t[:, 1].max() + 0.002:
+            v = (v[0], near_t[:, 1].max() + 0.002, v[2])
+        V3.append(v)
+    V = V3
+    c0 = Vector((cx, front + 0.25 * (back - front), cz)); V2 = []
+    for v in V:
+        q = Vector(v); dv = q - c0
+        if dv.length > 1e-6:
+            hit = skin.ray_cast(c0, dv.normalized(), 0.2)
+            if hit[0] is not None:
+                lim = (hit[0] - c0).length - MOUTH_SACK_SKIN_CLEAR_M
+                if dv.length > lim:
+                    q = c0 + dv.normalized() * max(lim, 0.002)
+        V2.append(tuple(q))
+    V = V2
+    # the sack must stay inside the skin while the face moves (Q67 — no crossing on any frame): fitted over the face
+    # states MOUTH_SACK_STATES (each channel of the mouth and cheeks at its ends, the laugh and the profile mouth),
+    # the lower half carried by the jaw's rigid motion as the lower teeth; the crossing faces' vertices go 0.5 mm in.
+    hv_index = list(hused)
+    P_before_fit = np.array(V)
+    P0 = np.array(V); wgt0 = np.clip((cz - P0[:, 2]) / MOUTH_SACK_SEAM_M + 0.5, 0.0, 1.0); wgt0 = wgt0 * wgt0 * (3 - 2 * wgt0)
+    skin_states = []
+    for st in MOUTH_SACK_STATES:
+        sk = jr["skin_at"](st)
+        skin_states.append((st, BVHTree.FromPolygons([tuple(x) for x in sk], [list(f) for f in head_faces_local])))
+    rest_tree = BVHTree.FromPolygons([co[i][:] for i in range(len(co))], [list(f) for f in head_faces])
+    def placed(Pr, st):
+        Q = Pr.copy(); jo = max(0.0, st.get("jaw_open", 0.0)); jl = st.get("jaw_lateral", 0.0)
+        if jo > 0:
+            Q = Q + wgt0[:, None] * (_screw_at(jr["motions"]["jaw_open"], jo, Pr) - Pr)
+        if abs(jl) > 0:
+            Q = Q + wgt0[:, None] * (_screw_at(jr["motions"]["jaw_lateral_pos" if jl > 0 else "jaw_lateral_neg"], abs(jl), Pr) - Pr)
+        return Q
+    for it in range(80):
+        bad = {i for a_, _b in BVHTree.FromPolygons(V, F).overlap(rest_tree) for i in F[a_]}
+        Pr = np.array(V)
+        for st, tree in skin_states:
+            Q = placed(Pr, st)
+            bad |= {i for a_, _b in BVHTree.FromPolygons([tuple(x) for x in Q], F).overlap(tree) for i in F[a_]}
+        if not bad:
+            break
+        for i in bad:                                        # pull the crossing faces' vertices 0.5 mm further in
+            q = Vector(V[i]); dv = q - c0
+            if dv.length > 0.003:
+                V[i] = tuple(c0 + dv.normalized() * (dv.length - 0.0005))
+    print(f"mouth sack: fitted over {len(skin_states)} face states in {it} passes; still crossing: {len(bad)} vertices")
+    # Q67: where the skin had to pull the bowl in (the cheeks crowd the teeth in a laugh), the skin itself is the mouth's
+    # inside behind a tooth — the bowl there would only stand in front of the side teeth: those faces are cut out
+    pulled = np.linalg.norm(np.array(V) - P_before_fit, axis=1)
+    keep = [f for f in F if max(pulled[i] for i in f) <= MOUTH_SACK_PULL_CUT_M]
+    print(f"mouth sack: {len(F) - len(keep)} of {len(F)} faces cut where the skin pulled the bowl in by > {MOUTH_SACK_PULL_CUT_M * 1000:.1f} mm")
+    used_v = sorted({i for f in keep for i in f}); rv = {o: n for n, o in enumerate(used_v)}
+    V = [V[i] for i in used_v]; F = [tuple(rv[i] for i in f) for f in keep]
+    me = bpy.data.meshes.new("HERO_MOUTH_SACK"); me.from_pydata(V, [], F); me.update()
+    for p in me.polygons:
+        p.use_smooth = True
+    me.flip_normals()                                       # facing the mouth's inside
+    obj = bpy.data.objects.new("HERO_MOUTH_SACK", me)
+    bpy.data.collections["C_HEAD"].objects.link(obj)
+    obj.data.materials.append(mat_get("HERO_MOUTH_SACK", MOUTH_SACK_COLOR, Roughness=0.95))   # the mouth's shadowed inside
+    P = np.array(V)
+    wgt = np.clip((cz - P[:, 2]) / MOUTH_SACK_SEAM_M + 0.5, 0.0, 1.0); wgt = wgt * wgt * (3 - 2 * wgt)   # 0 up, 1 down
+    obj.shape_key_add(name="Basis", from_mix=False)
+    for ch, key, steps, expr in (("jaw_open", "jaw_open", JAW_OPEN_STEPS, "max(v, 0.0)"),
+                                 ("jaw_lateral", "jaw_lateral_pos", JAW_LATERAL_STEPS, "max(v, 0.0)"),
+                                 ("jaw_lateral", "jaw_lateral_neg", JAW_LATERAL_STEPS, "max(-v, 0.0)")):
+        prev = P
+        for k in range(1, steps + 1):
+            cur = _screw_at(jr["motions"][key], k / steps, P)
+            kb = obj.shape_key_add(name=f"fc_{key}_step{k}", from_mix=False)
+            for i, q in enumerate(P + wgt[:, None] * (cur - prev)):
+                kb.data[i].co = Vector(q)
+            add_driver(kb, "value", ctrl, ch, f"min(1.0, max(0.0, {steps}.0 * {expr} - {k - 1}.0))")
+            prev = cur
+    print(f"mouth sack: {len(V)} vertices, scale {s:.2f}, half-width {hx * s * 1000:.1f} mm, depth {(back - front) * s * 1000:.1f} mm, "
+          f"crosses the skin at rest: {bool(BVHTree.FromPolygons(V, F).overlap(skin))}")
+    return obj
+
+
+def teeth_rig(obj, name, jr, ctrl):
+    """Rest fit + the stepped rigid jaw keys on HERO_TEETH_UPPER / HERO_TEETH_LOWER / HERO_TONGUE (child only)."""
+    import numpy as np
+    me = obj.data; P = np.array([v.co[:] for v in me.vertices])
+    P = jr["narrowed"](P, UPPER_TEETH_BACK_M if name == "HERO_TEETH_UPPER" else LOWER_TEETH_BACK_M)
+    for v, p in zip(me.vertices, P):
+        v.co = Vector(p)
+    if name == "HERO_TEETH_UPPER":
+        return
+    obj.shape_key_add(name="Basis", from_mix=False)
+    for ch, key, steps, expr in (("jaw_open", "jaw_open", JAW_OPEN_STEPS, "max(v, 0.0)"),
+                                 ("jaw_lateral", "jaw_lateral_pos", JAW_LATERAL_STEPS, "max(v, 0.0)"),
+                                 ("jaw_lateral", "jaw_lateral_neg", JAW_LATERAL_STEPS, "max(-v, 0.0)")):
+        prev = P
+        for k in range(1, steps + 1):
+            cur = _screw_at(jr["motions"][key], k / steps, P)
+            kb = obj.shape_key_add(name=f"fc_{key}_step{k}", from_mix=False)
+            for i, q in enumerate(P + (cur - prev)):
+                kb.data[i].co = Vector(q)
+            add_driver(kb, "value", ctrl, ch, f"min(1.0, max(0.0, {steps}.0 * {expr} - {k - 1}.0))")
+            prev = cur
+
+
 # --------------------------------------------------------------------------------------------
 # build
 # --------------------------------------------------------------------------------------------
@@ -1129,16 +1395,22 @@ def main():
         add_driver(eye, "rotation_euler", ctrl, "gaze_yaw", f"v * {math.radians(GAZE_YAW_DEG):.6f}", index=2)   # +1 → anatomical left (+X)
         add_driver(eye, "rotation_euler", ctrl, "gaze_pitch", f"-v * {math.radians(GAZE_PITCH_DEG):.6f}", index=0)  # +1 → up
         head_children.append(eye)
+    jaw_rig = teeth_fit(head, ctrl, co, hused, groups) if subj is not None else None     # Q65/Q66: the child's teeth
     for name, grp, mname, color in (("HERO_TEETH_UPPER", "helper-upper-teeth", "HERO_TEETH", (0.85, 0.83, 0.78)),
                                     ("HERO_TEETH_LOWER", "helper-lower-teeth", "HERO_TEETH", (0.85, 0.83, 0.78)),
                                     ("HERO_TONGUE", "helper-tongue", "HERO_MOUTH_INNER", (0.45, 0.12, 0.14))):
         faces = [f for f in faces_all if all(i in groups[grp] for i in f)]
         obj, rmap, used = mesh_from_faces(name, co, faces)
         obj.data.materials.append(mat_get(mname, color, Roughness=0.4))
-        if name != "HERO_TEETH_UPPER":
-            kb = add_shape_key(obj, "fc_jaw_open_pos", {i: jaw_drop for i in used}, used)
-            add_driver(kb, "value", ctrl, "jaw_open", "max(v, 0.0)")
+        if jaw_rig is None:                       # the default head (v04.1): as accepted, bit for bit
+            if name != "HERO_TEETH_UPPER":
+                kb = add_shape_key(obj, "fc_jaw_open_pos", {i: jaw_drop for i in used}, used)
+                add_driver(kb, "value", ctrl, "jaw_open", "max(v, 0.0)")
+        else:
+            teeth_rig(obj, name, jaw_rig, ctrl)
         head_children.append(obj)
+    if jaw_rig is not None:                       # Q66 (a): the inside of the child's mouth
+        head_children.append(mouth_sack(co, groups, hused, head_faces, jaw_rig, ctrl, {}))
     # brow patch: shell faces whose vertices move most under the brow-up units
     # ---- brows: a separate tapered arch per side in C_HEAD (Q20), following the brow shape keys ----
     z_eye = (eye_c["L"].z + eye_c["R"].z) / 2
@@ -1328,8 +1600,6 @@ def main():
                 path.append(q)
             tube(path, tr * 0.85)
             temple_info[S] = (top, min(skin_gap(p_, tr * 0.85) for p_ in path[2:]))
-            if os.environ.get("GLASSES_DEBUG"):
-                print(f"temple {S}: " + " | ".join(f"{k}:y{p_.y:.3f} z{p_.z:.3f} x{p_.x:+.3f} g{skin_gap(p_, tr * 0.85) * 1000:.1f}" for k, p_ in enumerate(path)))
         lens_base = len(gv)
         for S in ("L", "R"):
             c_ = rims[S]; ctr = len(gv); gv.append(c_ + Vector((0, 0.0015, 0)))

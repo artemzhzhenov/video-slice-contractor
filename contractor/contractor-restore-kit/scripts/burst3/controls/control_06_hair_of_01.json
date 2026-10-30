@@ -1,0 +1,186 @@
+{
+  "subject": "subject_06",
+  "note": "Burst 3 (Q64, pair 06-07). Synthetic child, girl 7-9, built on character v04.1. No photograph of any real person was an input, a seed or a reference.",
+  "seed": 601,
+  "tone_albedo_linear": [
+    0.55,
+    0.38,
+    0.28
+  ],
+  "iris_color_linear": [
+    0.16,
+    0.12,
+    0.05
+  ],
+  "brow_color_linear": [
+    0.0252,
+    0.0171,
+    0.0135
+  ],
+  "hair": {
+    "class": "curly_voluminous",
+    "color_linear": [
+      0.028,
+      0.019,
+      0.015
+    ],
+    "bangs": false
+  },
+  "glasses": false,
+  "targets": [
+    [
+      "cheek",
+      "l-cheek-volume-decr",
+      0.02
+    ],
+    [
+      "cheek",
+      "r-cheek-volume-decr",
+      0.02
+    ],
+    [
+      "chin",
+      "chin-height-decr",
+      0.07
+    ],
+    [
+      "chin",
+      "chin-prognathism-decr",
+      0.23
+    ],
+    [
+      "chin",
+      "chin-prominent-decr",
+      0.08
+    ],
+    [
+      "eyes",
+      "l-eye-trans-down",
+      0.08
+    ],
+    [
+      "eyes",
+      "r-eye-trans-down",
+      0.08
+    ],
+    [
+      "eyes",
+      "l-eye-trans-in",
+      0.1
+    ],
+    [
+      "eyes",
+      "r-eye-trans-in",
+      0.1
+    ],
+    [
+      "eyebrows",
+      "eyebrows-trans-down",
+      0.06
+    ],
+    [
+      "forehead",
+      "forehead-nubian-incr",
+      0.15
+    ],
+    [
+      "forehead",
+      "forehead-scale-vert-incr",
+      0.16
+    ],
+    [
+      "head",
+      "head-scale-horiz-decr",
+      0.15
+    ],
+    [
+      "head",
+      "head-scale-vert-decr",
+      0.15
+    ],
+    [
+      "mouth",
+      "mouth-scale-horiz-decr",
+      0.05
+    ],
+    [
+      "mouth",
+      "mouth-trans-backward",
+      0.15
+    ],
+    [
+      "mouth",
+      "mouth-trans-up",
+      0.15
+    ],
+    [
+      "nose",
+      "nose-scale-depth-incr",
+      0.32
+    ],
+    [
+      "nose",
+      "nose-trans-forward",
+      0.15
+    ],
+    [
+      "nose",
+      "nose-volume-decr",
+      0.04
+    ],
+    [
+      "nose",
+      "nose-volume-incr",
+      0.05
+    ]
+  ],
+  "sculpt": [
+    {
+      "site": "cheekbone_l",
+      "centre": [
+        0.0375,
+        -0.0834,
+        0.0789
+      ],
+      "radius": 0.0221,
+      "offset": [
+        0.00094,
+        -0.00156,
+        0.00073
+      ]
+    },
+    {
+      "site": "cheekbone_r",
+      "centre": [
+        -0.0375,
+        -0.0834,
+        0.0789
+      ],
+      "radius": 0.0221,
+      "offset": [
+        -0.00094,
+        -0.00156,
+        0.00073
+      ]
+    },
+    {
+      "site": "forehead",
+      "centre": [
+        0.0,
+        -0.094,
+        0.1465
+      ],
+      "radius": 0.0287,
+      "offset": [
+        0.0,
+        -0.00269,
+        0.00054
+      ]
+    }
+  ],
+  "sculpt_seed": 6002,
+  "sculpt_note": "Own deviation outside the MPFB targets: Gaussian bumps in metres, centre relative to the socket ring centre.",
+  "blend_ramp_m": 0.035,
+  "face_note": "Q56/Q57 plan: feature_targets + seeded bumps (subjects_plan.json)",
+  "control": "negative control (spec item 6): subject_06 with subject_01's hair (curly_voluminous) — one property"
+}

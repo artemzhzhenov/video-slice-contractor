@@ -62,6 +62,7 @@ CURL_VOLUME_M = (0.030, 0.034, 0.040)      # cloud beyond the skull-fitted helme
 CURL_CLOUD_BACK_M = 0.008
 CURL_CLOUD_UP_M = 0.010
 CURL_HAIRLINE_ABOVE_EYES_M = 0.054
+CURL_BANG_ABOVE_EYES_M = BANGS_ON_FOREHEAD_ABOVE_EYES_M + 0.004   # curly bangs (Q69): on the forehead, 4 mm higher than straight ones — a curl is thicker
 CURL_TEMPLE_ABOVE_EYES_M = 0.032
 CURL_NAPE_ABOVE_RING_M = 0.070
 CURL_EYE_CLEAR_M = 0.040
@@ -328,8 +329,10 @@ def build_hair(co, hused, head_faces, eye_c, ring_c, collar_z, brow_band, subj, 
         def covered(p):
             if any((p - e).length < CURL_EYE_CLEAR_M for e in eyes):
                 return False
-            if p.y < c0.y - 0.020:                                   # front: above the forehead hairline
-                return p.z > z_eye + CURL_HAIRLINE_ABOVE_EYES_M
+            if p.y < c0.y - 0.020:                                   # front: above the forehead hairline,
+                # or, with bangs (Q69: subject_09), down onto the forehead to just above the brows like the straight bangs
+                lim = CURL_BANG_ABOVE_EYES_M if subj["hair"].get("bangs") else CURL_HAIRLINE_ABOVE_EYES_M
+                return p.z > z_eye + lim
             if p.y < c0.y + 0.015:                                   # temples: above the brow line
                 return p.z > z_eye + CURL_TEMPLE_ABOVE_EYES_M
             return p.z > ring_c.z + CURL_NAPE_ABOVE_RING_M           # sides and back: down to the nape
