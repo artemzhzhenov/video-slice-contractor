@@ -198,6 +198,8 @@ provenance, file hashes) in the bake-off record; one `AVATAR` per child with `ca
   guards against; the rebuild keeps 09's tone, hair (curly with a fringe), eyes and top, and must leave a residual no lower
   than the other eight's lowest (0.15 mm) with the faces' rule kept over all 45 pairs. The licences' one open point —
   MPFB2's code is GPLv3 and the build scripts import it — goes to counsel (`docs/privacy/legal-questions.md` Q16).
+  The full check passed the same day (`check_asset.sh` at 100 %, ASSET_CHECK_OK on 08's three shots and 09's SHOT_002):
+  08, the controls, the final report and the licences are accepted.
 
 ## The pilot, accepted 2026-10-18 (`slice/measurements/subject_01_acceptance_2026-10-18.json`)
 
