@@ -32,6 +32,7 @@ from slice.cryptomatte import manifest_ids  # noqa: E402
 from slice.matte_metrics import edge_band  # noqa: E402
 from slice import motion_blur  # noqa: E402
 from slice import seam_extend  # noqa: E402
+from slice.order_inputs import OrderInputError, shadow_multiply  # noqa: E402
 
 CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
 CC = CONV["compositor"]
@@ -193,15 +194,13 @@ def derive(frame_path):
     front = parts["FOREGROUND_PLATE"][0]
     holdout = parts["HEAD_HOLDOUT"][0][..., 0]
 
-    # HEAD_SHADOW_MULTIPLY: declared formula, epsilon floor, clipped fraction reported.
-    eps = np.float32(DERIVED["HEAD_SHADOW_MULTIPLY"]["epsilon_scene_linear"])
-    rgb_b, rgb_s = body[..., :3], shadowed[..., :3]
-    safe = rgb_b >= eps
-    ratio = np.where(safe, rgb_s / np.where(safe, rgb_b, 1.0), 1.0)
-    clipped = float(np.mean((ratio < 0) | (ratio > 1)))
-    if not np.isfinite(ratio).all():
-        raise CompositeError("HEAD_SHADOW_MULTIPLY: non-finite ratio — the body plates carry NaN or Inf")
-    multiply = np.clip(ratio, 0.0, 1.0).astype(np.float32)
+    # HEAD_SHADOW_MULTIPLY: declared formula, epsilon floor, clipped fraction reported — the one function the order's
+    # multiply is formed with too (slice/order_inputs.py, ADR-0002 amendment 2026-10-29).
+    try:
+        multiply, mrep = shadow_multiply(shadowed[..., :3], body[..., :3], DERIVED["HEAD_SHADOW_MULTIPLY"]["epsilon_scene_linear"])
+    except OrderInputError as e:
+        raise CompositeError(str(e)) from None
+    clipped = mrep["clipped_fraction"]
 
     # SKIN_ID from the material cryptomatte manifest carried on the CRYPTO_MATERIAL parts.
     m_attrs = parts["CRYPTO_MATERIAL00"][1]
@@ -228,7 +227,7 @@ def derive(frame_path):
                           "back_vs_front_mean_abs": float(np.abs(back[fp, :3] - front[fp, :3]).mean()),
                           "full_vs_front_mean_abs": float(np.abs(full[fp, :3] - front[fp, :3]).mean())})
     report = {"frame": int(frame_path.stem.split(".")[-1]), "multiply_clipped_fraction": clipped,
-              "epsilon_branch_pixel_fraction": float((~safe).any(axis=-1).mean()),
+              "epsilon_branch_pixel_fraction": mrep["epsilon_branch_pixel_fraction"],
               "skin_coverage_mean": {"head": float(skin_head.mean()), "body": float(skin_body.mean()), "union": float(skin.mean())},
               "occluder_footprint": footprint}
     colour = {k: v for k, v in parts["DEFAULT_HEAD_BEAUTY"][1].items() if k in CONV["bundle_attributes"]["carried"]}

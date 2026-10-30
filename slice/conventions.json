@@ -4,7 +4,7 @@
  "experiment_id": "01J7B000000000000000BAKEXP",
  "master_id": "01J7B000000000000000BAKEM1",
  "master_version": 1,
- "master_contract_version": 5,
+ "master_contract_version": 6,
  "fps": 24,
  "frame_numbering": "1001-based",
  "units": {
@@ -661,6 +661,62 @@
    "output": "<out>/final.####.exr (RGBA half, premultiplied, lin_ap1_scene) + order_composite_manifest.json with idempotency_key (order_id + bundle manifest + frame range + input hashes), input hashes, per-frame metrics, fallbacks: [] (none exist); frames are written to a staging directory and moved into <out> only when every frame passed",
    "prerequisites": "bundle_manifest.roundtrip.status == PASS and its exports.export_manifest_sha256 equal to the export_manifest.json delivered in HEAD_RENDER_BUNDLE plus_files (a bundle without plus files is not an order input); COMPOSITE_BUNDLE.derived present with every frame's precomp reproduction PASS"
   }
+ },
+ "order_render": {
+  "script": "slice/order_render.py (Blender: context, denominator, order) + slice/order_inputs.py (numpy: the box in pixels, the boxed head's completion, the multiply, the 2x return)",
+  "decided": "owner 2026-10-29: (a) the head layer rendered in its screen box («принять сейчас»), (b) the order's shadow layer at half resolution («идем по пути Б»); the bilinear return chosen by the TD the same day (slice/measurements/shadow_upsample_2026-10-29/); ADR-0002 amendment 2026-10-29",
+  "configurations": {
+   "boxed_half": {
+    "profiles": ["video"],
+    "head": "L_HEAD alone at the profile's resolution and samples, in its screen box (head_box): colour, Vector and Depth, completed outside the box by slice/order_inputs.complete_boxed_head",
+    "shadow": "L_BODYSHADOW alone over the full frame at shadow_scale_percent of the profile's resolution and the profile's samples; its multiply formed at that resolution against ORDER_SHADOW_DENOMINATOR (denominator) by the master's own formula (compositor.derived.HEAD_SHADOW_MULTIPLY), its pixels that see the hidden back filled (hidden_back), then returned to the profile's resolution (upsample)",
+    "calls_per_frame": 2
+   },
+   "full": {
+    "profiles": ["still", "video"],
+    "head_and_shadow": "L_HEAD + L_BODYSHADOW in one call over the full frame at the profile's resolution; the multiply against the bundle's BODY_BEAUTY (the master's L_BODY at full resolution) by the same formula",
+    "use": "the still profile (the owner's (b) was the order's video; the stills stay at full resolution); on video only as the reference the decided configuration is measured against, recorded as such in the order render manifest",
+    "calls_per_frame": 1
+   }
+  },
+  "default_configuration": {"video": "boxed_half", "still": "full"},
+  "shadow_scale_percent": 50,
+  "upsample": "bilinear x2, pixel centres aligned, the edge pixel held (slice/order_inputs.upsample2_bilinear), computed in float64: the interpolation OpenImageIO's resize with filter 'triangle' computes (the filter the 2026-10-29 comparison measured) without that resize's float32 coordinate drift, which grows with the width: equal within 1.2e-7 at 8 px wide (tests/test_order_render.py), 1.35e-4 at 1920 px against our 3e-8 from an exact float64 bilinear (measured 2026-10-29) — 100x under the measured shadow error, under one half step at 1.0",
+  "hidden_back": {
+   "alpha_min": 0.999,
+   "rule": "before the return, every half-resolution pixel that can see the hidden back (the back under the order's head layer or the master's PRECOMP_FRONT where their alpha >= alpha_min) is filled from its neighbours that cannot: a pixel sees it when its 2x2 footprint touches it or lies within the render's pixel filter of it (ceil(Cycles filter_width / 2) half pixels: 1 for the slice's 1.5 px Blackman-Harris); passes of the mean of filled 3x3 neighbours, at most reach + 2 (the band a visible pixel along the outline reads: its own half pixel and the next); a visible hole deeper inside the head (the mouth in SHOT_002's profile, a gap in the hair) shows the surface the head hides around it and keeps its half-resolution value, counted per frame as kept_px — never a value carried in from outside the head (found on SHOT_002 1210, where an unbounded fill had nothing within reach) (slice/order_inputs.fill_hidden_back)",
+   "why": "at the seam the back under the head is the body's open neck in deep shadow (on the package's frames 5 % of the pixels just inside the head's edge are under 0.1); a half-resolution pixel that sees it mixes it into the visible collar, the return carries it out, SEAM_EXTEND grows the back under the head's edge from it — a dark line on the seam: the seam criterion against the full-frame render read -0.003 to -0.060 on the nine package frames, three beyond its 0.04 (2026-10-29). Filled: +0.002 / -0.001 / -0.005 on SHOT_001 1094 / SHOT_002 1210 / SHOT_003 1241, every other error unchanged; without the filter's reach -0.027 / -0.015 / -0.034, with twice it +0.012 / -0.000 / -0.009 (slice/measurements/order_render_2026-10-29/)",
+   "status": "PROVISIONAL: alpha_min and the reach rule measured on the slice's three shots"
+  },
+  "head_box": {
+   "objects": "every render-visible object of C_HEAD and C_HAIR at the instant the frame renders (the profile's time stretch maps it): a mesh by its evaluated vertices, any other type by its evaluated bounding box; a point behind the camera stops the frame",
+   "margin_frame_fraction": 0.02,
+   "margin_status": "PROVISIONAL: the margin of the 2026-10-29 measurement (SHOT_003, three frames, nothing cut); the cut rule below is what makes a margin safe",
+   "cut_edge_px": 2,
+   "cut_rule": "on every side of the rendered region that is not the frame's own edge, the head's alpha in the outermost cut_edge_px pixels must be exactly 0; a box that cut the head stops the frame (ORDER_RENDER_ERROR). The frame's own edge cuts the head in the full-frame render too",
+   "rendered_region_rule": "the box is widened to whole pixels and Blender is given exactly that border; the region Blender rendered is read back from what it leaves outside a border (blender_unrendered) and must be that rectangle",
+   "blender_unrendered": {
+    "colour": 0.0,
+    "vector": 10000.0,
+    "depth": 10000000000.0,
+    "basis": "measured 2026-10-29 on Blender 5.2.1, SHOT_003 1241 (slice/measurements/order_render_box_2026-10-29/): outside a border the Combined pass is 0 and the Vector pass 10000 on all four channels; the depth there is the empty depth of a full-frame render. Re-measured on every order frame (the rendered-region rule); re-measure on a DCC or version change"
+   },
+   "completion_rule": "outside the rendered region the layer is set to what a full-frame L_HEAD holds wherever the head's alpha is 0: colour 0, vectors 0, depth the empty value, read from the region's own alpha-0 pixels, which must agree on one depth and on zero motion (the package's SHOT_001 1094 and SHOT_003 1241: every alpha-0 pixel of the full-frame L_HEAD has depth 1e10 and vector 0). Never assumed: disagreeing empty pixels stop the frame"
+  },
+  "denominator": {
+   "name": "ORDER_SHADOW_DENOMINATOR",
+   "what": "the master's L_BODY at shadow_scale_percent and the profile's samples, rendered once per master version (MASTER_COST) by slice/order_render.py denominator from the master's shot file (the file the bundle's render manifest names by sha256), in the master's render context",
+   "file": "body_half.####.exr: one RGBA part BODY_HALF, half, PREMULTIPLIED, the render's colour declared; denominator_manifest.json beside it",
+   "why": "the multiply is a ratio of two renders with the same seed: where the head shadows nothing the two trace the same paths and the ratio is 1 without noise; a denominator of another resolution, samples, seed, device, Blender or scene puts its own noise into every pixel of the body"
+  },
+  "render_context": {
+   "what": "everything of a shot file that is not the head and changes the body's pixels: every object outside C_HEAD and C_HAIR (slice/blend_content_hash.object_content, canonical: the order vertices and faces were created in does not count; every mesh's faces also with their winding, smooth flag and UVs — slice/order_render.oriented_faces), the materials they use, the world, the view layers' collection flags and settings, the scene's custom properties and its Cycles and render settings except the per-call ones; Blender's version",
+   "per_call_settings": ["resolution_x", "resolution_y", "resolution_percentage", "use_border", "border_min_x", "border_max_x", "border_min_y", "border_max_y", "use_crop_to_border", "filepath", "frame_map_old", "frame_map_new", "use_motion_blur", "motion_blur_shutter", "motion_blur_position", "samples", "device", "use"],
+   "per_call_rule": "the per-call settings are set by slice/render_passes.apply_profile and configure_device in every session and compared as its recorded settings (resolution, samples, determinism, time stretch, EXR depth and codec) and device",
+   "rule": "the order's shot file must have the master's render context: the denominator's (boxed_half) and the one slice/order_render.py context wrote from the master's shot file (both configurations); a difference stops the order before anything renders, naming what differs"
+  },
+  "outputs": "<out>/head/head.####.exr (HEAD_LAYER RGBA half, premultiplied, the render's colour declared), <out>/shadow/shadow.####.exr (SHADOW_MULTIPLY RGB half, 'data'), on video <out>/head_mv/head_mv.####.exr (HEAD_MOTION_VECTORS float + HEAD_DEPTH float, 'data'): the layout slice/composite_order.py reads; order_render_manifest.json",
+  "status": "PROVISIONAL: validated on the slice's package frames (ADR-0002 amendment 2026-10-29, §Validation)"
  },
  "bundle_attributes": {
   "carried": [

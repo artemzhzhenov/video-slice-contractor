@@ -42,7 +42,15 @@ of the sample fails as before, a plug in front or not. In all else the plugs are
 face's outer skin is never behind them. `plug_skin_gap_mm`: how far the plugs' vertices stand off the skin at most, a
 number to look at. Without plug faces the rule and its numbers are as with the sack alone.
 
-MOUTH_OK when nothing is outside, hidden by the sack or crossing on any frame; MOUTH_FAIL (exit 2) otherwise, with the
+The profile's exception (owner, 2026-10-29, Q69): in SHOT_002's profile the background shows through the mouth of the
+template v04.1 itself — its mouth is a closed surface with no inside, the default head shows it too, and a sack that
+hides nothing cannot close it (the mirror ray above). On that shot the teeth and the tongue seen outside the lips are
+counted and reported (`outside_reported`), not a failure; the sack's own checks are unchanged — hidden by the sack, the
+sack through the skin, the sack seen with the face's outer skin behind it still fail. Every other shot as above. The
+exception goes when the template's mouth gets an inside (template work before the first production master).
+
+MOUTH_OK when nothing is outside, hidden by the sack or crossing on any frame; MOUTH_OK_BY_EXCEPTION (exit 0) on an
+excepted shot whose only findings are the reported ones; MOUTH_FAIL (exit 2) otherwise, with the
 frames and the counts per part; every failing sample's place in the frame is kept (`outside_ndc`, `hidden_ndc`, 0-1 from
 the lower left) for a look on the render; `seen_by_part` counts what the camera sees of each part. --control-forward-mm
 moves the samples and the teeth's own triangles (not the sack) that far forward in the head socket's frame — a positive
@@ -64,6 +72,9 @@ PLUG = "HERO_MOUTH_PLUG"                         # the material of the sack's co
 NEAR_M = 3e-4                                    # 0.3 mm: a hit this close to the sample is the sample itself
 GRID_M = 1e-3                                    # sample spacing on the teeth's surface
 FORWARD_LOCAL = Vector((0.0, -1.0, 0.0))         # the socket's forward in its own Blender axes (contract +Z = −Y_b)
+EXCEPTIONS = {"SHOT_002": "owner, 2026-10-29 (Q69): the profile's see-through is a known limitation of the template v04.1 — "
+                          "its mouth is a closed surface with no inside (the default head too); the teeth and tongue outside "
+                          "the lips counted and reported, the sack's checks kept"}
 
 
 def world_mesh(obj, dg, plug=False):
@@ -207,8 +218,13 @@ def measure(sc, dg, outer, shift):
     return row
 
 
-def failures(r):
-    return sum(r["outside"].values()) + sum(r.get("hidden_by_sack", {}).values()) + r.get("sack_skin_crossings", 0)
+def failures(r, excepted=False):
+    outside = r["outside"].get(SACK, 0) if excepted else sum(r["outside"].values())
+    return outside + sum(r.get("hidden_by_sack", {}).values()) + r.get("sack_skin_crossings", 0)
+
+
+def reported(r):
+    return sum(v for n, v in r["outside"].items() if n != SACK)
 
 
 def main(argv):
@@ -234,36 +250,47 @@ def main(argv):
             R = bpy.data.objects["SOCKET_HEAD"].evaluated_get(dg).matrix_world.to_3x3()
             shift = np.array(R @ FORWARD_LOCAL) * a.control_forward_mm * 1e-3
         rows.append({"frame": f, **measure(sc, dg, outer, shift)})
-    bad = [r for r in rows if failures(r)]
+    exception = EXCEPTIONS.get(sc.get("shot_id"))
+    bad = [r for r in rows if failures(r, exception is not None)]
+    told = [r for r in rows if exception and reported(r)]
     runs = []
     for r in bad:
-        n = failures(r)
+        n = failures(r, exception is not None)
         if runs and r["frame"] == runs[-1][1] + a.every:
             runs[-1][1] = r["frame"]; runs[-1][2] = max(runs[-1][2], n)
         else:
             runs.append([r["frame"], r["frame"], n])
     paras = __doc__.split("\n\n")
-    rec = {"rule": paras[0].replace("\n", " "), "method": " ".join(x.replace("\n", " ") for x in paras[2:5]),
+    rec = {"rule": paras[0].replace("\n", " "), "method": " ".join(x.replace("\n", " ") for x in paras[2:6]),
            "source": bpy.data.filepath, "shot": sc.get("shot_id"), "frames": [f0, f1, a.every],
            "control_forward_mm": a.control_forward_mm, "mouth_sack": SACK in bpy.data.objects,
            "corner_plugs": any("hidden_by_plug" in r for r in rows),
            "outer_skin_faces_at_rest": len(outer), "skin_faces": nfaces,
-           "frames_outside": [r["frame"] for r in bad], "runs_first_last_max_samples": runs,
-           "status": "FAIL" if bad else "PASS", "rows": rows}
+           "frames_outside": [r["frame"] for r in bad], "runs_first_last_max_samples": runs, "exception": exception,
+           "outside_reported": {"frames": [r["frame"] for r in told], "max_samples": max((reported(r) for r in told), default=0),
+                                "samples_by_part": {n: sum(r["outside"][n] for r in told) for n in PARTS if told and n in told[0]["outside"]}},
+           "status": "FAIL" if bad else "PASS_BY_EXCEPTION" if told else "PASS", "rows": rows}
     Path(a.out).write_text(json.dumps(rec, indent=1) + "\n")
     seen = [r["seen"] for r in rows]
     plugged = [r for r in rows if sum(r.get("hidden_by_plug", {}).values())]
     plug = (f"; hidden by the corner plugs (allowed, Q68 — look at the close-ups) on {len(plugged)} frame(s), most "
             f"{max(sum(r['hidden_by_plug'].values()) for r in plugged)} samples" if plugged else "")
+    told_note = (f"; teeth or tongue outside the lips reported under the {sc.get('shot_id')} exception on {len(told)} of "
+                 f"{len(rows)} frame(s), most {rec['outside_reported']['max_samples']} samples" if told else "")
     if bad:
-        w = max(bad, key=failures)
+        w = max(bad, key=lambda r: failures(r, exception is not None))
         sack = (f", hidden by the sack {w['hidden_by_sack']}, sack-skin crossings {w['sack_skin_crossings']}"
                 if "hidden_by_sack" in w else "")
         what = ("outside the lips, hidden by the sack or the sack through the skin" if sack
                 else "teeth or tongue seen outside the lips")
         print(f"MOUTH_FAIL {what} on {len(bad)} of {len(rows)} frame(s), runs {runs[:6]}; "
-              f"worst {w['frame']}: {w['outside']}{sack}{plug}", file=sys.stderr)
+              f"worst {w['frame']}: {w['outside']}{sack}{plug}{told_note}", file=sys.stderr)
         sys.exit(2)
+    if told:
+        print(f"MOUTH_OK_BY_EXCEPTION {sc.get('shot_id')} ({exception.split(':')[0]}): outside the lips on {len(told)} of "
+              f"{len(rows)} frame(s), most {rec['outside_reported']['max_samples']} samples, reported"
+              f"{'; hidden by the sack, crossings and the sack outside 0' if rec['mouth_sack'] else ''}{plug}")
+        return
     print(f"MOUTH_OK nothing of the teeth or tongue seen outside the lips on {len(rows)} frame(s) "
           f"(seen samples per frame {min(seen)}-{max(seen)}{', mouth sack checked' if rec['mouth_sack'] else ''}){plug}")
 

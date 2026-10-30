@@ -59,6 +59,17 @@ vertex moves more than 2 px between them (PROVISIONAL), so thin fast hair is swe
 threshold changes, slow frames are integrated exactly as before. Found on the burst-3 pilot child's curls (SHOT_001
 1101: 1.35 px → 0.25 px); every accepted run re-measured — the verdicts hold, the slow frames bitwise unchanged. The
 contract version is unchanged.
+Amended 2026-10-29 (the owner's decisions of that day — (a) the head layer in its screen box, «принять сейчас»; (b) the
+order's shadow at half resolution, «идем по пути Б» — and the go for the render built that way; full text, evidence and
+alternatives in `ADR-0002-amendment-2026-10-29-order-render-boxed-head-half-shadow.md`): D5 gains row 15,
+`ORDER_SHADOW_DENOMINATOR` — the master's `L_BODY` at the order's shadow resolution and samples, once per master version;
+D3 — the order's video multiply is formed at half resolution by the master's own formula against it, its pixels that see
+the back hidden under the head filled, and returned to 4K bilinearly, and the order's shot file must have the master's
+render context (everything that is not the head) before
+its shadow renders; D5 row 14 — the head layer may be rendered in its screen box and is delivered completed outside it
+(colour 0, vectors 0, the empty depth), a box that cut the head stopping the frame. The delivered layers keep their
+format; the still profile is unchanged. Contract version `master_contract_version = 6` (additive: every v5 plate and
+consumer unchanged).
 Validated by the Phase 0.5 reference slice (§Validation; the checklist and its state:
 `../experiments/phase-0-5-exit-review.md`); any item that fails validation reopens
 this ADR before any master production begins. Layer: Core (`../architecture/layering.md`).
@@ -144,6 +155,17 @@ Hair lives on the body even though it is personalized.
   against the collision proxy and the lighting reference, and a candidate that cannot produce
   it has excluded itself (`../experiments/bakeoff-protocol.md` §2). Using the default shadow
   for a child's head would be a fallback under CLAUDE.md §6 and is not registered.
+- **A head rendered in the master's scene (amendment 2026-10-29)** forms its shadow as the master forms its own —
+  `L_BODYSHADOW / L_BODY` by the declared `HEAD_SHADOW_MULTIPLY` formula (one function for both). In the video profile
+  the order renders `L_BODYSHADOW` at half resolution and divides by row 15 (`ORDER_SHADOW_DENOMINATOR`, the master's
+  `L_BODY` at that resolution and samples); the half pixels that can see the back hidden under the order's opaque head or
+  the master's opaque front plate are filled from those that cannot (the open neck under the head would otherwise come
+  out on the collar as a dark seam line), and the multiply returns to the profile's resolution bilinearly; the still
+  profile divides a full-resolution `L_BODYSHADOW` by `BODY_BEAUTY`. Before it renders, the order's shot file must have
+  the master's render context — every object outside `C_HEAD` / `C_HAIR`, their materials, the world, the view layers
+  and the scene's settings (`slice/conventions.json → order_render.render_context`) — and the per-call settings, device
+  and Blender of the plate it divides by: a ratio of two renders is the head's shadow only when everything else, the
+  seed included, is the same.
 - The master exports an **upper-body collision proxy** (shoulders, chest, back) and per-frame
   spine and shoulder joint transforms, because hair dynamics are driven by body motion, not
   head motion. Hair simulation is per-child work owned by the head technology; the master
@@ -194,6 +216,7 @@ per-order composite reads for the order's tone (D4).
 | 12 | Performance track (§D8) | head technology | HEAD_RENDER |
 | 13 | `STATIC_PRECOMP` — everything composited except the head layer, once per master version, delivered as the ordered pair `PRECOMP_BACK` (behind the head) + `PRECOMP_FRONT` (occluders in front of the head, alpha-zero where none) so the per-order comp is two overs in every shot (amendment 2026-09-14) | per-order compositor | COMPOSITE |
 | 14 | Motion vectors — forward and backward screen displacement, **per layer** (amendment 2026-09-22: one blur-off data layer describes only the front-most surface, and the neck under the head moves differently), full float, from the same shutter-0 render as the beauty layers; the sign convention of the two pairs is recorded in the package. The two pairs point at the shutter's **open and close instants** — ±¼ frame at 180° — not at the previous and next frame, and that time base (`vector_reach_frames`) is recorded beside the sign convention (amendment 2026-09-25: a head pulse shorter than a frame put the frame-vector path 6.2 px median off the shutter's true ends at 4K). The head technology delivers its head layer's vectors in the same convention. Consumed by the post-composite blur together with `shutter_angle_deg` and `shutter_position` (§D7). In the still profile they are delivered (§D9) with `consumer: NONE` recorded (amendment 2026-09-14) | compositor (post-composite blur) | COMPOSITE |
+| 15 | `ORDER_SHADOW_DENOMINATOR` — the master's `L_BODY` at the order's shadow resolution (video: 50 % of the profile's) and the profile's samples, rendered once per master version from the master's own shot file in its render context, with a manifest binding it to the bundle manifest, the source file's sha256 and that context (amendment 2026-10-29). Video profile only; `MASTER_COST` | head technology rendering in the master's scene (the order's shadow multiply, D3) | HEAD_RENDER |
 
 **Motion blur is applied after compositing, not rendered** (amendment 2026-09-22, from the
 slice measurement). Every beauty-type layer above — rows 1, 3, 4, 9 and the row-13 pair — is
@@ -210,6 +233,14 @@ layers is not the time average of the composite when the head's coverage and the
 move differently during the shutter, which drew a visible seam line across the neck whenever the
 body moved fast under the head. Consequently **the head technology delivers its head layer
 sharp, with its own vectors and depth** — it no longer matches the master's motion blur.
+
+**The order's head layer may be rendered in its screen box** (amendment 2026-10-29). The box is every render-visible
+object of `C_HEAD` / `C_HAIR` projected at the instant the frame renders, widened by a margin (`PROVISIONAL`, 2 % of the
+frame) to whole pixels and given to the renderer exactly; the region actually rendered is read back and must be it. The
+layer is delivered completed — outside the box colour 0, vectors 0 and the empty depth, what the full-frame layer holds
+wherever the head's alpha is 0, read from the box's own empty pixels — so its format, vectors and depth are row 14's and
+nothing downstream changes. A head reaching a side of the box that is not the frame's edge means the box cut it: the
+frame stops (`slice/order_inputs.py`, `conventions.json → order_render.head_box`).
 
 **The back under the head's lower edge is extended at the seam** (amendment 2026-09-24, approved
 2026-09-25). The composite is `FRONT over (HEAD over SEAM_EXTEND(BACK))` — in the per-order

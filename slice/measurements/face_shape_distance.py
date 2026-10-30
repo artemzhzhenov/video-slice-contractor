@@ -55,6 +55,12 @@ def head(path):
     return v, n, (eyes[0].y + eyes[1].y) / 2
 
 
+def face_mask(v0, n0, eye_y):
+    """The FACE of the docstring, fixed on the default head."""
+    chin = v0[:, 1].min()
+    return (n0[:, 2] > 0.3) & (v0[:, 1] > chin + 0.005) & (v0[:, 1] < eye_y + 0.035) & (v0[:, 2] > np.percentile(v0[:, 2], 40))
+
+
 def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("--default", required=True)
@@ -62,8 +68,7 @@ def main(argv):
     ap.add_argument("--json", default=None)
     a = ap.parse_args(argv)
     v0, n0, eye_y = head(a.default)
-    chin = v0[:, 1].min()
-    face = (n0[:, 2] > 0.3) & (v0[:, 1] > chin + 0.005) & (v0[:, 1] < eye_y + 0.035) & (v0[:, 2] > np.percentile(v0[:, 2], 40))
+    face = face_mask(v0, n0, eye_y)
     heads = {"default": v0}
     for p in a.subjects:
         v, _, _ = head(p)
@@ -88,4 +93,5 @@ def main(argv):
     print(f"FACE_DISTANCE_{'OK' if not rec['failing'] else 'FAIL'} rule >= {RULE_MM} mm over {rec['face_vertices']} face vertices; failing: {rec['failing'] or 'none'}")
 
 
-main(sys.argv[sys.argv.index("--") + 1:])
+if __name__ == "__main__":
+    main(sys.argv[sys.argv.index("--") + 1:])
