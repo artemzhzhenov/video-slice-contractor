@@ -25,7 +25,8 @@ def shift_layer(arr, dx):
 
 
 def jitter_layer(arr, px, frame):
-    """M3's near-boundary edge jitter: the layer moved px along x on odd frames, left alone on even ones."""
+    """A 1-px edge jitter: the layer moved px along x on odd frames, left alone on even ones. M4's control, not M3's:
+    M3 reads the head's mean luma and cannot see it (the dry run of 2026-10-30; TD row 11, 2026-10-31)."""
     return shift_layer(arr, px) if int(frame) % 2 else arr.copy()
 
 

@@ -24,15 +24,15 @@ Tests: `tests/test_bakeoff_separation.py`, `test_bakeoff_frame_metrics.py`, `tes
 ## The metrics as defined here
 
 A **row** is one run × one tier (protocol §10); every per-frame value is aggregated over the tier's frames
-(`rows.tier_frames`) — the mean, except M6 (the worst frame: a shot fails on its first failing frame) and M10 (the largest
-difference). A frame with nothing to measure gives no value (never a 0); a row with no value on any frame is the sentinel
+(`rows.tier_frames`) — the mean, except M6 (the worst frame: a shot fails on its first failing frame — a bad frame is a fraction ≥ 0.5,
+PROVISIONAL, `record.occlusion_failed`, TD row 18 of 2026-10-31) and M10 (the largest difference). A frame with nothing to measure gives no value (never a 0); a row with no value on any frame is the sentinel
 `UNKNOWN` with its reason (`record.result_row`). M9 is human review only (§8): `NOT_VERIFIED` on every automated row.
 
 | ID | Value (better) | Read on | Known-good | Known-bad (gross; near-boundary recorded) | Margin `m` (drafted) |
 |---|---|---|---|---|---|
 | M1 | mm (lower) — the RMS of the mean-removed per-vertex displacement over the FACE, the candidate's HERO_HEAD against the child's own truth **in the same frame of the same shot** (same performance on both; the socket frame) | geometry | the child's truth against itself: 0 mm exactly (the estimator reads vertices, not pixels) | identity swap: every unordered pair of children's truths, frame-matched | 1.0 mm |
 | M2 | mm (lower) — M1 over a state's frames less M1 over front_neutral's | geometry | as M1: 0 | the swap inside the state while front neutral stays the child's own | 1.0 mm |
-| M3 | ratio (lower) — the head's mean luma over consecutive frames: mean of \|m(t−1) − 2m(t) + m(t+1)\| / m(t) | FINAL + the head's alpha | candidate 0 over the repeats | ±3 % luma on alternate frames inside HEAD_HOLDOUT (±1 % and the 1-px edge jitter recorded) | 0.04 |
+| M3 | ratio (lower) — the head's mean luma over consecutive frames: mean of \|m(t−1) − 2m(t) + m(t+1)\| / m(t) | FINAL + the head's alpha | candidate 0 over the repeats | ±3 % luma on alternate frames inside HEAD_HOLDOUT (±1 % recorded; the 1-px edge jitter is M4's control, not M3's — TD row 11, 2026-10-31) | 0.04 |
 | M4 | px (lower) — the head edge's mean displacement along the seam against the default head's: Σ\|Δα\| of the two head layers over the seam zone (slice/seam_extend: the welded, camera-facing ring ± 6 px) / the counted ring's length; the luma and chroma differences in the zone recorded beside it | head alphas + FINAL vs the default head's composite | candidate 0 | SEAM_SHIFTED 5 px; HEAD_SCALED +5 px (1 px of each recorded) | 1.0 px |
 | M5 | IoU (higher) — the hair as the camera sees it (nearer than the head, body and hand), candidate vs the child's truth, frame-matched, 25 % resolution, every 4th frame | geometry | the truth against itself: 1 | hairstyle swap: every pair of children of different hair classes | 0.10 |
 | M6 | fraction (lower) — where the front plate is opaque over the candidate's head (eroded 3 px at 4K), the pixels differing from the default head's composite of the same frame by > 5 % | FINAL vs the reference | candidate 0 | the head layer over FINAL (the head over the hand) | 0.5 |
@@ -43,7 +43,11 @@ difference). A frame with nothing to measure gives no value (never a 0); a row w
 **Margins** are drafted by the agent in the TD role, before any candidate output, and pending the TD's affirmation
 (preregistration §6): M4 — an edge displaced by a pixel on average, the near-boundary controls' own size; M1, M2 — half the set's minimum difference between two children (2.0 mm, owner 2026-10-24); M3 —
 what the near-boundary ±1 % flicker reads (4 · 0.01 / (1 ± 0.01) ≈ 0.04); M5 — ENGINEERING JUDGMENT; M6 — half the
-overlap; M7 — twice a just-noticeable CIEDE2000 difference; M8 — ENGINEERING JUDGMENT, kept after its control was read (weak under a soft key; per shot).
+overlap; M7 — twice a just-noticeable CIEDE2000 difference; M8 — ENGINEERING JUDGMENT, kept after its control was read (weak under a soft key): M8 ranks per shot, only on the
+shots where its own verdict is VALIDATED, the pooled verdict recorded but not ranking (`record.separation_by_shot`,
+`record.ranking_shots`, TD row 22 of 2026-10-31). `n_rep.json`: a pilot cell with nothing to measure is set aside with
+its reasons; a metric with no measured cell has `N_rep` UNKNOWN and stays out of R — a known gap (`record.n_rep_from_pilot`,
+TD row 6: M6 on subject_09, whose hand window is excluded).
 
 ### The dry reading before Stage 3 (2026-10-30)
 

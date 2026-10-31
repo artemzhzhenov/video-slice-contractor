@@ -380,14 +380,59 @@ or the ADR. A missing cell is `NOT_EVALUATED` with a reason and the candidate is
   in no session~~ a third party who reviews in no session (row 30) (not the published X1 seed), sealed by its committed sha256 before the first
   session and revealed at Stage 8 exactly like the artifact map below; unknown to every
   reviewer, the TD of record included. A session holds at least 10 genuine items.
+- Session composition (owner as the TD of record, 2026-10-31: «поехали» on the rule; protocol §8
+  "Session composition"): a planted item **takes the place of its genuine source** in that
+  reviewer's cycle — the source is rated by the other reviewer, the two reviewers' sources do not
+  overlap, and no reviewer sees a child × shot × tier twice in a cycle; an identity swap has **two
+  sources**, the child's run and the partner's (the partner shares the tone and the body is the
+  master's, so the planted clip is nearly the partner's genuine one), and both go to the other
+  reviewer (owner, 2026-10-31, «поехали»); the video sessions of a
+  cycle are **EASY + DIFFICULT + STRESS together** and **MEDIUM** alone, STILL items a session of
+  their own; the tier is a field of the item, not of the session. Why: with one candidate
+  (FaceBuilder) a planted item added beside its source is a duplicate the reviewer can spot without
+  seeing the defect, and EASY, DIFFICULT and STRESS each live in one shot — 9 items, one per
+  subject, below the 10 above. With 9 subjects a combined session has 27 slots and MEDIUM 27;
+  k ≤ ⌈0.3 × 27⌉ = 9 leaves at least 18 genuine items in each, above the 10.
+- Which run is reviewed (owner as the TD of record, 2026-10-31, «поехали»): **one run per cell — the
+  first repeat** of the cell's N_rep (≥ 3, `FLOOR_R`); the cleaned cycle reviews the same runs after
+  Stage 6 (repaired where they failed, the rest unchanged). Why: all repeats would put one child ×
+  shot before a reviewer three times — the duplicate the composition rule exists to prevent — and
+  triple the reviewing time; the repeats are made alike, so the first is neither better nor worse
+  than the others; a salted pick adds nothing a reviewer could tell apart, and the worst run by the
+  metrics would make the human review a re-reading of the metrics instead of an independent check.
+- The composition rule above is written for **one candidate**; before a second candidate (or a
+  second reviewed run of a cell) enters Stage 7 it is decided again — until then the review kit
+  refuses such inputs (its Q76 answer).
 - **Reviewer discrimination floor** = **80 %** (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 31 of `td_affirmation_2026-10-31.md`), with: «with a variable k: a reviewer catches ⌈0.8·k⌉») — the fraction of planted negatives a
   reviewer must catch, rounded up (`ceil(0.8 × planted)`: with 2 planted, both; with 3, all
   three; with 5, at least 4); and a **false-alarm ceiling** of 20 % — a false alarm is a
   `defect_types[]` entry of a planted kind (identity, flicker, seam, hair, occlusion, skin tone)
-  on a genuine item in the session template of protocol §8; a reviewer with more than
+  on a genuine item in the session template of protocol §8, ~~on any genuine item~~ **only on a
+  genuine item that is clean for every planted kind the entry belongs to** — clean = that kind's
+  metric passed on the item and the metric is VALIDATED (identity M1, hair M5, seam M4, occlusion
+  M6, skin tone M7, flicker M3); on any other genuine item the entry is not counted either way
+  (owner as the TD of record, 2026-10-31, «поехали»: a genuine item can carry a real defect, and an
+  honest mark on it is no false alarm — otherwise a weak candidate discards both reviewers exactly
+  where there is something to see; the clean list `{item_uid: [kinds]}` is built by us from the
+  Stage 5 rows before Stage 8 scores, and scoring refuses without it); a reviewer with more than
   `floor(0.2 × genuine)` of them (at least 2 at the 10-item minimum) is not discriminating
   either. Below the floor or above the ceiling the session's ratings are
   discarded and the discard recorded with the reviewer's pseudonymous id.
+- What catches a planted item (owner as the TD of record, 2026-10-31, «поехали»): a `defect_types[]`
+  entry from its kind's set, which takes the neighbouring types a naive reviewer picks by the
+  sheet's labels — identity swap: `AVATAR_LIKENESS_FAILURE`, `IDENTITY_ATTRIBUTE_DRIFT`,
+  `EXPRESSION_IDENTITY_DRIFT`; wrong hairstyle: `HAIR_DRIFT`, `AVATAR_LIKENESS_FAILURE`; seam
+  shift: `SEAM_FAILURE`, `COMPOSITE_FAILURE`; head over hand: `OCCLUSION_FAILURE`,
+  `COMPOSITE_FAILURE`; wrong skin tone: `SKIN_TONE_MISMATCH`; flicker: `TEMPORAL_FLICKER` (added to
+  the failure taxonomy 2026-10-31). One source in code: the review kit's `kinds.CATCH`.
+- Planted strength for people (owner as the TD of record, 2026-10-31, «поехали»): the levels are a
+  file of the review kit (its sha256 in every inventory), not constants. The metrics' gross control
+  levels (§6) are a start, not the answer — the review kit found that a 5 px seam shift at 4K is
+  barely visible to a person. Before the freeze the owner looks at the six kinds on the default head
+  at 100 %, rendered on our GPU (the seam at 5 / 10 / 20 px), and sets each level to one the owner sees
+  without searching; the chosen levels and the file's sha256 are written here. Seeing the kinds on
+  the default head tells the owner what a plant looks like, not which items are planted; recorded.
+  Levels: `TO FILL (owner, before the freeze)`.
 - Reviewers: count **2** (owner, 2026-10-31: «Вариант В — двое, как сейчас записано») — the owner as the TD of record
   and one naive person who has never seen the pipeline, as protocol §8 requires; the salt holder is a third person (row
   30); roles — at least one naive person and the TD of record;
@@ -409,8 +454,10 @@ or the ADR. A missing cell is `NOT_EVALUATED` with a reason and the candidate is
   MEDIUM, DIFFICULT, STRESS — `VIDEO_24FPS`, the whole shot once, then each state window of the
   tier looped three times; the still tier — `STILL_100PCT` on a display set to the profile's
   display transform (repository `slice/conventions.json` → colour at the freeze commit: Rec.709
-  for video, `display_print` for the still profile) for every subject, plus `STILL_PRINT` at A4 300 dpi for one subject per
-  candidate, the same subject for all.
+  for video, `display_print` for the still profile) for every subject~~, plus `STILL_PRINT` at A4 300 dpi for one subject per
+  candidate, the same subject for all~~ — no print in this bake-off: stills are reviewed only at 100 % on a display (owner as
+  the TD of record, 2026-10-31: «не используй печать кадров-стопов»; protocol §8 allows «100 % zoom or as a print»; a
+  print session of one subject could never hold the 10 genuine items, review kit Q76).
 - The candidate ↔ `artifact_code` map is sealed until Stage 8: sealed by hash (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 35 of `td_affirmation_2026-10-31.md`), with: «added: the map is written by a script run by the salt holder; the owner receives coded packets only; if the holder cannot run the script and the owner does, the owner's sessions are recorded as not blind») —
   `artifact_map.json` is written outside the record when the codes are assigned, its sha256 is
   committed to the record as `artifact_map.sha256` before the first review session, and at Stage

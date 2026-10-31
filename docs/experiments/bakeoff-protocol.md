@@ -299,10 +299,10 @@ Every review session is recorded with these fields; the template is the schema o
 `review_session` file in the record.
 
     session_id, reviewer_id (pseudonymous), reviewer_role (naive | TD | animator | other),
-    medium (VIDEO_24FPS | STILL_100PCT | STILL_PRINT), tier,
+    medium (VIDEO_24FPS | STILL_100PCT | STILL_PRINT),
     items[]:
         artifact_code            — random; the candidate ↔ code map is sealed until Stage 8
-        subject_id, shot, states[]
+        subject_id, shot, tier, states[]   — the tier is the item's: a session may hold several
         ground_truth_shown       — the subject's sheet is visible to the reviewer
         likeness_to_ground_truth — declared scale
         alive_and_expressive     — the character must not be static to pass (avatar-pipeline.md)
@@ -311,6 +311,29 @@ Every review session is recorded with these fields; the template is the schema o
         defect_types[]           — from the failure taxonomy
         ab_pair (optional): other_artifact_code, preferred, confidence
     planted_negatives_caught / planted_negatives_total
+
+**Session composition** (owner as the TD of record, 2026-10-31; found by the review-kit contractor
+and by us while the bake-off runs one candidate, FaceBuilder). A planted item is built from a
+genuine item, so with one candidate a planted item *added* to a session is a second clip of a
+child × shot the reviewer has already seen — caught by the duplicate, not by the eye; and a tier
+that lives in one shot (EASY in SHOT_001, DIFFICULT in SHOT_002, STRESS in SHOT_003) holds only one
+item per subject, 9, below a session's minimum of genuine items. Therefore:
+
+- a planted item **takes the place of its genuine source** in that reviewer's cycle; the source is
+  rated by the other reviewer, and the two reviewers' sources do not overlap — every genuine item is
+  rated by at least one reviewer, and no reviewer sees a child × shot × tier twice in a cycle; an
+  identity swap has two sources — the child's run and the partner's, whose genuine clip it nearly
+  repeats (same tone, the master's body) — and both go to the other reviewer;
+- the video sessions of a cycle are **EASY + DIFFICULT + STRESS together** (three different shots)
+  and **MEDIUM** alone; STILL items are a session of their own; the tier is recorded per item, so
+  every per-tier conclusion (§7 X3) is kept;
+- one run per cell is reviewed — the first of its repeats; the cleaned cycle reviews the same runs
+  after Stage 6;
+- the pre-registration's minimum of genuine items per session, the planted count k and the
+  discrimination floor and false-alarm ceiling apply per session as declared there.
+
+The rule is written for one candidate and one reviewed run per cell; a second candidate is decided
+again before its Stage 7.
 
 **Reviewer discrimination.** The floor — the fraction of planted negatives a reviewer must catch —
 is declared in pre-registration. A reviewer below the floor has that session's ratings discarded,
