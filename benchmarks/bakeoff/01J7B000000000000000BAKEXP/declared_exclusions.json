@@ -1,0 +1,17 @@
+{
+  "what": "Frames excluded from the bake-off's metrics for some subjects, decided before any candidate's output on those subjects exists. A metric script reads this file; an excluded frame is recorded per run as excluded, never silently dropped.",
+  "exclusions": [
+    {
+      "id": "SHOT_003_hand_window_fringe_glasses",
+      "shot_id": "SHOT_003",
+      "frames": [1303, 1337],
+      "applies_when": {"any_of": [{"hair_bangs": true}, {"glasses": true}]},
+      "subjects_in_set_v1": ["subject_02", "subject_03", "subject_04", "subject_05", "subject_09"],
+      "states_affected": {"hand_over_face": "the whole window 1305-1332", "fast_movement": "its first five frames 1333-1337 (measured on 1338-1360)"},
+      "reason": "The master's palm over the eyes (state_map hand_over_face 1305-1332) passes through rigid personalized hair on every head, the default head included (44 crossing triangle pairs), five times more through a fringe (205, subject_02), and through glasses seated on the nose (the palm is 0-15 mm from the face, glasses 15-20 mm). Measured 2026-10-24 by slice/measurements/accessory_clearance.py: the hand crosses the hair on frames 1303-1337. A candidate cannot be judged on a defect of the master's shot.",
+      "decided": "owner, 2026-10-24 («Давай это исключим — это окно у детей с чёлкой и в очках»)",
+      "evidence": "slice/measurements/burst3_checkpoint_02_03_2026-10-24/clearance/SHOT_003_subject_02.json, SHOT_003_subject_03.json, baseline_default_SHOT_003_v06.json",
+      "product_rule": "docs/architecture/master-spec.md, Story and shot design — hand contact with the face (Phase 8)"
+    }
+  ]
+}

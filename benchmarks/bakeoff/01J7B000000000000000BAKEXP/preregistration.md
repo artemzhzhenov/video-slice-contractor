@@ -10,6 +10,7 @@ them are ENGINEERING JUDGMENT with their rationale (no labelled set exists yet, 
 PROVISIONAL in the sense of `docs/process/definitions.md`) and are validated at Stage 3/5 like
 every threshold. Separation margins (§6) stay `TO FILL` until the first candidate is
 registered — the form's own rule.
+**2026-10-31:** the TD of record — the owner, by signature (§12) — affirmed the drafted fields one by one on the table `td_affirmation_2026-10-31.md` in this record (prepared by the slice contractor, an AI agent; sha256 `8622ff8019e5a060858df81ef0b5a9a606a8f601ce1ab51b5497d6be6ff08a24`): every marker below names its row; where a row adds to or edits a field, the row's text (quoted, translated from the table's Russian, which is the original) governs; one draft is struck. The §2 rows of candidate B1 filled by the agent in the TD role carried no marker and are not affirmed by the table (its §6) — marked below, they wait for the TD's affirmation like any draft.
 Every remaining `TO FILL` waits for the named person. Nothing in this file may
 be written after a candidate output exists: at the moment the first Stage 0 artifact is
 produced, this file is frozen — its sha256 is written into `decision.md`, `frozen` becomes
@@ -35,7 +36,7 @@ cleanup ceiling, reviewer floor; **agent** — pre-filled facts from the reposit
 - **Working hypothesis under test** (`docs/architecture/avatar-pipeline.md`): a parameterized
   representation where AI runs mainly **once per child** beats once-per-shot and once-per-frame
   on total marginal cost at equal acceptability. Each candidate's own hypothesis: §2.
-- **What would refute it** (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation) — stated over the §2 declaration "where AI runs", not
+- **What would refute it** (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 1 of `td_affirmation_2026-10-31.md`), with: «lower on **each** X2 column read separately — machine cost (Mac hours, repair included, and money), agent repair (minutes, operations), human minutes (signing, onboarding); lower on some and not on others is a mixed result, recorded as a refutation with every column; nothing weighted or summed») — stated over the §2 declaration "where AI runs", not
   over families: the hypothesis holds only if a candidate declared *once per child* reaches
   PASSED under §10 and, on the worst subject, is lower on **both** X2 columns (machine money and
   human minutes, each read separately, never summed) than every passing candidate declared once
@@ -75,6 +76,8 @@ avatar, D hybrid). One block per candidate; copy the block. Candidate 0 is pre-f
 - Where AI runs: nowhere. Driven by: the performance track directly.
 
 ### Candidate B1 — KeenTools FaceBuilder → our Blender rig (registered 2026-10-17)
+
+Every row below filled by `TD` was written by the agent in the TD role (2026-10-17 → 2026-10-30) — pending the TD of record's affirmation, row by row, before the freeze (found by the contractor's table, §6, 2026-10-31).
 
 | Field | Value | Filled by |
 |---|---|---|
@@ -139,7 +142,7 @@ rows: `docs/experiments/head-candidates-survey-2026-10-17.md`.
 
 ## 3. The synthetic reference set (protocol §3)
 
-- `N_ref` = **9** (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation) — the design minimum from the table below: 3 tone values (both
+- `N_ref` = **9** (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 2 of `td_affirmation_2026-10-31.md`)) — the design minimum from the table below: 3 tone values (both
   ends and the middle of the master's range) × the 3 named hair classes (short straight, long
   straight, curly high-volume), fully crossed; "hair crossing the forehead in neutral" is a
   property, not a class — assigned to 3 of the 9 (one per tone, different classes);
@@ -156,11 +159,11 @@ rows: `docs/experiments/head-candidates-survey-2026-10-17.md`.
 
 | Dimension | Required coverage | Subjects covering it | Filled by |
 |---|---|---|---|
-| Skin tone | both ends and the middle of the master's tone range (≥ 3 values, one at each boundary) | `TO FILL` | TD |
-| Hair | short straight; long straight; curly high-volume; hair crossing the forehead in neutral | `TO FILL` | TD |
-| Glasses | ≥ 1 subject `glasses: PRESCRIPTION`, present in every tier | `TO FILL` | TD |
-| Facial features | stated variation in face shape, eye spacing, nose form — per subject | `TO FILL` | TD |
-| Age and body presentation | within the slice master's `age_range` and `body_presentation` | `TO FILL` | TD |
+| Skin tone | both ends and the middle of the master's tone range (≥ 3 values, one at each boundary) | darkest (albedo 0.20 / 0.11 / 0.07) — 01, 02, 03; middle (0.55 / 0.38 / 0.28) — 04, 05, 06; lightest (0.90 / 0.72 / 0.62) — 07, 08, 09: both ends and the middle of the master's range (gate C4's tones, PROVISIONAL until the product range) | TD, 2026-10-31 (`td_affirmation_2026-10-31.md` §2) |
+| Hair | short straight; long straight; curly high-volume; hair crossing the forehead in neutral | short straight — 02, 06, 07; long straight — 03, 05, 08; curly high-volume — 01, 04, 09 (one class per tone, fully crossed); across the forehead in neutral — 02, 05, 09 (one per tone, different classes) | TD, 2026-10-31 (`td_affirmation_2026-10-31.md` §2) |
+| Glasses | ≥ 1 subject `glasses: PRESCRIPTION`, present in every tier | `PRESCRIPTION` — 03 (boundary, darkest, long straight) and 04 (middle, curly), on all three shots; the `hand_over_face` window is excluded for both (declared), so STRESS covers glasses only through `fast_movement` after 1337 — recorded | TD, 2026-10-31 (`td_affirmation_2026-10-31.md` §2) |
+| Facial features | stated variation in face shape, eye spacing, nose form — per subject | each subject its own targets and bumps (`subjects_plan.json`); pairwise RMS over FACE ≥ 2.0 mm on 45 of 45 pairs (the nearest 2.011 mm, default–02); width, eye spacing, nose and brow–chin height per head in `td_affirmation_2026-10-31.md` §2 (a description, not the rule) | TD, 2026-10-31 |
+| Age and body presentation | within the slice master's `age_range` and `body_presentation` | girls 7–9; body, dress and rig of all nine bit-identical to v04.1 — within `master.json` (`age_range` 7-9, `body_presentation` girl; the file was missing from the contractor's copy, not from the record) | TD, 2026-10-31 (`td_affirmation_2026-10-31.md` §2) |
 
 ## 4. Benchmark matrix (protocol §4)
 
@@ -175,7 +178,7 @@ rows: `docs/experiments/head-candidates-survey-2026-10-17.md`.
   hair and glasses. `hand_over_face` is measured on subjects 01, 06, 07, 08. Machine-readable:
   `declared_exclusions.json`.
   MEDIUM-window rule (no occlusion, head angular velocity below the shot's declared threshold):
-  threshold `TO FILL (TD, after burst 2)`.
+  threshold **T = 140 °/s** — `slice/state_map.json` → `head_angular_velocity_threshold_deg_s`, FINAL (owner, Q46, 2026-09-27): MEDIUM windows ≤ 0.8·T = 112 °/s, `fast_movement` ≥ 1.5·T = 210 °/s (TD, 2026-10-31, `td_affirmation_2026-10-31.md` §2).
 - Render profiles: video (3840×2160, 24 fps) and still (per shot: 1050 / 1215 / 1290).
 - `MIX_PROVISIONAL` — the declared shot-difficulty mix of a full master, for X2:
 
@@ -189,19 +192,19 @@ rows: `docs/experiments/head-candidates-survey-2026-10-17.md`.
 
 ## 5. Pilot plan and repeat counts (protocol §5 Stage 3)
 
-- Pilot subject: **subject_09** (agent, in the TD role, 2026-10-30 — pending TD affirmation: the one child of the set
+- Pilot subject: **subject_09** (agent, in the TD role, 2026-10-30 — TD-affirmed 2026-10-31 (row 3 of `td_affirmation_2026-10-31.md`), with: «the pilot starts only after subject_09 v02 is accepted (Q74); if it is rejected the pilot waits for the accepted version, and `reference_set_version` includes the accepted 09»: the one child of the set
   with curly high-volume hair at a tone boundary (lightest), hair crossing the forehead and no glasses — `subjects.json`; its
-  v02 is in rebuild (Q70), the pilot waits for its acceptance) — one named subject from §3, chosen by this rule (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation): the
+  v02 is in rebuild (Q70), the pilot waits for its acceptance) — one named subject from §3, chosen by this rule (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 4 of `td_affirmation_2026-10-31.md`), with: «recorded: subject_09 has a fringe, so the `hand_over_face` window (SHOT_003 1303–1337) is excluded for it by the declared exclusion — M6 gets no variance from the pilot (row 6)»): the
   subject hardest on paper — curly high-volume hair at a tone boundary, forehead-crossing
   property, no glasses — because X2 is decided by the worst subject and the pilot's variance
   must not come from an easy one.
-- `n_pilot` = **3** (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation), ENGINEERING JUDGMENT — repeats per candidate × 3 shots, video
+- `n_pilot` = **3** (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 5 of `td_affirmation_2026-10-31.md`)), ENGINEERING JUDGMENT — repeats per candidate × 3 shots, video
   profile: the smallest count with a defined sample standard deviation (n − 1 = 2); a larger
   pilot would be paid before the variance that justifies it is known, and the two-degree-of-
   freedom estimate is compensated by the confidence bound in the rule below. Hash-identical
   repeats (M10) give `s = 0` and the rule's floor of 2 — never fewer (CLAUDE.md §7.11).
 - Rule that turns the pilot's observed variance into `N_rep` per metric — declared here, applied
-  after Stage 3, written to the record before Stage 4 (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation):
+  after Stage 3, written to the record before Stage 4 (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 6 of `td_affirmation_2026-10-31.md`), with: «added: a metric with no values on the pilot subject (M6 on subject_09 — a declared exclusion; M9 — human only) has its `N_rep` written `UNKNOWN` with the reason, R is computed over the metrics that have values, and that metric is read over the R runs of Stage 4 — recorded as a known gap»):
   per metric used for ranking, `s` = the sample standard deviation of the metric over the pilot
   repeats, computed per shot and per candidate, pooled over the 3 shots and over the candidates
   by the **maximum** (the noisiest shot and candidate are where separation is decided), then
@@ -246,18 +249,18 @@ ranking. `Used for ranking` is declared here, not decided after.
 
 | ID | Metric | Input | Negative control (synthetic subjects only) | Separation criterion (margin, N, statistic) | Used for ranking | Filled by |
 |---|---|---|---|---|---|---|
-| M1 | `identity_likeness` per state | subject sheet, same state and lighting; two estimators side by side — face-embedding distance (`UNVALIDATED` on stylized faces until it passes this row's control) and landmark-geometry deviation on the project rig | identity swap: A's output vs B's ground truth, every unordered pair of the `N_ref` subjects once (36 at `N_ref` = 9); scoring only, FREE | `m` = 1.0 mm (half the set's minimum difference between two children, 2.0 mm); N = R of `n_rep.json` (≥ 3); the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — pending TD affirmation; reasons and the dry reading: `bakeoff/metrics/README.md`) | landmark estimator: yes, if VALIDATED at Stage 5; embedding estimator: no — reported only until it passes this control on stylized faces (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation) | TD |
-| M2 | `identity_stability_over_performance` | M1 per state relative to front neutral | as M1 | `m` = 1.0 mm (as M1); N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — pending TD affirmation; reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED; the one metric burst-2 acting quality feeds — the record says which state moved it (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation) | TD |
-| M3 | `temporal_stability` | frame-to-frame change inside the head holdout | injected flicker on the default-head composite, two levels (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation), ENGINEERING JUDGMENT: gross — ±3 % scene-linear luma on alternate frames inside `HEAD_HOLDOUT`; near-boundary — ±1 % luma and, separately, a 1-px alternating edge jitter; a composite-domain operation, FREE; the metric's value on both levels is recorded | `m` = 0.04 (what the near-boundary ±1 % flicker reads: 4·0.01/(1 ± 0.01)); N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — pending TD affirmation; reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED | TD |
-| M4 | `seam` | luma/chroma discontinuity and edge alignment along the NECK_PROXY curve vs the default-head composite | displacement magnitudes borrowed from the D7 round-trip's own controls (repository `slice/conventions.json` → roundtrip.negative_control at the freeze commit — the record's own `slice/` directory carries the frozen copy; measured on the placeholder only, `smoke_test_only`, to be recalibrated on the real head) (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation): `HEAD_SCALED` — the head's effective silhouette radius grown by 5 px at the run's resolution about the silhouette centroid, focal scale recomputed per frame as `1 + 5 / r_eff` (gross) and by 1 px (near-boundary); `SEAM_SHIFTED` — the head displaced 5 px along the camera x axis at the run's resolution (gross) and 1 px (near-boundary). Fixed in pixels at the run's resolution, as D7 does; both are composite-domain operations on the default-head layer (scale and shift in the comp), FREE; the metric's value on both levels is recorded | the value is the head edge's mean displacement along the seam against the default head's (px at the run's resolution; the luma in the zone moves with the body's tone and is recorded beside it); `m` = 1.0 px; N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — pending TD affirmation; reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED | TD |
-| M5 | `hair_silhouette` | ground-truth hair class and silhouette | hairstyle swapped between two subjects of different hair classes (short straight ↔ curly high-volume) (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation) — subject A's ordinary output scored against subject B's sheet; scoring only, FREE | `m` = 0.10 IoU (ENGINEERING JUDGMENT); N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — pending TD affirmation; reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED | TD |
-| M6 | `occlusion` | depth ordering vs foreground plate and hand, per frame | head rendered over the hand in SHOT_003's `hand_over_face` window (C_HAND_FG plate composited under the head instead of over it) (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation); composite-domain, FREE | `m` = 0.5 of the overlap (ENGINEERING JUDGMENT: the head over the hand reads ~1, the correct order ~0); N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — pending TD affirmation; reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED — per frame pass/fail, a shot fails on its first failing frame | TD |
-| M7 | `skin_tone_match` | Δ head vs body skin inside the skin-ID pass after the display transform, per tone | body tone shifted, two levels (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation): gross — one step of the §3 tone ladder (the distance between adjacent ladder values, middle ↔ either end, of the master's recorded range); near-boundary — a quarter step; applied to the body skin inside the skin-ID cryptomatte through the unbaked CDL in the comp (the grade is separate by contract, master-spec), a composite-domain operation, FREE, not a re-render; the metric's value on both levels is recorded | `m` = 2.0 ΔE00 (twice a just-noticeable CIEDE2000 difference); N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — pending TD affirmation; reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED | TD |
-| M8 | `lighting_match` | head under the shot's lighting reference vs the default head | key light rotated on the head layer only, azimuth about the socket's up axis (+Y), key only, fill untouched, two levels (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation), ENGINEERING JUDGMENT: gross — 30°; near-boundary — 10°. This control is a **re-render of the head layer** (candidate 0 only, 2 levels × 3 shots × 2 profiles), PAID render capacity booked as a Stage 5 sub-step with its own estimate and included in the §5 cap check; the metric's value on both levels is recorded | `m` = 0.05 radius units (ENGINEERING JUDGMENT; kept after its PAID control was read 2026-10-30 — recorded per shot as well); N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — pending TD affirmation; reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED | TD |
-| M9 | `glasses` | present iff the subject wears them; specular and shadow plausibility — human-only in this bake-off | glasses removed from the glasses subject | n/a (human review, §8) | no — human review only (§8); a wrong glasses state fails the X1 checklist (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation) | TD |
+| M1 | `identity_likeness` per state | subject sheet, same state and lighting; two estimators side by side — face-embedding distance (`UNVALIDATED` on stylized faces until it passes this row's control) and landmark-geometry deviation on the project rig | identity swap: A's output vs B's ground truth, every unordered pair of the `N_ref` subjects once (36 at `N_ref` = 9); scoring only, FREE | `m` = 1.0 mm (half the set's minimum difference between two children, 2.0 mm); N = R of `n_rep.json` (≥ 3); the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — TD-affirmed 2026-10-31 (row 7 of `td_affirmation_2026-10-31.md`); reasons and the dry reading: `bakeoff/metrics/README.md`) | landmark estimator: yes, if VALIDATED at Stage 5; embedding estimator: no — reported only until it passes this control on stylized faces (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 8 of `td_affirmation_2026-10-31.md`), with: «worded as built: the geometric estimator (RMS of the FACE vertices' displacement, frame-matched) — yes, if VALIDATED; the embedding estimator — no, reported only until it passes a control on stylized faces») | TD |
+| M2 | `identity_stability_over_performance` | M1 per state relative to front neutral | as M1 | `m` = 1.0 mm (as M1); N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — TD-affirmed 2026-10-31 (row 9 of `td_affirmation_2026-10-31.md`); reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED; the one metric burst-2 acting quality feeds — the record says which state moved it (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 10 of `td_affirmation_2026-10-31.md`)) | TD |
+| M3 | `temporal_stability` | frame-to-frame change inside the head holdout | injected flicker on the default-head composite, two levels (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 11 of `td_affirmation_2026-10-31.md`), with: «gross — ±3 % luma on alternate frames inside `HEAD_HOLDOUT`; near-boundary — ±1 %; the 1-px edge jitter is M4's control, not M3's (M3 cannot see it — the dry run of 2026-10-30)»), ENGINEERING JUDGMENT: gross — ±3 % scene-linear luma on alternate frames inside `HEAD_HOLDOUT`; near-boundary — ±1 % luma and, separately, a 1-px alternating edge jitter; a composite-domain operation, FREE; the metric's value on both levels is recorded | `m` = 0.04 (what the near-boundary ±1 % flicker reads: 4·0.01/(1 ± 0.01)); N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — TD-affirmed 2026-10-31 (row 12 of `td_affirmation_2026-10-31.md`), with: «recorded: the near-boundary ±1 % is not distinguishable from fast motion (known-good 0.015, up to 0.048 in fast motion; gross 0.120)»; reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED | TD |
+| M4 | `seam` | luma/chroma discontinuity and edge alignment along the NECK_PROXY curve vs the default-head composite | displacement magnitudes borrowed from the D7 round-trip's own controls (repository `slice/conventions.json` → roundtrip.negative_control at the freeze commit — the record's own `slice/` directory carries the frozen copy; measured on the placeholder only, `smoke_test_only`, to be recalibrated on the real head) (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 13 of `td_affirmation_2026-10-31.md`), with: «the magnitudes affirmed, the remark replaced: recalibrated on the default head v04.1 on 2026-10-30 (dry run) — shift 5 → 1.92 px, scale +5 → 4.90 px; 1 px → 0.39 / 0.97 px»): `HEAD_SCALED` — the head's effective silhouette radius grown by 5 px at the run's resolution about the silhouette centroid, focal scale recomputed per frame as `1 + 5 / r_eff` (gross) and by 1 px (near-boundary); `SEAM_SHIFTED` — the head displaced 5 px along the camera x axis at the run's resolution (gross) and 1 px (near-boundary). Fixed in pixels at the run's resolution, as D7 does; both are composite-domain operations on the default-head layer (scale and shift in the comp), FREE; the metric's value on both levels is recorded | the value is the head edge's mean displacement along the seam against the default head's (px at the run's resolution; the luma in the zone moves with the body's tone and is recorded beside it); `m` = 1.0 px; N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — TD-affirmed 2026-10-31 (row 14 of `td_affirmation_2026-10-31.md`); reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED | TD |
+| M5 | `hair_silhouette` | ground-truth hair class and silhouette | hairstyle swapped between two subjects of different hair classes (short straight ↔ curly high-volume) (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 15 of `td_affirmation_2026-10-31.md`), with: «every pair of subjects of different hair classes (short / long / curly), frame-matched — as built») — subject A's ordinary output scored against subject B's sheet; scoring only, FREE | `m` = 0.10 IoU (ENGINEERING JUDGMENT); N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — TD-affirmed 2026-10-31 (row 16 of `td_affirmation_2026-10-31.md`); reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED | TD |
+| M6 | `occlusion` | depth ordering vs foreground plate and hand, per frame | head rendered over the hand in SHOT_003's `hand_over_face` window (C_HAND_FG plate composited under the head instead of over it) (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 17 of `td_affirmation_2026-10-31.md`), with: «recorded: measured on subjects 01, 06, 07, 08 only (the window is excluded for 02, 03, 04, 05, 09)»); composite-domain, FREE | `m` = 0.5 of the overlap (ENGINEERING JUDGMENT: the head over the hand reads ~1, the correct order ~0); N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — TD-affirmed 2026-10-31 (row 18 of `td_affirmation_2026-10-31.md`), with: «added: a bad frame is an overlap fraction ≥ 0.5 (= m), PROVISIONAL»; reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED — per frame pass/fail, a shot fails on its first failing frame | TD |
+| M7 | `skin_tone_match` | Δ head vs body skin inside the skin-ID pass after the display transform, per tone | body tone shifted, two levels (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 19 of `td_affirmation_2026-10-31.md`)): gross — one step of the §3 tone ladder (the distance between adjacent ladder values, middle ↔ either end, of the master's recorded range); near-boundary — a quarter step; applied to the body skin inside the skin-ID cryptomatte through the unbaked CDL in the comp (the grade is separate by contract, master-spec), a composite-domain operation, FREE, not a re-render; the metric's value on both levels is recorded | `m` = 2.0 ΔE00 (twice a just-noticeable CIEDE2000 difference); N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — TD-affirmed 2026-10-31 (row 20 of `td_affirmation_2026-10-31.md`); reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED | TD |
+| M8 | `lighting_match` | head under the shot's lighting reference vs the default head | key light rotated on the head layer only, azimuth about the socket's up axis (+Y), key only, fill untouched, two levels (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 21 of `td_affirmation_2026-10-31.md`)), ENGINEERING JUDGMENT: gross — 30°; near-boundary — 10°. This control is a **re-render of the head layer** (candidate 0 only, 2 levels × 3 shots × 2 profiles), PAID render capacity booked as a Stage 5 sub-step with its own estimate and included in the §5 cap check; the metric's value on both levels is recorded | `m` = 0.05 radius units (ENGINEERING JUDGMENT; kept after its PAID control was read 2026-10-30 — recorded per shot as well); N = R; the statistic below (agent, drafted in the TD role, 2026-10-30, before any candidate output — TD-affirmed 2026-10-31 (row 22 of `td_affirmation_2026-10-31.md`), with: «the verdict is per shot: M8 ranks only on the shots where its verdict is VALIDATED; the pooled verdict is recorded and does not rank»; reasons and the dry reading: `bakeoff/metrics/README.md`) | yes, if VALIDATED | TD |
+| M9 | `glasses` | present iff the subject wears them; specular and shadow plausibility — human-only in this bake-off | glasses removed from the glasses subject | n/a (human review, §8) | no — human review only (§8); a wrong glasses state fails the X1 checklist (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 23 of `td_affirmation_2026-10-31.md`)) | TD |
 | M10 | `determinism` | same inputs twice: hashes equal or per-pixel variance recorded | none — its own control | n/a | reported | TD |
 
-Criterion form for M1–M8, declared now (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation); the margins `m` are written with the first
+Criterion form for M1–M8, declared now (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 24 of `td_affirmation_2026-10-31.md`), with: «recorded: for M1, M2 and M5 the 'As built' paragraph governs (known-good 0 / IoU 1, frame-matched); the sheet against front neutral is the embedding's only»); the margins `m` are written with the first
 candidate. Known-good: for M3, M4, M6, M7, M8 — candidate 0 (the default head) over the `N_rep`
 repeats; for M1, M2, M5 — the subject's own ground truth from protocol §3, nothing rendered by
 any head technology: the subject's expression sheet in the state, scored by the estimators
@@ -273,7 +276,7 @@ the difference (`s · sqrt(2 / N_rep)`) wide; the overlap of the two ranges is r
 means; otherwise `NOT_VALIDATED`, reported, not used for ranking. "Yes, if VALIDATED" above means exactly this
 test, on this record, per metric.
 
-**As built** (agent, in the TD role, 2026-10-30, before any candidate output — pending TD affirmation;
+**As built** (agent, in the TD role, 2026-10-30, before any candidate output — TD-affirmed 2026-10-31 (row 25 of `td_affirmation_2026-10-31.md`);
 `bakeoff/metrics/README.md`): the geometric estimators of M1, M2 and M5 read the child's truth **in the same frame of the
 same shot** (frame-matched; both files must play the same performance — their FACE_CTRL channels are compared and a
 difference refuses the pairing), so their known-good — the truth against itself — is exactly 0 mm and IoU 1: a geometric
@@ -299,7 +302,7 @@ Operational measures O1–O8 are recorded per candidate as the protocol lists th
 
 ### X1 — `cleanup_minutes_to_acceptable`
 
-- **Acceptance checklist** (signed per shot by the TD of record (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation); every item is a
+- **Acceptance checklist** (signed per shot by the TD of record (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 26 of `td_affirmation_2026-10-31.md`), with: «the items affirmed, the signer edited: the owner signs as the TD of record (§12); the agent attaches its evidence to every item (the metric values, the frames of largest motion, the still at 100 %, the subject's sheet); the signer decides»); every item is a
   human pass/fail — a checklist item is not a scale and no metric is its gate: protocol §7
   defines *acceptable* by the signed checklist, and every threshold this bake-off produces is at
   most PROVISIONAL, which `docs/process/definitions.md` keeps out of acceptance gates; the item's
@@ -316,12 +319,12 @@ Operational measures O1–O8 are recorded per candidate as the protocol lists th
   the body — no tone step at the neck; glasses correct — present iff the subject is
   `glasses: PRESCRIPTION`, drawn with a shadow and a specular. A checklist the §8 reviewers
   contradict is recalibrated and the contradiction recorded.
-- **Failed shot** (the trigger for Stage 6, protocol §7) (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation): a Stage 4 run whose raw
+- **Failed shot** (the trigger for Stage 6, protocol §7) (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 27 of `td_affirmation_2026-10-31.md`), with: «the signer flags (the agent may propose a flag with its evidence); per protocol §7 a failed shot is also one past a PROVISIONAL threshold — none exists before Stage 5, so that condition is empty in this bake-off, recorded»): a Stage 4 run whose raw
   output the TD flags on any checklist item above, the flag written with the item's name before
   any repair starts; `P_fail(tier)` of X2 is the fraction of Stage 4 runs so flagged, per tier.
   One repair per failed **cell** (the first flagged repeat is repaired; the others stay counted
   in `P_fail`), never one per repeat.
-- `cleanup_ceiling_minutes` per shot = **120** (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation), ENGINEERING JUDGMENT — one minute
+- `cleanup_ceiling_minutes` per shot = ~~**120**~~ (replaced, row 28) (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 28 of `td_affirmation_2026-10-31.md`), with: «replaced (owner, 2026-10-31, В3): per shot — 3 render iterations on the Mac over the affected frame range or 180 agent minutes, whichever comes first; per still — 2 iterations or 45 minutes; PROVISIONAL; at the ceiling `UNRECOVERABLE`, never folded into a mean; the repair's minutes and iterations counted once per shot in X2. The worst case for §9 (every cell failed, every repair to the ceiling, N_ref = 9): ≈ 31–50 Mac hours of video re-render and < 1 of stills, ≈ 101 agent hours, per candidate — it replaces the 67.5 h below»), ENGINEERING JUDGMENT — one minute
   per frame of a 120-frame shot: past that a repair is re-animation, i.e. "shot redesign
   required", not cleanup; per still = **30** (a quarter of the shot ceiling — a still has no
   frames to re-animate). Every shot is multi-tier in `state_map.json` (SHOT_001 EASY + MEDIUM,
@@ -331,21 +334,20 @@ Operational measures O1–O8 are recorded per candidate as the protocol lists th
   repair per failed cell: video `N_ref × 3 shots × 2 h` + stills `N_ref × 3 × 0.5 h` = 67.5 h
   per candidate, candidate 0 included, at `N_ref = 9`. At the ceiling a shot is
   `UNRECOVERABLE`, never folded into a mean.
-- Who repairs: **the slice contractor, who is also the TD of record** (owner, 2026-10-31: «он будет чистить брак на
-  стейдж 6») — a human compositor, the same for every candidate, whose
-  minutes carry the operator rate below; Stage 6 is `PAID (human)` and X2 prices
-  `cleanup_cost_per_failed_frame = X1 minutes × operator rate`. TD note (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation): if the owner
-  names the agent-led pipeline as the repairer, its minutes are machine wall-clock, go into a
-  separate non-monetizable column, and X1 human minutes read `UNKNOWN` — X2 then cannot price
-  cleanup, which is the quantity the bake-off exists to compare. Shot order randomized by a
+- Who repairs: **an agent repairer, the same for every candidate** (owner, 2026-10-31, В2; confirmed «поехали» the same day): which agent and on which machine is decided before Stage 6 — not the agent that launches the candidates' runs, which knows every code. X1 is four columns, never summed (protocol §7, amended 2026-10-31): agent minutes, operations (commands and, separately, render iterations), the Mac hours of the repair's render iterations (booked `bakeoff_cleanup`, inside `BAKEOFF_COST_CAP`; at the cap — the checkpoint stops, the owner decides), and the human minutes of the TD's sign-off. Stage 6 is `PAID (machine + human signing)`; the agent time's money is `UNKNOWN` with its reason until the owner names a rate. ~~TD note (agent, drafted in the TD role, 2026-09-16): if the owner names the agent-led pipeline as the repairer, its minutes are machine wall-clock, go into a separate non-monetizable column, and X1 human minutes read `UNKNOWN` — X2 then cannot price cleanup, which is the quantity the bake-off exists to compare.~~ (struck 2026-10-31, row 29 of `td_affirmation_2026-10-31.md`: the decision replaced its 'if'; the repair's Mac hours and operations are measurable and comparable across candidates.) Shot order randomized by a
   seeded Fisher–Yates shuffle, seed = sha256 of `experiment_id + ":" + stage + ":" +
   session_id`, seed and order written to the record before the first shot is opened. Blind to
-  the candidate: `TO FILL` per artifact class by the repairer — recorded, as the protocol
-  requires; whoever repaired a shot cannot review its cleaned output blind (§8).
-- What is counted: wall-clock from first opening to sign-off, render iterations included; tools
-  recorded.
-- Operator rate for X2: `TO FILL (owner)` or `UNKNOWN` — until then minutes are reported
-  beside money, never summed.
+  the candidate, per artifact class (the repairer's, 2026-10-31, `td_affirmation_2026-10-31.md` §2): video frames and stills — blind for
+  the candidates, not for candidate 0 (the master's own head, known on sight): files under the artifact code, no paths,
+  `candidate_id`, `run_id` or metadata; head geometry, if a repair is made in 3D — blind for B1-M (the master's
+  topology), not for a candidate of another topology (recorded); the repair log — blind (no record or registry file in
+  the repair packet). The repairer knows the candidate list from the form, so blind means 'not by the file'; with one
+  registered candidate the only distinction is candidate 0 against not — recorded. Whoever repaired a shot cannot
+  review its cleaned output blind (§8).
+- What is counted: the four columns above — agent minutes from first opening the shot to submission for sign-off;
+  operations; the repair's Mac hours; the signing minutes; tools recorded.
+- Operator rate for X2 (the signing minutes) and the agent's rate: `TO FILL (owner)` or `UNKNOWN` — until then
+  minutes and Mac hours are reported beside money, never summed.
 
 ### X2 — cost and wall-clock per finished cartoon
 
@@ -356,7 +358,7 @@ Formula as in the protocol §7; inputs and their status at freeze:
 | `frames(tier)` | §4 `MIX_PROVISIONAL` | ESTIMATE | owner + TD |
 | total head-render frames | ~4,300 | ESTIMATE (master-spec) | agent, pre-filled |
 | comic panels | 40–60 | ESTIMATE | agent, pre-filled |
-| `worker_warmup_minutes`, `t_comp`, `S_frame` | from the slice record (P1) | `UNKNOWN` until the real asset renders | TD |
+| `worker_warmup_minutes`, `t_comp`, `S_frame` | from the slice record (P1) | measured — the package's `slice/package_manifest.json` (P1); the row read `UNKNOWN` after P1 was met, corrected 2026-10-31 (the TD table §6) | TD |
 | operator rate | `TO FILL` | `UNKNOWN` | owner |
 
 Reported per candidate × subject as the range across subjects; the worst subject decides.
@@ -370,14 +372,14 @@ or the ADR. A missing cell is `NOT_EVALUATED` with a reason and the candidate is
 
 - Planted known-bad artifacts in every review set (identity-swapped, flicker-injected,
   seam-shifted, wrong-hairstyle, head-over-hand, wrong-skin-tone): rate = **1 planted per 5
-  genuine items, at least 2 per session** (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation), every one of the six kinds planted at least
+  genuine items, at least 2 per session** (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 30 of `td_affirmation_2026-10-31.md`), with: «replaced: the number planted in a session, k, is drawn by the sealed salt uniformly from [2, max(2, ⌈0.3 × genuine⌉)] — the form states only the range; each of the six kinds at least once per cycle; the salt (≥ 128 bits) and the code map are held by a **third party who reviews in no session** (`TO FILL (owner)`, before the first session; the owner now reviews), its sha256 in the record before the first session, revealed at Stage 8; every session is recorded as 'the range is known to the reviewer'»), every one of the six kinds planted at least
   once per review cycle (a cycle = the set of sessions that covers every candidate's outputs of
   one kind, raw or cleaned, once); positions drawn from a seeded shuffle whose seed is a
-  **secret salt** of at least 128 random bits generated and held by the **owner**, who reviews
-  in no session (not the published X1 seed), sealed by its committed sha256 before the first
+  **secret salt** of at least 128 random bits generated and held by ~~the **owner**, who reviews
+  in no session~~ a third party who reviews in no session (row 30) (not the published X1 seed), sealed by its committed sha256 before the first
   session and revealed at Stage 8 exactly like the artifact map below; unknown to every
   reviewer, the TD of record included. A session holds at least 10 genuine items.
-- **Reviewer discrimination floor** = **80 %** (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation) — the fraction of planted negatives a
+- **Reviewer discrimination floor** = **80 %** (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 31 of `td_affirmation_2026-10-31.md`), with: «with a variable k: a reviewer catches ⌈0.8·k⌉») — the fraction of planted negatives a
   reviewer must catch, rounded up (`ceil(0.8 × planted)`: with 2 planted, both; with 3, all
   three; with 5, at least 4); and a **false-alarm ceiling** of 20 % — a false alarm is a
   `defect_types[]` entry of a planted kind (identity, flicker, seam, hair, occlusion, skin tone)
@@ -386,11 +388,11 @@ or the ADR. A missing cell is `NOT_EVALUATED` with a reason and the candidate is
   either. Below the floor or above the ceiling the session's ratings are
   discarded and the discard recorded with the reviewer's pseudonymous id.
 - Reviewers: count `TO FILL (owner)`; roles — at least one naive person and the TD of record;
-  ids pseudonymous. TD note (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation), a proposal, not a commitment: three — the TD of record,
+  ids pseudonymous. TD note (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 32 of `td_affirmation_2026-10-31.md`), with: «replaced: reviewers are people only — the owner (TD of record), at least one naive person, if possible one more person; the count is the owner's. The agent (the repairer, also the burst-2 animator) is not a reviewer: an AI reviewer is an AI judge, which protocol §8 does not admit. The owner's sessions on **cleaned** outputs are not blind (he signed the repairs) and are excluded from every blind conclusion; on raw outputs they are blind only as far as the codes conceal — the candidates' runs are launched on his machine, recorded»), a proposal, not a commitment: three — the TD of record,
   the burst-2 animator as `animator`, one naive person who has never seen the pipeline. The TD
   of record's sessions on **cleaned** outputs are not blind (the repairs are recognizable) and
   are excluded from every blind-review conclusion; recorded as such.
-- Scales (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation), declared once, used in every session — five points, anchored, only the
+- Scales (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 33 of `td_affirmation_2026-10-31.md`)), declared once, used in every session — five points, anchored, only the
   anchors below are shown to reviewers: `likeness_to_ground_truth` 1 = a different child, 3 =
   resembles the sheet, 5 = the child on the sheet; `alive_and_expressive` 1 = a static mask, 3 =
   moves but reads flat, 5 = alive, the expression reads; `seam` 1 = the head is visibly attached,
@@ -400,13 +402,13 @@ or the ADR. A missing cell is `NOT_EVALUATED` with a reason and the candidate is
   absent against the sheet), 3 = right state, no shadow or specular, 5 = right state, plausible;
   `artifacts` 1 = distracting on every viewing, 3 = visible when looked for, 5 = none; `ship`
   yes/no is the reviewer's own verdict, asked last.
-- Media: video at 24 fps; STILL at 100 % zoom or as a print. Per tier (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation): EASY,
+- Media: video at 24 fps; STILL at 100 % zoom or as a print. Per tier (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 34 of `td_affirmation_2026-10-31.md`)): EASY,
   MEDIUM, DIFFICULT, STRESS — `VIDEO_24FPS`, the whole shot once, then each state window of the
   tier looped three times; the still tier — `STILL_100PCT` on a display set to the profile's
   display transform (repository `slice/conventions.json` → colour at the freeze commit: Rec.709
   for video, `display_print` for the still profile) for every subject, plus `STILL_PRINT` at A4 300 dpi for one subject per
   candidate, the same subject for all.
-- The candidate ↔ `artifact_code` map is sealed until Stage 8: sealed by hash (agent, drafted in the TD role, 2026-09-16 — pending TD affirmation) —
+- The candidate ↔ `artifact_code` map is sealed until Stage 8: sealed by hash (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 35 of `td_affirmation_2026-10-31.md`), with: «added: the map is written by a script run by the salt holder; the owner receives coded packets only; if the holder cannot run the script and the owner does, the owner's sessions are recorded as not blind») —
   `artifact_map.json` is written outside the record when the codes are assigned, its sha256 is
   committed to the record as `artifact_map.sha256` before the first review session, and at Stage
   8 the map itself is committed and must hash to that value; a mismatch voids every session.
@@ -435,15 +437,18 @@ another repeat on the discriminating tier, not a preference.
 Quality on real parents' photographs (phone optics, lighting, age, expression at upload);
 parent satisfaction with a likeness; behaviour across twelve scenes with secondary characters;
 hair-simulation cost at the full hair variety of real children; the stability of any vendor's
-terms; performance at 10, 50 or 100 concurrent orders.
+terms; performance at 10, 50 or 100 concurrent orders. What a human compositor's cleanup minutes would be: cleanup is
+measured as an agent's repair, in its four columns (owner, 2026-10-31). An independent human technical review of this
+pre-registration: its technical fields were drafted by the project's agent and checked by a second agent (the slice
+contractor), and the owner signed them as the TD of record on the agents' evidence (2026-10-31).
 
 ## 12. Sign-off and freeze
 
 | Field | Value |
 |---|---|
-| TD of record | **The slice contractor** (engaged 2026-09-15, proposal §7 Option B; bursts 1–3), named by the owner 2026-10-31 («Назначаем исполнителя по рекордсу, да… Подтверждаю»); in the records under a pseudonymous id (`operator_id`, a ULID, minted at his first record), never his name. His affirmation of the drafted fields is burst 4 (its cap the owner's, after his estimate — Q72 of 2026-10-31). He is also the Stage 6 repairer (§7), so his sessions on **cleaned** outputs are not blind and every blind conclusion on cleaned outputs rests on the other reviewers (§8). The role: the party who signs every X1 checklist and the freeze; the slice staffing decision (proposal §7 Option B, 2026-09-15) was not this appointment. The fields marked "drafted in the TD role" become the form's values only by the named TD's explicit affirmation, field by field, recorded here before `frozen: true`; unaffirmed drafts are struck, not adopted |
+| TD of record | **The owner, by signature** (owner, 2026-10-31, В1; confirmed «поехали» the same day). The slice contractor — an AI agent — prepared the affirmation table `td_affirmation_2026-10-31.md` (sha256 `8622ff80…`, in this record); the owner signed it on 2026-10-31 («поехали», answering the agent's request to sign the table and the statement below). An agent affirming an agent's drafts is not an independent check; the signature is a person's (§11 records the limit). In the records under a pseudonymous id (`operator_id`, a ULID), never a name. The role: the party who signs every X1 checklist and the freeze. The fields marked "drafted in the TD role" became the form's values only by this affirmation, field by field; the struck draft is struck, not adopted |
 | Owner | `TO FILL` |
-| Statement: no subject in §3 is derived from any real person's photograph | `TO FILL (signed by)` |
+| Statement: no subject in §3 is derived from any real person's photograph | **Signed by the owner (TD of record), 2026-10-31** («поехали»). Grounds — the contractor's (`td_affirmation_2026-10-31.md` §5): the nine heads built by `build_character.py` from MPFB2 / MakeHuman (CC0 assets, `contractor/burst-1/LICENSES.md`), targets by table and bumps by seed; procedural materials, no textures; the parents' 'photos' are renders of the same heads; no photograph of a person as input, seed or reference. Ours: every head rebuilt from his scripts and compared (burst 3), and the build scripts load no image (scanned 2026-10-31) |
 | `frozen` | `false` |
 | Frozen at (date, commit) | `TO FILL` |
 | sha256 of this file at freeze (also written into `decision.md`) | `TO FILL` |

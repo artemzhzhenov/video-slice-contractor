@@ -172,7 +172,7 @@ carry the full paid-stage declaration of `../costs/cost-model.md`.
 | 3 Pilot | One subject — named in pre-registration — × 3 shots × `n_pilot` repeats per candidate, video profile. | PAID | Observed variance per metric → `N_rep` per metric, written to the record before Stage 4 |
 | 4 Full matrix | Every run of §4 at `N_rep`. | PAID | One result row per run (§10) |
 | 5 Metrics + negative controls | Every automated metric of §6 on every run, and on every negative control. | FREE | Metric values; per-metric `VALIDATED | NOT_VALIDATED` from the separation criterion |
-| 6 Cleanup | Every failed shot repaired by a human to the acceptance checklist (§7, X1). | PAID (human) | `cleanup_minutes_to_acceptable` or `UNRECOVERABLE` per shot |
+| 6 Cleanup | Every failed shot repaired by the agent repairer to the acceptance checklist (§7, X1), signed by the TD of record (amended 2026-10-31, owner: the repairer is an agent — `preregistration.md` §7; text from the TD table `td_affirmation_2026-10-31.md` §4). | PAID (machine + human signing) | `cleanup_agent_minutes`, `cleanup_operations`, `cleanup_mac_hours`, `cleanup_signing_minutes` or `UNRECOVERABLE` per shot |
 | 7 Blind review | §8, on raw outputs **and** on cleaned outputs, with planted negatives. | PAID (human) | Review sessions; reviewer discrimination |
 | 8 Extrapolation and decision | §7 X2 and X3; ADR-0003 drafted from the record. | FREE | `decision.md`, the ADR |
 
@@ -227,12 +227,16 @@ A candidate that cannot produce all three has not passed, whatever its pictures 
   contradiction recorded.
 - **Failed shot** = any shot below a `PROVISIONAL` threshold or flagged by the TD on the raw
   output.
-- **Who repairs:** the same compositor or compositors for every candidate; shot order
-  randomized; the compositor does not know which candidate produced the shot wherever the
-  artifact allows it, and the record says whether it did.
-- **What is counted:** wall-clock from first opening the shot to checklist sign-off, render
-  iterations included; tools used are recorded.
-- **Ceiling:** `cleanup_ceiling_minutes` per shot, declared in pre-registration. A shot that
+- **Who repairs** (amended 2026-10-31, owner: the repairer is an agent — `preregistration.md` §7; text from the TD table `td_affirmation_2026-10-31.md` §4): one agent repairer for every candidate; shot order randomized;
+  blind per artifact class as recorded in pre-registration — the repairer does not know which candidate produced the
+  shot wherever the artifact allows it, and the record says whether it did. (Until 2026-10-31: the same human
+  compositor or compositors for every candidate.)
+- **What is counted — four columns, never summed:** (1) agent minutes — wall-clock from first opening the shot to
+  submission for sign-off; (2) operations — commands issued and, separately, render iterations; (3) the Mac hours of
+  the repair's render iterations, booked as `bakeoff_cleanup`, counted toward `BAKEOFF_COST_CAP`; (4) the human
+  minutes of the TD's checklist sign-off. Tools used are recorded.
+- **Ceiling:** per shot, declared in pre-registration — since 2026-10-31 three render iterations or 180 agent minutes,
+  whichever comes first; per still two iterations or 45 minutes (PROVISIONAL, owner 2026-10-31). A shot that
   reaches it is `UNRECOVERABLE` — counted as such, never folded into a mean. An unrecoverable
   shot is what "shot redesign required" means in `../qc/evidence-and-experiments.md`. A repair
   halted by an owner cost stop (§5) is recorded as `STOPPED` with the minutes spent; it is
@@ -265,7 +269,7 @@ Inputs and their status:
 | comic panels | 40–60 (comic spec §5) | ESTIMATE |
 | `cost_per_frame`, `cost_per_still` | Stage 4 and Stage 2, actual provider or compute cost | measured, or `UNKNOWN` with reason |
 | `P_fail(tier)` | fraction of Stage 4 runs that needed cleanup, per tier | measured |
-| `cleanup_cost_per_failed_frame` | X1 minutes × operator rate | minutes are measured; the rate is `UNKNOWN` until the owner supplies it — until then X2 is reported in **money for machine cost plus minutes for human cost**, two columns, never summed into one |
+| `cleanup_cost_per_failed_frame` | the repair's Mac hours × machine rate (or Mac hours, while no rate exists) + agent minutes × agent rate + signing minutes × operator rate (amended 2026-10-31, owner: the repairer is an agent — `preregistration.md` §7; text from the TD table `td_affirmation_2026-10-31.md` §4) | hours and minutes are measured; every rate is `UNKNOWN` until the owner supplies it — until then each is its own column, never summed until every rate exists |
 
 An X2 that hides which column is measured and which is estimated is a defect.
 
@@ -325,7 +329,8 @@ calibrated on clearly-good, clearly-bad and borderline items first, and never as
 - **Ledger.** Every cost of the bake-off is `PLATFORM_COST` with `entity_ref.experiment_id` and
   `amortization_basis: PER_MASTER` — the decision it buys applies to every master. Stage names
   in the cost records: `bakeoff_onboarding`, `bakeoff_still`, `bakeoff_pilot`, `bakeoff_matrix`,
-  `bakeoff_cleanup_minutes`, `bakeoff_review`, and `bakeoff_control_render` (the PAID control re-renders of §6 and our
+  `bakeoff_cleanup_minutes`, `bakeoff_cleanup` (the repair's render iterations, `machine_time`; added 2026-10-31),
+  `bakeoff_review`, and `bakeoff_control_render` (the PAID control re-renders of §6 and our
   ground-truth sheets; added 2026-10-29). The slice's own render is booked as
   `bakeoff_slice_render` (`../../fixtures/bakeoff_dry_run/cost_record.1.json`), also
   `PLATFORM_COST` — owner decision 2026-09-11, recorded in ADR-0002 §Validation.

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "master_id": "01J7B000000000000000BAKEM1",
+  "master_version": 1,
+  "master_contract_version": 5,
+  "audience": "kids",
+  "occasion": "just_because",
+  "age_range": "7-9",
+  "visual_style_id": "bakeoff_slice_v1",
+  "safety_profile": "SAFETY_PROFILE_KIDS",
+  "language_layers": [
+    "en",
+    "ru"
+  ],
+  "subject_requirements": {
+    "subject_type": "child",
+    "age_range": "7-9",
+    "body_presentation": "girl",
+    "head_sockets": 1
+  },
+  "products_supported": [
+    "CARTOON",
+    "COMIC"
+  ],
+  "roles": [
+    {
+      "role_id": "ROLE_HERO",
+      "name": "Hero",
+      "is_hero": true
+    }
+  ],
+  "shots": [
+    "SHOT_001",
+    "SHOT_002",
+    "SHOT_003"
+  ],
+  "head_render_units": {
+    "video": 360,
+    "still": 3
+  },
+  "package_hash": "490e980793c41c2ae7ffed775564a86db0d4e0e8c375394162808880dfa7ba09",
+  "rebuild_recipe_ref": "benchmarks/bakeoff/01J7B000000000000000BAKEXP/slice/REBUILD.md",
+  "toolchain": {
+    "dcc": "Blender",
+    "dcc_version": "5.2.1 LTS",
+    "ocio_config_version": "v4.0.0 (ACES 2.0, OCIO 2.5)",
+    "channel_vocabulary_version": 1
+  }
+}
