@@ -10,7 +10,7 @@ them are ENGINEERING JUDGMENT with their rationale (no labelled set exists yet, 
 PROVISIONAL in the sense of `docs/process/definitions.md`) and are validated at Stage 3/5 like
 every threshold. Separation margins (§6) stay `TO FILL` until the first candidate is
 registered — the form's own rule.
-**2026-10-31:** the TD of record — the owner, by signature (§12) — affirmed the drafted fields one by one on the table `td_affirmation_2026-10-31.md` in this record (prepared by the slice contractor, an AI agent; sha256 `8622ff8019e5a060858df81ef0b5a9a606a8f601ce1ab51b5497d6be6ff08a24`): every marker below names its row; where a row adds to or edits a field, the row's text (quoted, translated from the table's Russian, which is the original) governs; one draft is struck. The §2 rows of candidate B1 filled by the agent in the TD role carried no marker and are not affirmed by the table (its §6) — marked below, they wait for the TD's affirmation like any draft.
+**2026-10-31:** the TD of record — the owner, by signature (§12) — affirmed the drafted fields one by one on the table `td_affirmation_2026-10-31.md` in this record (prepared by the slice contractor, an AI agent; sha256 `8622ff8019e5a060858df81ef0b5a9a606a8f601ce1ab51b5497d6be6ff08a24`): every marker below names its row; where a row adds to or edits a field, the row's text (quoted, translated from the table's Russian, which is the original) governs; one draft is struck. The §2 rows of candidate B1 filled by the agent in the TD role carried no marker and are not affirmed by the table (its §6) — the owner affirmed them separately the same day (§2).
 Every remaining `TO FILL` waits for the named person. Nothing in this file may
 be written after a candidate output exists: at the moment the first Stage 0 artifact is
 produced, this file is frozen — its sha256 is written into `decision.md`, `frozen` becomes
@@ -77,7 +77,7 @@ avatar, D hybrid). One block per candidate; copy the block. Candidate 0 is pre-f
 
 ### Candidate B1 — KeenTools FaceBuilder → our Blender rig (registered 2026-10-17)
 
-Every row below filled by `TD` was written by the agent in the TD role (2026-10-17 → 2026-10-30) — pending the TD of record's affirmation, row by row, before the freeze (found by the contractor's table, §6, 2026-10-31).
+Every row below filled by `TD` was written by the agent in the TD role (2026-10-17 → 2026-10-30), without a marker (found by the contractor's table, §6). **Affirmed by the TD of record, row by row, 2026-10-31** (the owner, «подтверждаю B1 с правками 12 и 13»), on the agent's row-by-row reading with each row's evidence (the lock file and the smoke check, the registry entry, the Stage 0 record, the EULA, the packet and onboarding scripts): rows 1–11 as written, row 12 (the cost class) edited; the Stage 1 tooling paragraph below likewise, its last item edited.
 
 | Field | Value | Filled by |
 |---|---|---|
@@ -92,7 +92,7 @@ Every row below filled by `TD` was written by the agent in the TD role (2026-10-
 | `vendor_portability` (O7) | licensed desktop tool; the fitted mesh and shapes are ours to keep (exported geometry) — portability of the FIT, not of the tool | TD |
 | Candidate hypothesis | it should win on contract fit (native Blender passes, shadow, holdout, 4K) and on cost; it loses if the fixed topology prior cannot carry a child's likeness (M1/M2 on the synthetic set) or if 51 shapes plus custom keys cannot reach the slice's extremes (laughter, fear) — the second clause met at Stage 0 for the ARKit drive. **For B1-M (2026-10-23):** it loses if the likeness does not survive the wrap onto the master's topology (M1/M2), or if the master's channel keys on a child's identity break the lids or the mouth on faces unlike the default head (the channel reference and the extremes, per subject) | TD |
 | Exclusion risk on paper | none of the four: the mesh is the derivative (BOUNDARY), the layer is contract-native (CONTRACT), driven through the adapter (PERFORMANCE), the head fitted inside the envelope (SCALE — checked at Stage 0) | TD |
-| Expected cost class per stage | Stage 0: the subscription month (~$20, owner) + TD hours on the M4; Stages 1–2: TD hours per child (the fit is interactive) — ESTIMATE, measured on the pilot child. **2026-10-29:** the fit scripts headless (0 human minutes on Stage 0's packet); the stages are Mac hours — `stage_cost_estimate.json` (ESTIMATE) | TD + owner |
+| Expected cost class per stage | Stage 0: the subscription month (~$20, owner) + Mac hours on the M4; Stages 1–2: Mac hours — the fit scripts run headless (0 human minutes on Stage 0's packet, 2026-10-29); the stages' Mac hours are `stage_cost_estimate.json` (ESTIMATE). Edited and affirmed by the TD of record 2026-10-31 (the owner, «подтверждаю B1 с правками 12 и 13»); it read: TD hours per child, the fit interactive | TD + owner |
 
 **Stage 0 — 2026-10-23 (owner's «поехали»; record `stage0/keentools-facebuilder-blender/`): `contract_fit: PASS`.**
 The default head re-imported headless (4 of 5 views auto-pinned, 1.9 s, no human touch, two fits bitwise identical),
@@ -104,7 +104,7 @@ close over the master's larger stylized eye (≤ 8.8 mm of travel where 10.4 mm 
 (FaceBuilder's mouth is closed at rest), the smile creases. Variant **B1-M** carries FaceBuilder's identity on the
 master's own channel keys and is clean; the gates ran on it. **The owner chose B1-M for Stage 1 on 2026-10-23.**
 
-**Stage 1 tooling, declared 2026-10-24 before any Stage 1 output (agent, TD role; the owner may overrule):**
+**Stage 1 tooling, declared 2026-10-24 before any Stage 1 output (agent, TD role; the owner may overrule) — affirmed by the TD of record 2026-10-31 (the owner, «подтверждаю B1 с правками 12 и 13»), its last item edited:**
 - *The packet a candidate receives:* each parent-photo scene rendered on our GPU as the contractor set it (128 spp,
   denoised), then a Gaussian blur of 0.6 px, Gaussian noise of 1.2 % of the display range (seeded per photo), JPEG
   quality 88, every metadata attribute erased (`bakeoff/packet/render_packet.py`); the camera's truth stays in our
@@ -116,8 +116,9 @@ master's own channel keys and is clean; the gates ran on it. **The owner chose B
   choice would be. The bake-off measures the head technology's face and performance; how attributes are read from a
   photo is a separate question for Phase 2. The hair is the class's hair from the contractor's `hair_on_head.py`, never
   the subject's own (that is the truth).
-- *Before Stage 1 runs on the set:* `BAKEOFF_COST_CAP` must be set by the owner (protocol §9); Stage 1 is a PAID stage by
-  definition (render capacity). Until then the tooling is exercised on the pilot only and nothing is recorded as a result.
+- *Before Stage 1 runs on the set:* `BAKEOFF_COST_CAP` — set by the owner 2026-10-29 (220 Mac hours, §9); Stage 1 is a PAID
+  stage by definition (render capacity), so `bakeoff/checkpoint.py` runs before it. (Edited 2026-10-31; it read: the cap
+  must be set by the owner, until then the tooling is exercised on the pilot only.)
 
 **Frozen at the owner's fork of 2026-10-17** (picked, not registered; registered on the return): C1 LAM (Gaussians, Apache-2.0
 code, CUDA), B2 SOAP (FLAME mesh, EMOCA → SMIRK swap, CUDA), B5 Avatar SDK, B4 Reallusion Headshot (Windows). Their survey
@@ -192,7 +193,7 @@ rows: `docs/experiments/head-candidates-survey-2026-10-17.md`.
 
 ## 5. Pilot plan and repeat counts (protocol §5 Stage 3)
 
-- Pilot subject: **subject_09** (agent, in the TD role, 2026-10-30 — TD-affirmed 2026-10-31 (row 3 of `td_affirmation_2026-10-31.md`), with: «the pilot starts only after subject_09 v02 is accepted (Q74); if it is rejected the pilot waits for the accepted version, and `reference_set_version` includes the accepted 09»: the one child of the set
+- Pilot subject: **subject_09** (agent, in the TD role, 2026-10-30 — TD-affirmed 2026-10-31 (row 3 of `td_affirmation_2026-10-31.md`), with: «the pilot starts only after subject_09 v02 is accepted (the 09 answer, Q75); if it is rejected the pilot waits for the accepted version, and `reference_set_version` includes the accepted 09»: the one child of the set
   with curly high-volume hair at a tone boundary (lightest), hair crossing the forehead and no glasses — `subjects.json`; its
   v02 is in rebuild (Q70), the pilot waits for its acceptance) — one named subject from §3, chosen by this rule (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 4 of `td_affirmation_2026-10-31.md`), with: «recorded: subject_09 has a fringe, so the `hand_over_face` window (SHOT_003 1303–1337) is excluded for it by the declared exclusion — M6 gets no variance from the pilot (row 6)»): the
   subject hardest on paper — curly high-volume hair at a tone boundary, forehead-crossing
@@ -387,7 +388,9 @@ or the ADR. A missing cell is `NOT_EVALUATED` with a reason and the candidate is
   `floor(0.2 × genuine)` of them (at least 2 at the 10-item minimum) is not discriminating
   either. Below the floor or above the ceiling the session's ratings are
   discarded and the discard recorded with the reviewer's pseudonymous id.
-- Reviewers: count `TO FILL (owner)`; roles — at least one naive person and the TD of record;
+- Reviewers: count **2** (owner, 2026-10-31: «Вариант В — двое, как сейчас записано») — the owner as the TD of record
+  and one naive person who has never seen the pipeline, as protocol §8 requires; the salt holder is a third person (row
+  30); roles — at least one naive person and the TD of record;
   ids pseudonymous. TD note (agent, drafted in the TD role, 2026-09-16 — TD-affirmed 2026-10-31 (row 32 of `td_affirmation_2026-10-31.md`), with: «replaced: reviewers are people only — the owner (TD of record), at least one naive person, if possible one more person; the count is the owner's. The agent (the repairer, also the burst-2 animator) is not a reviewer: an AI reviewer is an AI judge, which protocol §8 does not admit. The owner's sessions on **cleaned** outputs are not blind (he signed the repairs) and are excluded from every blind conclusion; on raw outputs they are blind only as far as the codes conceal — the candidates' runs are launched on his machine, recorded»), a proposal, not a commitment: three — the TD of record,
   the burst-2 animator as `animator`, one naive person who has never seen the pipeline. The TD
   of record's sessions on **cleaned** outputs are not blind (the repairs are recognizable) and
