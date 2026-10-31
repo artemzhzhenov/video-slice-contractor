@@ -1,0 +1,276 @@
+{
+ "rule": "the synthetic children's subject_id for result rows (schemas/bakeoff_result.json, a ULID), in the fixtures' pattern; the attributes are the subject's declared parameters (its json in the delivery) \u2014 the order's given attributes (preregistration \u00a72). candidate_0_cell: the subject_id of candidate 0's own runs \u2014 the default head carries no subject and is rendered once per shot x profile x repeat (preregistration \u00a75, 2026-10-29).",
+ "candidate_0_cell": "01J7B0000000000000000SYN00",
+ "subjects": {
+  "subject_01": {
+   "subject_id": "01J7B0000000000000000SYN01",
+   "tone": "darkest",
+   "tone_albedo_linear": [
+    0.2,
+    0.11,
+    0.07
+   ],
+   "iris_color_linear": [
+    0.085,
+    0.042,
+    0.02
+   ],
+   "brow_color_linear": [
+    0.03,
+    0.02,
+    0.016
+   ],
+   "hair": {
+    "class": "curly_voluminous",
+    "color_linear": [
+     0.028,
+     0.019,
+     0.015
+    ],
+    "bangs": false
+   },
+   "seed": 101,
+   "glasses": false
+  },
+  "subject_02": {
+   "subject_id": "01J7B0000000000000000SYN02",
+   "tone": "darkest",
+   "tone_albedo_linear": [
+    0.2,
+    0.11,
+    0.07
+   ],
+   "iris_color_linear": [
+    0.07,
+    0.036,
+    0.018
+   ],
+   "brow_color_linear": [
+    0.03,
+    0.02,
+    0.016
+   ],
+   "hair": {
+    "class": "short_straight",
+    "color_linear": [
+     0.03,
+     0.02,
+     0.016
+    ],
+    "bangs": true
+   },
+   "seed": 102,
+   "glasses": false
+  },
+  "subject_03": {
+   "subject_id": "01J7B0000000000000000SYN03",
+   "tone": "darkest",
+   "tone_albedo_linear": [
+    0.2,
+    0.11,
+    0.07
+   ],
+   "iris_color_linear": [
+    0.11,
+    0.06,
+    0.03
+   ],
+   "brow_color_linear": [
+    0.025,
+    0.018,
+    0.015
+   ],
+   "hair": {
+    "class": "long_straight",
+    "color_linear": [
+     0.022,
+     0.016,
+     0.013
+    ],
+    "bangs": false
+   },
+   "seed": 103,
+   "glasses": true
+  },
+  "subject_04": {
+   "subject_id": "01J7B0000000000000000SYN04",
+   "tone": "middle",
+   "tone_albedo_linear": [
+    0.55,
+    0.38,
+    0.28
+   ],
+   "iris_color_linear": [
+    0.085,
+    0.042,
+    0.02
+   ],
+   "brow_color_linear": [
+    0.045,
+    0.027,
+    0.0162
+   ],
+   "hair": {
+    "class": "curly_voluminous",
+    "color_linear": [
+     0.05,
+     0.03,
+     0.018
+    ],
+    "bangs": false
+   },
+   "seed": 401,
+   "glasses": true
+  },
+  "subject_05": {
+   "subject_id": "01J7B0000000000000000SYN05",
+   "tone": "middle",
+   "tone_albedo_linear": [
+    0.55,
+    0.38,
+    0.28
+   ],
+   "iris_color_linear": [
+    0.12,
+    0.07,
+    0.035
+   ],
+   "brow_color_linear": [
+    0.081,
+    0.0495,
+    0.027
+   ],
+   "hair": {
+    "class": "long_straight",
+    "color_linear": [
+     0.09,
+     0.055,
+     0.03
+    ],
+    "bangs": true
+   },
+   "seed": 501,
+   "glasses": false
+  },
+  "subject_06": {
+   "subject_id": "01J7B0000000000000000SYN06",
+   "tone": "middle",
+   "tone_albedo_linear": [
+    0.55,
+    0.38,
+    0.28
+   ],
+   "iris_color_linear": [
+    0.16,
+    0.12,
+    0.05
+   ],
+   "brow_color_linear": [
+    0.0252,
+    0.0171,
+    0.0135
+   ],
+   "hair": {
+    "class": "short_straight",
+    "color_linear": [
+     0.028,
+     0.019,
+     0.015
+    ],
+    "bangs": false
+   },
+   "seed": 601,
+   "glasses": false
+  },
+  "subject_07": {
+   "subject_id": "01J7B0000000000000000SYN07",
+   "tone": "lightest",
+   "tone_albedo_linear": [
+    0.9,
+    0.72,
+    0.62
+   ],
+   "iris_color_linear": [
+    0.12,
+    0.18,
+    0.08
+   ],
+   "brow_color_linear": [
+    0.198,
+    0.126,
+    0.063
+   ],
+   "hair": {
+    "class": "short_straight",
+    "color_linear": [
+     0.22,
+     0.14,
+     0.07
+    ],
+    "bangs": false
+   },
+   "seed": 701,
+   "glasses": false
+  },
+  "subject_08": {
+   "subject_id": "01J7B0000000000000000SYN08",
+   "tone": "lightest",
+   "tone_albedo_linear": [
+    0.9,
+    0.72,
+    0.62
+   ],
+   "iris_color_linear": [
+    0.16,
+    0.2,
+    0.24
+   ],
+   "brow_color_linear": [
+    0.27,
+    0.18,
+    0.081
+   ],
+   "hair": {
+    "class": "long_straight",
+    "color_linear": [
+     0.3,
+     0.2,
+     0.09
+    ],
+    "bangs": false
+   },
+   "seed": 801,
+   "glasses": false
+  },
+  "subject_09": {
+   "subject_id": "01J7B0000000000000000SYN09",
+   "tone": "lightest",
+   "tone_albedo_linear": [
+    0.9,
+    0.72,
+    0.62
+   ],
+   "iris_color_linear": [
+    0.12,
+    0.18,
+    0.08
+   ],
+   "brow_color_linear": [
+    0.144,
+    0.09,
+    0.045
+   ],
+   "hair": {
+    "class": "curly_voluminous",
+    "color_linear": [
+     0.16,
+     0.1,
+     0.05
+    ],
+    "bangs": true
+   },
+   "seed": 901,
+   "glasses": false
+  }
+ }
+}
