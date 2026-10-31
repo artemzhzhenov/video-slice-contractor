@@ -75,6 +75,15 @@ Amended 2026-10-30 (owner: «голову мерить по заказу по с
 composite's `unfilled` gate holds the order's head layer to its OWN head's silhouette (`--head-silhouette`: the default
 head's is `HEAD_HOLDOUT`, any other head's comes from its mattes) and the default head's silhouette only inside the seam
 zone, where the body plate shows the open neck. Contract version unchanged.
+Amended 2026-10-31 (owner: «поехали» on option (A); full text, evidence and alternatives in
+`ADR-0002-amendment-2026-10-31-skin-tone-probe.md`): D4 — the body's skin tone is re-tinted **between the master and a
+probe render** with every hero skin material at a tone darker than the range: the skin's indirect light and the rest are
+taken linear in the albedo between the two, because light that skin throws on skin carries the tone (SHOT_003 1291: the
+first-order re-tint 3.2 % off on average and 38 % at the 99th percentile in the finger gaps on the darkest tone; with the
+probe ≤ 0.4 % on held-out tones). D5 — the master gains SKIN_PROBE_BUNDLE (REST and BOUNCE per skin layer), derived once
+per master version from the probe; the per-order composite refuses every tone but the master's without it. The tone gate
+measures over blocks of visible skin (a thin strip of neck included) and judges the 99th percentile as well as the mean.
+Contract version `master_contract_version = 7` (additive: every v6 plate and part unchanged).
 Validated by the Phase 0.5 reference slice (§Validation; the checklist and its state:
 `../experiments/phase-0-5-exit-review.md`); any item that fails validation reopens
 this ADR before any master production begins. Layer: Core (`../architecture/layering.md`).
@@ -188,11 +197,13 @@ Hair lives on the body even though it is personalized.
 - The **supported tone range is a master property**: lighting is designed and test-rendered
   against the full intended range before the master is approved. An avatar whose tone is out
   of range is a qualification reject, never a silent clamp.
-- **The re-tint (amendment 2026-09-29):** the body's skin tone is changed through its diffuse light only —
-  `layer + (gain − 1)·SKIN_DIFFUSE_layer`, gain = the order's albedo / the master's, on the back before the order's
-  shadow multiply and on the front plate, before compositing and the blur; the skin's specular stays as rendered. The
-  range is measured per master version (the body re-rendered at the range's tones against the re-tint;
-  `slice/check_skin_tone.py`), and the per-order composite refuses a tone outside it.
+- **The re-tint (amendment 2026-09-29, amended 2026-10-31):** the body's skin tone is changed through its light only,
+  between the master and its skin probe — `layer + (g − 1)·SKIN_DIFFUSE_layer + w·REST_layer + g·w·BOUNCE_layer`,
+  g = the order's albedo / the master's, w = (order − master) / (probe − master), on the back before the order's shadow
+  multiply and on the front plate, before compositing and the blur (`slice/skin_retint.py`). The range is measured per
+  master version (every hero skin material re-rendered at the range's tones against the re-tint, the mean and the 99th
+  percentile over blocks of visible skin; `slice/check_skin_tone.py`), and the per-order composite refuses a tone outside
+  it, and every tone without the probe.
 
 ### D5. Frozen base pass set
 
@@ -203,7 +214,9 @@ full contract (`../architecture/master-spec.md`), including `read_granularity` a
 `bytes_per_frame` measured on the slice. Since the amendment of 2026-09-29 the layers that carry body skin also render
 Cycles' diffuse colour, direct and indirect light and their own material cryptomatte (SKIN_BUNDLE — the master's archive,
 the compositor's derivation, never read per order); row 10's skin ID gains the derived SKIN_DIFFUSE_BACK / FRONT the
-per-order composite reads for the order's tone (D4).
+per-order composite reads for the order's tone (D4). Since the amendment of 2026-10-31 the master also renders those two
+layers once more with every hero skin material at the probe tone and derives SKIN_PROBE_BUNDLE (REST and BOUNCE per
+layer), which the per-order composite reads with them.
 
 | # | Pass | Consumer | Bundle |
 |---|---|---|---|

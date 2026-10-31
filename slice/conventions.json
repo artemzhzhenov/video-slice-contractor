@@ -4,7 +4,7 @@
  "experiment_id": "01J7B000000000000000BAKEXP",
  "master_id": "01J7B000000000000000BAKEM1",
  "master_version": 1,
- "master_contract_version": 6,
+ "master_contract_version": 7,
  "fps": 24,
  "frame_numbering": "1001-based",
  "units": {
@@ -240,6 +240,15 @@
    ],
    "motion_blur": "ON, at the profile's shutter — the reference the blur-fidelity gate compares the post-composite blur against (ADR-0002 Validation criterion 8). Never a deliverable plate: split_bundles refuses this manifest",
    "extra_passes": "none — Cycles produces no Vector pass with the shutter open", "motion_steps": "every object's Cycles motion steps set so that its 2^(steps-1)+1 time points are the exports' sub-frame samples (4 for nine; render_passes.blur_reference_steps, recorded as settings.motion_steps) — the round-trip integrates the same instants (ADR-0002 amendment 2026-09-25)"
+  },
+  "skin_probe": {
+   "view_layers": [
+    "L_BODY",
+    "L_FG"
+   ],
+   "motion_blur": "off — exactly as the beauty group renders these two layers (the same passes, seed and samples), on a copy of the shot file whose hero skin materials are at skin_tone.probe.tone (ADR-0002 amendment 2026-10-31)",
+   "extra_passes": "as the beauty group on these layers: Vector, Depth, the diffuse passes and the material cryptomatte",
+   "note": "never a deliverable plate: split_bundles refuses this manifest; slice/skin_probe.py derives SKIN_PROBE_BUNDLE from it against the master's own bundles"
   }
  },
  "bundles": {
@@ -505,17 +514,35 @@
  },
  "skin_tone": {
   "material_body": "HERO_SKIN_BODY",
-  "basis": "ADR-0002 amendment 2026-09-29 (approved by the owner the same day): the body's skin tone is re-tinted through the diffuse light, measured within 0.3–1.4 % of a re-render on every tone where a 2D gain by the matte was 25–78 % off (slice/measurements/skin_tone_retint_2026-09-29/)",
+  "materials_toned": ["HERO_SKIN_BODY", "HERO_SKIN_HEAD"],
+  "materials_toned_note": "the probe and the gate's truths set every hero skin material to their tone: CLAUDE.md §3 makes all exposed skin the child's, so the light the default head throws on the body darkens with it (ADR-0002 amendment 2026-10-31). Only the body's skin is re-tinted in the plates; the head is the head technology's",
+  "basis": "ADR-0002 amendment 2026-09-29 (approved by the owner the same day): the body's skin tone is re-tinted through the diffuse light, measured within 0.3–1.4 % of a re-render on every tone where a 2D gain by the matte was 25–78 % off (slice/measurements/skin_tone_retint_2026-09-29/). Amended 2026-10-31 (the owner: «поехали», option (A)): between the master and a probe render (slice/skin_retint.py), after the first-order re-tint missed the light skin throws on skin — SHOT_003 1291 at the darkest tone 0.0316 mean and 38 % at the 99th percentile in the finger gaps; SHOT_001's neck 5–7 % mean, unseen by the 2026-09-29 gate (slice/measurements/skin_tone_interreflection_2026-10-31/; docs/adr/ADR-0002-amendment-2026-10-31-skin-tone-probe.md)",
+  "probe": {
+   "tone": [0.15, 0.08, 0.05],
+   "tone_note": "darker than the gate's darkest tone in every channel: every gate tone is held out of the probe, and every supported tone lies between the master's albedo and the probe's — an interpolation (a probe at the middle extrapolated to the darkest amplified the noise 2.4× and did not hold, 2026-10-31)",
+   "render_group": "skin_probe",
+   "bundle": "SKIN_PROBE_BUNDLE",
+   "file_stem": "skin_probe",
+   "parts": ["REST_BACK", "BOUNCE_BACK", "REST_FRONT", "BOUNCE_FRONT"],
+   "parts_note": "per frame and layer (BACK = L_BODY / BODY_BEAUTY, FRONT = L_FG / FOREGROUND_PLATE), RGB half, scene-linear, declared 'data' (a difference of light, never colour-transformed), zero off the skin: BOUNCE = skin·DiffCol_m·(DiffInd_p − DiffInd_m), REST = skin·[(C_p − skin·DiffCol_p·(DiffDir_p + DiffInd_p)) − (C_m − skin·DiffCol_m·(DiffDir_m + DiffInd_m))] — slice/skin_retint.py; written by slice/skin_probe.py, read by every order that re-tints",
+   "direct_light_match_max": 0.002,
+   "direct_light_match_status": "PROVISIONAL — the probe's direct diffuse light on the skin against the master's, the mean relative difference: the albedo does not change it, so more means another light, frame or scene (slice/skin_retint.probe_parts); measured on the control (the probe at the master's own tone) before the probe renders"
+  },
   "gate": {
    "tool": "slice/check_skin_tone.py",
    "tones": {"lightest": [0.9, 0.72, 0.62], "middle": [0.55, 0.38, 0.28], "darkest": [0.2, 0.11, 0.07]},
    "tones_status": "PROVISIONAL — the owner keeps these three as the intended range for now (2026-10-02: «пока такие тона и оставим»); synthetic scene-linear albedos spanning very light to very dark skin, set by the TD 2026-09-29; the bake-off's synthetic children take the same three (docs/experiments/synthetic-reference-set.md); revisited when the owner sets the product range (D4)",
    "relative_error_max": 0.03,
-   "relative_error_status": "PROVISIONAL — measured 0.3–1.4 % on the slice (2026-09-29), no re-tint 22–384 %",
-   "min_skin_px_lowpassed": 50,
+   "relative_error_status": "PROVISIONAL — measured 0.3–1.4 % on the slice (2026-09-29), no re-tint 22–384 %; between the master and a probe ≤ 0.4 % on held-out tones (2026-10-31)",
+   "relative_error_p99_max": null,
+   "relative_error_p99_status": "TO SET by the owner after the first measurement with the probe (2026-10-31): the 99th percentile of the blocks' error on one frame, tone and layer — the local defect a mean hides (the finger gaps: 38–60 % under the first-order re-tint at the darkest tone); while it is null the gate measures and records but refuses a verdict",
+   "block_px": 4,
+   "block_min_skin_px": 8,
+   "min_skin_blocks": 20,
+   "block_status": "PROVISIONAL (2026-10-31) — a block counts with 8 of its 16 pixels on visible skin and is measured on those alone; a case counts with 20 such blocks. SHOT_001's neck strip at 25 % gives 20–50 blocks a frame, none under the 2026-09-29 rule (all 16 pixels, 50 blocks)",
    "scale_percent": 25,
    "samples": 64,
-   "rule": "per shot, on its QC video frames: the body re-rendered at each tone (truth) against the master re-tinted through SKIN_DIFFUSE, on the visible skin of each layer (skin > 0.5, the layer opaque; the back where neither the front plate nor the head's holdout covers it — under the head the body plate shows the open neck, lit by the skin's own inter-reflection, 3–21 % off, which no head lets through: composite_order's unfilled gate) after a 4×4 low-pass; PASS when every measured tone and layer is within relative_error_max AND no re-tint is not (the negative control); VACUOUS when no frame shows min_skin_px_lowpassed of body skin (a close-up with the neck under the collar); the supported range is the per-channel box between the passing tones",
+   "rule": "per shot, on its gated video frames: the body re-rendered with every hero skin material at each gate tone (truth) against the master re-tinted between itself and the probe rendered at skin_tone.probe.tone (slice/skin_retint.py), on the visible skin of each layer (skin > 0.5, the layer opaque; the back where neither the front plate nor the head's holdout covers it — under the head the body plate shows the open neck, which no head lets through: composite_order's unfilled gate), over block_px × block_px blocks holding at least block_min_skin_px of it; a frame, tone and layer counts with min_skin_blocks blocks; PASS when on every case the mean is within relative_error_max, the 99th percentile within relative_error_p99_max AND no re-tint is not within relative_error_max (the negative control); VACUOUS when no case counts; the first-order re-tint (2026-09-29) is recorded beside, not judged; the supported range is the per-channel box between the passing tones",
    "on_fail": "SKIN_TONE_ERROR, exit 2; the bundle manifests are not marked"
   }
  },
@@ -644,7 +671,7 @@
     "bundle": "renders/<profile> with COMPOSITE_BUNDLE, derived parts and a PASSing precomp reproduction and round-trip (prerequisite gates, CLAUDE.md §6)",
     "head_layer": "<dir>/head.####.exr — one RGBA part, premultiplied, colorInteropID lin_ap1_scene declared by the head technology (no declaration → error, never assumed)",
     "shadow_multiply": "<dir>/shadow.####.exr — one RGB part in [0, 1] declared colorInteropID 'data', the ORDER head's body shadow factor from the head technology (ADR-0002 D3 amendment); the default head's HEAD_SHADOW_MULTIPLY is never substituted — that would be a silent fallback to the wrong head's shadow",
-   "skin_tone": "--skin-tone R,G,B: the order's approved body-skin albedo, scene-linear (ADR-0002 amendment 2026-09-29, C3); gain = skin_tone / the master's albedo (bundle_manifest → skin_tone.master_albedo) per channel; a tone outside the master's supported range (bundle_manifest → skin_tone.supported_range, set by slice/check_skin_tone.py) is refused, never clamped; 'master' re-tints nothing — the QC baseline with the default head only. Required: there is no default tone",
+   "skin_tone": "--skin-tone R,G,B: the order's approved body-skin albedo, scene-linear (ADR-0002 amendment 2026-09-29, C3, amended 2026-10-31); gain = skin_tone / the master's albedo (bundle_manifest → skin_tone.master_albedo) and weight = (skin_tone − master) / (probe − master) per channel, the re-tint between the master and its SKIN_PROBE_BUNDLE (slice/skin_retint.py) — a bundle without it, or without a passing gate of the probe method, re-tints no tone but 'master'; a tone outside the master's supported range (bundle_manifest → skin_tone.supported_range, set by slice/check_skin_tone.py) is refused, never clamped; 'master' re-tints nothing — the QC baseline with the default head only. Required: there is no default tone",
    "head_vectors": "<dir>/head_mv.####.exr — video profile only (the shutter open): HEAD_MOTION_VECTORS (4 channels, the shutter-open pair then the shutter-close pair, post_composite_blur.vector_convention) and HEAD_DEPTH, both declared 'data', the ORDER head's own motion from the head technology (ADR-0002 D5 amendment 2026-09-22); required with the shutter open — the blur is never skipped — and refused for a still; the default head's HEAD_MOTION_VECTORS is never substituted",
     "head_silhouette": "--head-silhouette default-head (HEAD_HOLDOUT is the default head's silhouette) | <dir>/head_silhouette.####.exr — one 'Y' part, data: the order head's coverage as L_HEAD sees it (C_HEAD and C_HAIR nearer than C_BODY and C_ENV; bakeoff/metrics/extract_geometry.py mattes); required, never assumed (ADR-0002 amendment 2026-10-30)"
    },

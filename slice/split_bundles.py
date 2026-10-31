@@ -231,6 +231,9 @@ def main(argv):
         raise SplitError(f"{manifests[0].name} is a blur-fidelity reference render (shutter open, L_FULL only), "
                          "not a plate render: it is the gate's ground truth and must never be bundled or delivered "
                          "(ADR-0002 D5 amendment 2026-09-22)")
+    if man.get("kind") == "skin_probe":
+        raise SplitError(f"{manifests[0].name} is a skin probe render (the two skin layers at the probe tone), not a plate render: "
+                         "slice/skin_probe.py derive sets it against the master's own bundles (ADR-0002 amendment 2026-10-31)")
     if man["settings"].get("render_motion_blur"):
         raise SplitError(f"{manifests[0].name}: the plates were rendered WITH motion blur; since the 2026-09-22 "
                          "amendment the layers are rendered sharp and the blur is applied after compositing")

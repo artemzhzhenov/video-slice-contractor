@@ -13,6 +13,9 @@ Group "data":   L_DATA with motion blur and DoF off (Depth unfiltered, front-mos
 --blur-reference renders L_FULL only, WITH the profile's shutter, as the reference the
 blur-fidelity gate compares the post-composite blur against (§Validation criterion 8). It is not a
 deliverable plate: split_bundles refuses that manifest.
+--skin-probe renders the beauty group's two skin layers (L_BODY, L_FG) alone, configured as the beauty group configures
+them, into raw/skin_probe.####.exr — on a copy of the shot file whose hero skin is at the probe tone (slice/skin_probe.py
+set-tone; ADR-0002 amendment 2026-10-31). Not a plate either: slice/skin_probe.py derive reads it, split_bundles refuses it.
 Output: <out>/<profile>/raw/beauty.####.exr, data.####.exr, lighting_probe.####.exr and
 render_manifest.<profile>.json (settings, device, per-frame seconds and bytes, sha256).
 The scene file is never saved from here. Bundle split: slice/split_bundles.py."""
@@ -185,8 +188,14 @@ def skin_material(scene):
         return {"name": name, "status": "NO PRINCIPLED BSDF"}
     sss = float(b.inputs["Subsurface Weight"].default_value)
     textured = bool(b.inputs["Base Color"].is_linked)
+    toned = {}   # every hero skin material's base colour: the skin probe and the gate's truths set them all (amendment 2026-10-31)
+    for t in CONV["skin_tone"]["materials_toned"]:
+        tm = bpy.data.materials.get(t)
+        tb = next((n for n in tm.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None) if tm is not None and tm.use_nodes else None
+        toned[t] = ("MISSING" if tb is None else "TEXTURED" if tb.inputs["Base Color"].is_linked
+                    else [round(float(v), 6) for v in tb.inputs["Base Color"].default_value[:3]])
     return {"name": name, "base_color": [round(float(v), 6) for v in b.inputs["Base Color"].default_value[:3]],
-            "subsurface_weight": sss, "base_color_textured": textured,
+            "subsurface_weight": sss, "base_color_textured": textured, "materials_toned": toned,
             "status": "RE-TINTABLE" if not textured and sss == 0.0 else "NOT RE-TINTABLE BY A GAIN (textured base colour or subsurface — re-measure, ADR-0002 amendment 2026-09-29 §Does not solve)"}
 
 
@@ -204,7 +213,7 @@ def set_group(scene, group, dof_setting):
         scene.camera.data.dof.use_dof = False
     else:
         scene.camera.data.dof.use_dof = dof_setting
-    if group == "beauty":
+    if group in ("beauty", "skin_probe"):     # the skin probe: the beauty group's two skin layers, configured alike
         if scene.render.use_motion_blur:
             raise RenderError("the beauty group must render sharp: Cycles produces no Vector pass with motion blur on")
         for vl in scene.view_layers:
@@ -361,10 +370,15 @@ def main():
     p.add_argument("--probe", action="store_true")
     p.add_argument("--blur-reference", action="store_true",
                    help="render L_FULL WITH the profile's shutter — the blur-fidelity reference, not a plate; use a separate --out")
+    p.add_argument("--skin-probe", action="store_true",
+                   help="render the beauty group's skin layers only (render group skin_probe) — on a copy of the shot file whose hero "
+                        "skin is at the probe tone (slice/skin_probe.py set-tone); not a plate: use a separate --out")
     p.add_argument("--exports", default=None,
                    help="the shot's exports: the default head's eyes are aimed at the exported gaze target point (vocabulary v2); "
                         "without it the rig's own eye rotation renders and the manifest says NONE")
     args = p.parse_args(argv)
+    if args.skin_probe and (args.blur_reference or args.probe):
+        raise RenderError("--skin-probe renders the two skin layers alone: no --blur-reference, no lighting --probe with it")
     scene = bpy.data.scenes["SLICE"]
     if args.shot not in CONV["shots"] or scene.get("shot_id") != args.shot:
         raise RenderError(f"scene is {scene.get('shot_id')}, requested {args.shot}")
@@ -386,7 +400,7 @@ def main():
     gaze_aim = aim_eyes(scene, args.exports) if args.exports else {"mode": "NONE", "note": "no --exports: the rig's own eye rotation (the yaw/pitch pair) renders"}
     settings = apply_profile(scene, args.profile, samples, args.scale, args.blur_reference)
     settings["gaze_aim"] = gaze_aim
-    groups = ("blur_reference",) if args.blur_reference else ("beauty", "data")
+    groups = ("blur_reference",) if args.blur_reference else ("skin_probe",) if args.skin_probe else ("beauty", "data")
     scene_path = Path(bpy.data.filepath)
     placeholders = sorted(o.name for o in bpy.data.objects if o.name.startswith("PLACEHOLDER_"))
     manifest = {"shot_id": args.shot, "profile": args.profile, "blender": bpy.app.version_string, "device": device,
@@ -396,7 +410,7 @@ def main():
                                  "scene_kind": "placeholder template" if placeholders else "asset"},
                 "settings": settings, "smoke_test_only": not settings["conformant"],
                 "skin_material": skin_material(scene),
-                "kind": "blur_reference" if args.blur_reference else "plates",
+                "kind": "blur_reference" if args.blur_reference else "skin_probe" if args.skin_probe else "plates",
                 "groups": {g: {"view_layers": CONV["render_groups"][g]["view_layers"]} for g in groups},
                 "frames": [], "probe": None,
                 "file_hash_note": "sha256 is an integrity token for the file, not a reproducibility token: EXR headers carry render time and date; pixel hashes are in bundle_manifest"}
@@ -419,7 +433,8 @@ def main():
     for vl in scene.view_layers:
         vl.use = True
     (out / f"render_manifest.{args.profile}.json").write_text(json.dumps(manifest, indent=1) + "\n")
-    kind = "blur reference (shutter open, L_FULL only)" if args.blur_reference else "plates (sharp, per-layer vectors)"
+    kind = ("blur reference (shutter open, L_FULL only)" if args.blur_reference else "skin probe (L_BODY, L_FG)" if args.skin_probe
+            else "plates (sharp, per-layer vectors)")
     print(f"RENDER_OK {args.profile} {len(frames)} frames, {kind} -> {out}")
 
 
