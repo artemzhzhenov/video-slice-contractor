@@ -12,8 +12,9 @@ Per shot, on the video frames the conformant run rendered (its bundle manifests)
 - the truths: the shot with every hero skin material at each gate tone (conventions.json → skin_tone.gate.tones),
   nothing else changed.
 
-The master is re-tinted to each tone exactly as an order is (slice/skin_retint.py) and compared with the truth on each
-layer's visible skin. Visible skin: the layer's own skin matte > 0.5, the layer opaque; for the back, where neither the
+The master is re-tinted to each tone exactly as an order is (slice/skin_retint.py — at the pixels the skin shares with
+another surface, the pixel's own change: the edge, owner 2026-11-01) and compared with the truth on each layer's visible
+skin. Visible skin: the layer's own skin matte > 0.5, the layer opaque; for the back, where neither the
 front plate nor the head's holdout covers it — under the head the body plate shows the open neck, which no head lets
 through. The comparison runs over 4×4 blocks holding at least `block_min_skin_px` of that skin, each block's mean taken
 over those pixels alone, so a thin strip of neck is measured. Per frame, tone and layer with `min_skin_blocks` blocks: the
@@ -32,6 +33,9 @@ On PASS / VACUOUS the gate is written into the run's bundle manifests as `skin_t
 — the per-channel box between the passing tones), which composite_order.py requires before it re-tints. The record is
 <out>/check_skin_tone.json.
 
+With --recompare a gate's own SKIN_PROBE_BUNDLE derived by an older rule (slice/skin_probe.derived_by_current_rule) is
+derived again from the same renders (--replace) and the record says so; nothing is rendered.
+
 The truth and probe renders are a MASTER_COST line per master version, never per order. --frames measures the named
 frames of the bundle only (slice/frame_subset.py; the master's full-range render, owner 2026-10-30: option (c)), and the
 record says how many of the bundle's frames they are. --profiles names the bundles the record goes into (default video
@@ -47,6 +51,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from slice.frame_subset import select  # noqa: E402
+from slice.skin_probe import derived_by_current_rule  # noqa: E402
 CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
 G = CONV["skin_tone"]["gate"]
 PROBE = CONV["skin_tone"]["probe"]
@@ -93,7 +98,7 @@ def compare(argv):
                 seen = ((front_a < 0.01) & (head_a < 0.01)) if layer == "BODY" else np.ones_like(m, bool)
                 mask = (m > 0.5) & (src[..., 3] > 0.99) & seen
                 sd = skin_diffuse(sp, layer, material)[0]
-                got = sr.retint(src, sd, gain, weight, pp[f"REST_{side}"][0], pp[f"BOUNCE_{side}"][0])
+                got = sr.retint(src, sd, gain, weight, *(pp[f"{n}_{side}"][0] for n in ("REST", "BOUNCE", "EDGE", "SHARED")))
                 truth = tp[part][0].astype(np.float32)
                 r = sr.measure(got, truth, src, mask, G["block_px"], G["block_min_skin_px"])
                 if r is None or r["blocks"] < G["min_skin_blocks"]:
@@ -185,9 +190,17 @@ def main(argv):
              *(["--exports", renders.parent / "exports"] if rm["settings"].get("gaze_aim", {}).get("mode") == "TARGET_POINT" else [])], env, d / "render.log")
         if tone != "probe":
             run(B + ["-P", ROOT / "slice/split_bundles.py", "--", d / "renders" / "video", "--no-plus-files"], env, d / "split.log")
-    if not (out / "master" / "renders" / "video" / PROBE["bundle"]).exists():
-        run(B + ["-P", ROOT / "slice/skin_probe.py", "--", "derive", out / "master" / "renders" / "video", out / "probe" / "renders" / "video"],
+    mv = out / "master" / "renders" / "video"
+    derived_again = (mv / PROBE["bundle"]).exists() and not derived_by_current_rule(json.loads(next(mv.glob("bundle_manifest.*.json")).read_text()))
+    if derived_again or not (mv / PROBE["bundle"]).exists():
+        for name in (("derive.log", "compare.json", "check_skin_tone.json") if derived_again else ()):
+            if (out / name).exists():                        # the older rule's records kept beside, never overwritten
+                os.replace(out / name, out / name.replace(".", ".older_rule.", 1))
+        run(B + ["-P", ROOT / "slice/skin_probe.py", "--", "derive", mv, out / "probe" / "renders" / "video", *(["--replace"] if derived_again else [])],
             env, out / "derive.log")
+        if derived_again:
+            print(f"SKIN_PROBE_DERIVED_AGAIN {a.shot}: the gate's own {PROBE['bundle']} was of an older rule", flush=True)
+    pb = json.loads(next(mv.glob("bundle_manifest.*.json")).read_text())["bundles"][PROBE["bundle"]]
     run(B + ["-P", Path(__file__).resolve(), "--", "--compare", out, json.dumps(sm["base_color"])], env, out / "compare.log")
     res = json.loads((out / "compare.json").read_text())
     status, over, blind = verdict(res)
@@ -197,7 +210,8 @@ def main(argv):
               "scale_percent": G["scale_percent"], "samples": G["samples"], "relative_error_max": G["relative_error_max"],
               "relative_error_p99_max": G["relative_error_p99_max"], "block_px": G["block_px"], "block_min_skin_px": G["block_min_skin_px"],
               "min_skin_blocks": G["min_skin_blocks"], "over_the_bound": over, "negative_control_within_the_bound": blind,
-              "supported_range": rng if status in ("PASS", "VACUOUS") else None, "measured": res["frames"], "rule": G["rule"], **coverage}
+              "supported_range": rng if status in ("PASS", "VACUOUS") else None, "measured": res["frames"], "rule": G["rule"],
+              "probe_bundle": {"rule": pb["rule"], "edge": pb["probe"].get("edge"), "derived_again": derived_again}, **coverage}
     (out / "check_skin_tone.json").write_text(json.dumps(record, indent=1) + "\n")
     cases = [v for ts in res["frames"].values() for ls in ts.values() for v in ls.values()]
     worst = (max(v["relative_error"] for v in cases), max(v["relative_error_p99"] for v in cases)) if cases else None

@@ -83,7 +83,9 @@ first-order re-tint 3.2 % off on average and 38 % at the 99th percentile in the 
 probe ≤ 0.4 % on held-out tones). D5 — the master gains SKIN_PROBE_BUNDLE (REST and BOUNCE per skin layer), derived once
 per master version from the probe; the per-order composite refuses every tone but the master's without it. The tone gate
 measures over blocks of visible skin (a thin strip of neck included) and judges the 99th percentile as well as the mean.
-Contract version `master_contract_version = 7` (additive: every v6 plate and part unchanged).
+Contract version `master_contract_version = 7` (additive: every v6 plate and part unchanged). Amended 2026-11-01 (owner,
+decision 13 (A)): at the pixels the skin shares with another surface the re-tint takes the pixel's own change between the
+master and the probe (EDGE, SHARED in SKIN_PROBE_BUNDLE); version unchanged, no v7 package existed.
 Validated by the Phase 0.5 reference slice (§Validation; the checklist and its state:
 `../experiments/phase-0-5-exit-review.md`); any item that fails validation reopens
 this ADR before any master production begins. Layer: Core (`../architecture/layering.md`).
@@ -199,7 +201,8 @@ Hair lives on the body even though it is personalized.
   of range is a qualification reject, never a silent clamp.
 - **The re-tint (amendment 2026-09-29, amended 2026-10-31):** the body's skin tone is changed through its light only,
   between the master and its skin probe — `layer + (g − 1)·SKIN_DIFFUSE_layer + w·REST_layer + g·w·BOUNCE_layer`,
-  g = the order's albedo / the master's, w = (order − master) / (probe − master), on the back before the order's shadow
+  g = the order's albedo / the master's, w = (order − master) / (probe − master), and `layer + w·EDGE_layer` at the pixels
+  the skin shares with another surface (amended 2026-11-01), on the back before the order's shadow
   multiply and on the front plate, before compositing and the blur (`slice/skin_retint.py`). The range is measured per
   master version (every hero skin material re-rendered at the range's tones against the re-tint, the mean and the 99th
   percentile over blocks of visible skin; `slice/check_skin_tone.py`), and the per-order composite refuses a tone outside
@@ -216,7 +219,7 @@ Cycles' diffuse colour, direct and indirect light and their own material cryptom
 the compositor's derivation, never read per order); row 10's skin ID gains the derived SKIN_DIFFUSE_BACK / FRONT the
 per-order composite reads for the order's tone (D4). Since the amendment of 2026-10-31 the master also renders those two
 layers once more with every hero skin material at the probe tone and derives SKIN_PROBE_BUNDLE (REST and BOUNCE per
-layer), which the per-order composite reads with them.
+layer; EDGE and SHARED since 2026-11-01), which the per-order composite reads with them.
 
 | # | Pass | Consumer | Bundle |
 |---|---|---|---|

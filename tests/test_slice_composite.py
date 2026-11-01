@@ -220,9 +220,37 @@ write_parts({str(bad_shadow / 'shadow.1001.exr')!r}, [('SHADOW_MULTIPLY', pix * 
     sp = bmj["bundles"]["SKIN_PROBE_BUNDLE"]
     assert [p["name"] for p in sp["frames"][0]["parts"]] == CONV["skin_tone"]["probe"]["parts"] and sp["probe"]["albedo"] == [round(v, 6) for v in CONV["skin_tone"]["probe"]["tone"]]
     assert sp["probe"]["direct_light_mismatch_max"] <= CONV["skin_tone"]["probe"]["direct_light_match_max"]
+    assert sp["probe"]["direct_light_measured_layers"] >= 1 and sp["probe"]["direct_light_interior"] == CONV["skin_tone"]["probe"]["direct_light_interior"]
+    # the layers with skin are the frames' layers not NO_SKIN (a layer with the material and no skin is NO_SKIN:
+    # tests/test_skin_probe.py; on the smoke frame the body shows none, the front plate's hand does)
+    assert sp["probe"]["direct_light_layers_with_skin"] == sum(v != "NO_SKIN" for r in sp["frames"] for v in r["direct_light_mismatch"].values())
+    # the edge (owner 2026-11-01, decision 13 (A)): the pixels the skin shares with cloth, found and counted
+    assert sp["probe"]["edge"] == CONV["skin_tone"]["probe"]["edge"] and sum(sp["frames"][0]["edge_px"].values()) > 0
+    # a derive that fails half way (here: the guard refuses a layer) leaves what was there, and nothing half written
+    before = {f.name: f.read_bytes() for f in (out / "video" / "SKIN_PROBE_BUNDLE").iterdir()}
+    r = subprocess.run(B + ["--python-expr", f"""import sys; sys.path.insert(0, {str(ROOT)!r})
+from slice import skin_retint, skin_probe
+def refuse(*a, **k):
+    raise skin_retint.SkinRetintError("the probe's direct diffuse light is off (planted)")
+skin_retint.probe_parts = refuse
+try:
+    skin_probe.derive({str(out / 'video')!r}, {str(probe_out / 'video')!r}, replace=True)
+except skin_retint.SkinRetintError as e:
+    print("REFUSED", e)
+"""], capture_output=True, text=True, timeout=600, env=env)
+    assert r.returncode == 0 and "REFUSED" in r.stdout, r.stdout[-800:] + r.stderr[-800:]
+    assert {f.name: f.read_bytes() for f in (out / "video" / "SKIN_PROBE_BUNDLE").iterdir()} == before
+    assert json.loads(bmp.read_text())["bundles"]["SKIN_PROBE_BUNDLE"] == sp
+    assert not [p for p in (out / "video").iterdir() if p.name.startswith("SKIN_PROBE_BUNDLE") and p.name != "SKIN_PROBE_BUNDLE"]
     r = tone_run("0.4,0.24,0.16", "01J7B00000000000000TESTTN5", tmp_path / "order_tone5")
     assert r.returncode == 2 and "probe method" in r.stderr, "a gate measured on the first-order re-tint does not admit the probe's: " + r.stdout[-800:] + r.stderr[-800:]
     bmj["skin_tone"] = {"status": "PASS", "method": "probe", "supported_range": {"min": [0.2, 0.11, 0.07], "max": [0.9, 0.72, 0.62]}}
+    older = json.loads(json.dumps(bmj))
+    for row in older["bundles"]["SKIN_PROBE_BUNDLE"]["frames"]:
+        row["parts"] = [q for q in row["parts"] if not q["name"].startswith(("EDGE_", "SHARED_"))]   # derived before the edge
+    bmp.write_text(json.dumps(older, indent=1) + "\n")
+    r = tone_run("0.4,0.24,0.16", "01J7B00000000000000TESTTN6", tmp_path / "order_tone6")
+    assert r.returncode == 2 and "older rule" in r.stderr and not list((tmp_path / "order_tone6").glob("final.*.exr")), r.stdout[-800:] + r.stderr[-800:]
     bmp.write_text(json.dumps(bmj, indent=1) + "\n")
     r = subprocess.run(B + ["-P", str(ROOT / "slice" / "composite_order.py"), "--", *base, "--skin-tone", "0.05,0.05,0.05", "--order-id", "01J7B00000000000000TESTTN2", "--out", str(tmp_path / "order_tone_out")], capture_output=True, text=True, timeout=600, env=env)
     assert r.returncode == 2 and "outside the master's supported range" in r.stderr, r.stdout[-800:] + r.stderr[-800:]

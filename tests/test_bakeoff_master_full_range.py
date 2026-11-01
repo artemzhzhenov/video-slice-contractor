@@ -136,6 +136,32 @@ def test_a_skin_tone_gate_of_the_first_order_is_kept_aside_and_judged_again(tmp_
     assert mf.retire_first_order_gate(tmp_path / "SHOT_001", rn.Steps(tmp_path / "SHOT_001")) is False   # nothing measured yet
 
 
+def test_a_skin_probe_derived_by_an_older_rule_is_derived_again_and_its_gate_judged_again(tmp_path):
+    """The edge (owner 2026-11-01, decision 13 (A)): a SKIN_PROBE_BUNDLE derived before it — other parts — is derived again
+    from the same renders, and the gate measured on it is run again; one derived by the rule now is left alone."""
+    from bakeoff.stages import run as rn
+    from slice import skin_probe as spb
+    sd = tmp_path / "SHOT_001"
+    rv = sd / "run/renders/video"
+    old = {"bundles": {spb.P["bundle"]: {"frames": [{"frame": 1001, "parts": [{"name": n} for n in ("REST_BACK", "BOUNCE_BACK", "REST_FRONT", "BOUNCE_FRONT")]}],
+                                         "probe": {}}}}
+    write(rv / "bundle_manifest.video.json", json.dumps(old).encode())
+    write(rv / "SKIN_PROBE_BUNDLE/skin_probe.1001.exr", b"P")
+    steps = rn.Steps(sd)
+    steps.mark("skin_probe", 1.0, [rv / "SKIN_PROBE_BUNDLE"])
+    steps.mark("skin_tone", 1.0, [sd / "skin_tone.log"])
+    write(sd / "skin_tone.log", b"")
+    assert mf.retire_older_probe(rv, steps) is True
+    assert not steps.done("skin_probe") and not steps.done("skin_tone")
+    assert (rv / "SKIN_PROBE_BUNDLE/skin_probe.1001.exr").exists(), "derive --replace puts the new bundle in place whole"
+    now = {"bundles": {spb.P["bundle"]: {"frames": [{"frame": 1001, "parts": [{"name": n} for n in spb.P["parts"]]}],
+                                         "probe": {"edge": spb.P["edge"]}}}}
+    write(rv / "bundle_manifest.video.json", json.dumps(now).encode())
+    steps.mark("skin_probe", 1.0, [rv / "SKIN_PROBE_BUNDLE"])
+    assert mf.retire_older_probe(rv, steps) is False and steps.done("skin_probe")
+    assert mf.retire_older_probe(tmp_path / "SHOT_002/run/renders/video", rn.Steps(tmp_path / "SHOT_002")) is False   # nothing derived yet
+
+
 def test_a_shot_is_packaged_only_when_its_skin_tone_gate_is_the_probes():
     ok = {"roundtrip": {"status": "PASS"}, "blur_fidelity": {"status": "PASS"}, "skin_tone": {"status": "PASS", "method": "probe"}}
     assert mf.gates_not_passed(ok) == {}

@@ -30,7 +30,9 @@ slice/check_asset.sh's chain from its step 6: split, composite (derived parts, p
 blur), the blur reference's plan, the skin probe's chunks merged and SKIN_PROBE_BUNDLE derived (slice/skin_probe.py),
 the blur reference's render, the round-trip, the blur fidelity, and the skin-tone gate — the last four on the gated
 frames (`--frames`); the package's picked frames must be pick_frames.py's on these exports. A skin-tone gate measured
-before the probe (the first-order re-tint) is moved aside and measured again. Writes <out>/<shot>/full_range_gates.json.
+before the probe (the first-order re-tint) is moved aside and measured again; a SKIN_PROBE_BUNDLE derived by an older rule
+(before the edge, 2026-11-01) is derived again from the same renders and its gate run again. Writes
+<out>/<shot>/full_range_gates.json.
 
 package — the package's new version: each shot's video bundle and its gate records replaced (the heavy files APFS-cloned
 into the offline part), the exports, the still, the scene checks, the source and order_qc (the default head's order
@@ -48,6 +50,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from bakeoff.stages import run as rn  # noqa: E402
+from slice.skin_probe import derived_by_current_rule  # noqa: E402
 
 STAGE = "bakeoff_master_full_range"
 OUT = Path("<the archive disk>/runs/master_full_range_2026-10-30")
@@ -316,6 +319,18 @@ def retire_first_order_gate(sd, steps):
     return True
 
 
+def retire_older_probe(rv, steps):
+    """A SKIN_PROBE_BUNDLE derived by an older rule (slice/skin_probe.derived_by_current_rule — before the edge, owner
+    2026-11-01) is derived again from the same renders and the skin-tone gate measured on it is run again: both steps
+    are no longer DONE; the bundle stays in place until derive --replace puts the new one there whole. True when so."""
+    bp = Path(rv) / "bundle_manifest.video.json"
+    if not steps.done("skin_probe") or not bp.exists() or derived_by_current_rule(json.loads(bp.read_text())):
+        return False
+    steps.unmark("skin_probe")
+    steps.unmark("skin_tone")
+    return True
+
+
 def gates_not_passed(summary):
     """The gates of one shot's summary that bar it from the package: {gate: status}; the skin-tone gate counts only when
     measured between the master and its probe (ADR-0002 amendment 2026-10-31)."""
@@ -375,8 +390,14 @@ def gate(shots, size, out):
         if not steps.done("probe_merge"):
             merge_chunks([sd / "skin_probe" / "chunks" / f"{a}-{b}" for a, b in parts], run / "probe_renders", lighting_probe=False)
             steps.mark("probe_merge", 0.0, [run / "probe_renders" / "video" / "render_manifest.video.json"])
+        if retire_older_probe(rv, steps):
+            for name in ("skin_probe.log", "skin_tone.log"):
+                if (sd / name).exists():                     # the older rule's logs kept beside, never overwritten
+                    os.replace(sd / name, sd / name.replace(".", ".older_rule.", 1))
+            print(f"SKIN_PROBE_OLDER_RULE {shot}: {PROBE['bundle']} derived again, its gate run again", flush=True)
         if not steps.done("skin_probe"):
-            s = book(blender(ROOT / "slice/skin_probe.py", "--", "derive", rv, run / "probe_renders" / "video"), sd / "skin_probe.log", f"{job} skin_probe")
+            again = ["--replace"] if (rv / PROBE["bundle"]).exists() else []    # an older rule's, or a derive that died before its mark
+            s = book(blender(ROOT / "slice/skin_probe.py", "--", "derive", rv, run / "probe_renders" / "video", *again), sd / "skin_probe.log", f"{job} skin_probe")
             steps.mark("skin_probe", s, [sd / "skin_probe.log", rv / PROBE["bundle"]])
         ref_samples = json.loads((rv / "reference_plan.video.json").read_text())["samples"]
         chain = [
@@ -390,7 +411,7 @@ def gate(shots, size, out):
             ("skin_tone", [sys.executable, ROOT / "slice/check_skin_tone.py", "--blend", blend, "--shot", shot, "--renders", run / "renders",
                            "--out", run / "skin_tone", "--frames", gs, "--profiles", "video"]
                           # measured before and not judged (the owner's p99 bound was not set): judged again, not rendered again
-                          + (["--recompare"] if (run / "skin_tone" / "compare.json").exists() else [])),
+                          + (["--recompare"] if any((run / "skin_tone" / n).exists() for n in ("compare.json", "compare.older_rule.json")) else [])),
         ]
         for name, cmd in chain:
             if not steps.done(name):

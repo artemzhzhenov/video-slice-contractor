@@ -35,6 +35,26 @@ def scene(albedo, seed=0):
     return {"skin": skin, "col": col, "dir": d, "ind": ind, "comb": comb}
 
 
+BOUND = sr.P["direct_light_match_max"]
+N = 64                                                                 # a layer the guard's 16 px blocks fit in
+
+
+def light(n, shift=0.0, seed=0):
+    """Direct light as a render has it: smooth over the image (a lamp, a window), per channel; `shift` moves it by px."""
+    yy, xx = np.mgrid[0:n, 0:n].astype(np.float32)
+    c = np.asarray([0.0, 0.4, 0.9], np.float32)
+    return (0.6 + 0.3 * np.sin((xx[..., None] + shift) / 7.0 + c) * np.cos(yy[..., None] / 9.0 + c)).astype(np.float32)
+
+
+def square_skin(n):
+    """A square of skin with a ring of partly covered pixels around it (pixels shared with cloth or hair)."""
+    skin = np.zeros((n, n), np.float32)
+    a, b = n // 8, n - n // 8
+    skin[a:b, a:b] = 1.0
+    skin[a - 1, a:b] = skin[b, a:b] = skin[a:b, a - 1] = skin[a:b, b] = 0.6
+    return skin
+
+
 def first_order(m, gain):
     sd = m["skin"][..., None] * m["col"] * (m["dir"] + m["ind"])
     out = m["comb"].copy()
@@ -46,9 +66,10 @@ def first_order(m, gain):
 def test_the_probe_re_tint_is_exact_where_skin_light_is_first_order_and_the_first_order_re_tint_is_not(target):
     m, p, t = scene(MASTER), scene(PROBE), scene(target)
     rest, bounce = sr.probe_parts(m["skin"], m["col"], m["dir"], m["ind"], m["comb"], p["col"], p["dir"], p["ind"], p["comb"])
+    edge, shared = sr.edge_parts(m["skin"], m["col"], m["comb"], p["col"], p["comb"], MASTER, PROBE)
     gain, w = sr.gain_and_weight(target, MASTER, PROBE)
     _, sd = first_order(m, gain)
-    got = sr.retint(m["comb"], sd, gain, w, rest, bounce)
+    got = sr.retint(m["comb"], sd, gain, w, rest, bounce, edge, shared)
     on = m["skin"] > 0.99
     assert np.abs(got - t["comb"])[on].max() < 1e-5
     c3, _ = first_order(m, gain)
@@ -58,33 +79,137 @@ def test_the_probe_re_tint_is_exact_where_skin_light_is_first_order_and_the_firs
 def test_at_the_masters_tone_nothing_changes_and_at_the_probes_the_probe_is_reproduced():
     m, p = scene(MASTER), scene(PROBE)
     rest, bounce = sr.probe_parts(m["skin"], m["col"], m["dir"], m["ind"], m["comb"], p["col"], p["dir"], p["ind"], p["comb"])
+    edge, shared = sr.edge_parts(m["skin"], m["col"], m["comb"], p["col"], p["comb"], MASTER, PROBE)
     gain, w = sr.gain_and_weight(MASTER, MASTER, PROBE)
     assert np.all(w == 0) and np.allclose(gain, 1)
     _, sd = first_order(m, gain)
-    assert np.array_equal(sr.retint(m["comb"], sd, gain, w, rest, bounce), m["comb"])
+    assert np.array_equal(sr.retint(m["comb"], sd, gain, w, rest, bounce, edge, shared), m["comb"])
     gain, w = sr.gain_and_weight(PROBE, MASTER, PROBE)
     _, sd = first_order(m, gain)
-    on = m["skin"] > 0.99
-    assert np.abs(sr.retint(m["comb"], sd, gain, w, rest, bounce) - p["comb"])[on].max() < 1e-5
+    on = m["skin"] > 0                                                 # the partly covered edge too
+    assert np.abs(sr.retint(m["comb"], sd, gain, w, rest, bounce, edge, shared) - p["comb"])[on].max() < 1e-5
 
 
 def test_away_from_the_skin_the_probe_changes_nothing_and_alpha_never_changes():
     m, p = scene(MASTER), scene(PROBE)
     p["comb"][..., :3] += 0.01 * (1 - m["skin"][..., None])          # the probe differs off the skin (noise, cloth lit by skin)
     rest, bounce = sr.probe_parts(m["skin"], m["col"], m["dir"], m["ind"], m["comb"], p["col"], p["dir"], p["ind"], p["comb"])
+    edge, shared = sr.edge_parts(m["skin"], m["col"], m["comb"], p["col"], p["comb"], MASTER, PROBE)
     off = m["skin"] == 0
-    assert not rest[off].any() and not bounce[off].any()
+    assert not rest[off].any() and not bounce[off].any() and not edge[off].any() and not shared[off].any()
     gain, w = sr.gain_and_weight([0.2, 0.11, 0.07], MASTER, PROBE)
     _, sd = first_order(m, gain)
-    got = sr.retint(m["comb"], sd, gain, w, rest, bounce)
+    got = sr.retint(m["comb"], sd, gain, w, rest, bounce, edge, shared)
     assert np.array_equal(got[off], m["comb"][off]) and np.array_equal(got[..., 3], m["comb"][..., 3])
 
 
-def test_a_probe_that_is_not_the_masters_render_at_another_tone_is_refused():
+def shared_scene(albedo, s=0.6, cloth=0.3):
+    """A layer whose skin shares a ring of pixels with cloth (coverage s), as Cycles renders such a pixel: its Diffuse
+    Color is the two surfaces' colours mixed by coverage, its light each surface's own — the cloth lit by light off the
+    skin, the skin by none. The pixel's light is linear in the albedo; what C2's SKIN_DIFFUSE calls its skin is not."""
+    skin = square_skin(N)
+    skin[skin == 0.6] = s
+    d = light(N)
+    i0 = 0.1 + 0.05 * light(N, shift=11.0)                           # indirect light from everything but skin
+    a, sk = np.asarray(albedo, np.float32), skin[..., None]
+    total = sk * a * (d + i0) + (1 - sk) * cloth * (d + i0 + 0.2 * a)  # each surface's colour × its own light
+    col = sk * a + (1 - sk) * cloth
+    comb = np.concatenate([0.02 + total, np.ones((N, N, 1), np.float32)], -1).astype(np.float32)
+    return {"skin": skin, "col": col.astype(np.float32), "dir": d, "ind": (total / col - d).astype(np.float32), "comb": comb}
+
+
+@pytest.mark.parametrize("target", [[0.2, 0.11, 0.07], [0.55, 0.38, 0.28], [0.9, 0.72, 0.62]])
+def test_at_pixels_the_skin_shares_with_cloth_the_pixels_own_change_is_taken_and_is_exact_where_its_light_is_linear(target):
+    """Measured 2026-11-01 (slice/measurements/skin_tone_interreflection_2026-10-31/README.md, "The gate with the probe,
+    and the edge"): inside the skin the probe re-tint holds; 86–100 % of the gate's remaining error is the pixels the skin
+    shares with cloth, where SKIN_DIFFUSE takes the cloth's share of the colour for the skin's. There the pixel's own
+    change between the master and the probe is weighted instead (owner, 2026-11-01, decision 13 (A))."""
+    m, p, t = shared_scene(MASTER), shared_scene(PROBE), shared_scene(target)
+    rest, bounce = sr.probe_parts(m["skin"], m["col"], m["dir"], m["ind"], m["comb"], p["col"], p["dir"], p["ind"], p["comb"])
+    edge, shared = sr.edge_parts(m["skin"], m["col"], m["comb"], p["col"], p["comb"], MASTER, PROBE)
+    ring = (m["skin"] > 0) & (m["skin"] < 0.999)
+    assert np.array_equal(shared[..., 0] > 0.5, ring), "shared: the pixels the skin covers in part, and only those here"
+    gain, w = sr.gain_and_weight(target, MASTER, PROBE)
+    sd = m["skin"][..., None] * m["col"] * (m["dir"] + m["ind"])
+    got = sr.retint(m["comb"], sd, gain, w, rest, bounce, edge, shared)
+    on = m["skin"] > 0
+    assert np.abs(got - t["comb"])[on].max() < 1e-5
+    interior_rule = sr.retint(m["comb"], sd, gain, w, rest, bounce, edge, np.zeros_like(shared))
+    assert np.abs(interior_rule - t["comb"])[ring].max() > 1e-3, "the probe formula at the edge: the 2026-11-01 gate's error"
+
+
+def test_a_fully_covered_pixel_whose_colour_is_not_the_skins_alone_is_shared():
+    """Coverage alone does not see every shared pixel: where the probe's Diffuse Color over the master's is off the
+    albedos' ratio, the pixel's colour holds another surface's (conventions → skin_tone.probe.edge)."""
     m, p = scene(MASTER), scene(PROBE)
-    p["dir"] = p["dir"] * 1.05                                         # another light, another frame, another scene
-    with pytest.raises(sr.SkinRetintError, match="direct"):
-        sr.probe_parts(m["skin"], m["col"], m["dir"], m["ind"], m["comb"], p["col"], p["dir"], p["ind"], p["comb"])
+    lim = sr.P["edge"]["colour_ratio_off_max"]
+    p["col"][3, 4] *= 1.0 + 2 * lim                                   # inside the skin: a colour off the ratio
+    p["col"][3, 5] *= 1.0 + lim / 2                                   # ... and one within it
+    _, shared = sr.edge_parts(m["skin"], m["col"], m["comb"], p["col"], p["comb"], MASTER, PROBE)
+    assert m["skin"][3, 4] == 1.0 and shared[3, 4, 0] == 1.0
+    assert m["skin"][3, 5] == 1.0 and shared[3, 5, 0] == 0.0
+    assert shared[2:6, 9, 0].all(), "the partly covered edge"
+    assert not shared[m["skin"] == 0].any()
+
+
+def test_the_edge_parts_refuse_non_finite_passes():
+    m, p = scene(MASTER), scene(PROBE)
+    p["comb"][3, 9, 0] = np.nan                                       # at the partly covered edge (inside, REST refuses it)
+    with pytest.raises(sr.SkinRetintError, match="EDGE"):
+        sr.edge_parts(m["skin"], m["col"], m["comb"], p["col"], p["comb"], MASTER, PROBE)
+
+
+def test_a_probe_that_is_not_the_masters_render_at_another_tone_is_refused():
+    skin, d = square_skin(N), light(N)
+    z = np.zeros((N, N, 3), np.float32)
+    comb = np.ones((N, N, 4), np.float32)
+    for wrong in (d * 1.05, light(N, shift=3.0)):                     # another light; the light moved (the next frame)
+        with pytest.raises(sr.SkinRetintError, match="direct"):
+            sr.probe_parts(skin, z + 0.8, d, z, comb, z + 0.15, wrong, z, comb)
+
+
+def test_sampling_noise_inside_the_skin_and_colour_weighted_light_at_its_edge_are_not_another_render():
+    """Measured 2026-11-01 on the master's probe (slice/measurements/skin_tone_interreflection_2026-10-31/): inside the
+    skin the probe's direct light is 0.5–0.9 % per pixel off the master's with a zero mean — sampling noise; at pixels the
+    skin shares with cloth, Cycles' direct pass is the light weighted by each surface's colour, so a darker skin moves it
+    by 4–11 %. Neither is another light, frame or scene."""
+    skin, d = square_skin(N), light(N)
+    noisy = d * (1.0 + np.random.default_rng(1).normal(0.0, 0.01, d.shape)).astype(np.float32)
+    edge = (skin > 0.5) & (skin < 0.999)
+    noisy[edge] *= 1.3
+    on = skin > 0.5
+    assert np.abs(noisy - d)[on].mean() / np.abs(d[on]).mean() > BOUND, "the pixel mean over all the skin would refuse it"
+    got = sr.direct_mismatch(skin, d, noisy)
+    assert got is not None and got < BOUND / 2
+    z = np.zeros((N, N, 3), np.float32)
+    sr.probe_parts(skin, z + 0.8, d, z, np.ones((N, N, 4), np.float32), z + 0.15, noisy, z, np.ones((N, N, 4), np.float32))
+
+
+def test_a_coherent_change_of_the_light_inside_the_skin_is_measured():
+    skin, d = square_skin(N), light(N)
+    assert sr.direct_mismatch(skin, d, d) == 0.0
+    assert sr.direct_mismatch(skin, d, d * 1.01) == pytest.approx(0.01, rel=1e-3)
+    assert sr.direct_mismatch(skin, d, light(N, shift=3.0)) > 10 * BOUND
+
+
+def test_the_guards_grain_is_set_at_100_percent_and_follows_the_renders_scale():
+    """block_px and erode_px are image area at 100 %: a render at 25 % measures the same skin with 4 px blocks, 1 px in."""
+    skin = np.zeros((N, N), np.float32)
+    skin[20:30, 20:30] = 1.0                                           # 10 px: 6 px of interior, no 16 px block half full
+    d = light(N)
+    assert sr.direct_mismatch(skin, d, d * 1.01) is None
+    assert sr.direct_mismatch(skin, d, d * 1.01, scale=0.25) == pytest.approx(0.01, rel=1e-3)
+    assert sr.direct_mismatch(skin, d, d, scale=0.25) == 0.0
+
+
+def test_skin_without_an_interior_block_is_not_measured_and_not_refused():
+    skin = np.zeros((N, N), np.float32)
+    skin[20:23, :] = 1.0                                               # a 3 px strip: no interior once 2 px are taken off
+    d = light(N)
+    assert sr.direct_mismatch(skin, d, d * 1.5) is None
+    z = np.zeros((N, N, 3), np.float32)
+    rest, bounce = sr.probe_parts(skin, z + 0.8, d, z, np.ones((N, N, 4), np.float32), z + 0.15, d * 1.5, z, np.ones((N, N, 4), np.float32))
+    assert rest.shape == (N, N, 3) and bounce.shape == (N, N, 3)
 
 
 def test_a_probe_at_the_masters_tone_in_any_channel_is_refused():

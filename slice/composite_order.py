@@ -14,12 +14,13 @@ the order's own, delivered sharp with its own vectors in the same convention; no
 slice/motion_blur.py the QC path's blur-fidelity gate measured; the head's vectors and depth are an input of the head
 technology (--head-vectors, head_mv.####.exr), required whenever the shutter is open and refused for a still. Until
 2026-09-29 this entry point applied no blur (Phase 0.5 exit review, step 5). The body's skin tone (ADR-0002 amendment
-2026-09-29, C3, amended 2026-10-31): between the master and its skin probe (slice/skin_retint.py) — BODY_BEAUTY +
-(g − 1)·SKIN_DIFFUSE_BACK + w·REST_BACK + g·w·BOUNCE_BACK before the order's shadow multiply, the same on PRECOMP_FRONT
+2026-09-29, C3, amended 2026-10-31 and 2026-11-01): between the master and its skin probe (slice/skin_retint.py) —
+BODY_BEAUTY + (g − 1)·SKIN_DIFFUSE_BACK + w·REST_BACK + g·w·BOUNCE_BACK before the order's shadow multiply, and
+BODY_BEAUTY + w·EDGE_BACK at the pixels the skin shares with another surface (SHARED_BACK), the same on PRECOMP_FRONT
 with the FRONT parts, g = the order's tone / the master's albedo, w = (tone − master) / (probe − master), before
-compositing and the blur; a bundle without SKIN_PROBE_BUNDLE or without the probe method's passing gate re-tints nothing
-and refuses every tone but 'master'; a tone outside the master's measured range (slice/check_skin_tone.py) is refused;
-'master' re-tints nothing (QC baseline).
+compositing and the blur; a bundle without SKIN_PROBE_BUNDLE, with one derived by an older rule, or without the probe
+method's passing gate re-tints nothing and refuses every tone but 'master'; a tone outside the master's measured range
+(slice/check_skin_tone.py) is refused; 'master' re-tints nothing (QC baseline).
 The head layer and the order's shadow multiply come from the head technology; nothing is
 substituted when either is missing (the default head's multiply would be the wrong head's shadow —
 a silent fallback). SEAM_EXTEND (ADR-0002 amendment 2026-09-24, slice/seam_extend.py) extends the
@@ -45,7 +46,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from slice.composite import over, read_parts, write_parts, seam_context, seam_zone_for, SE, vector_reach, layer_vd, require_blur_parts  # noqa: E402
-from slice import motion_blur, seam_extend, skin_retint  # noqa: E402
+from slice import motion_blur, seam_extend, skin_retint, skin_probe  # noqa: E402
 from slice.order_inputs import head_fill  # noqa: E402
 
 CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
@@ -144,6 +145,9 @@ def skin_gain(bm, tone):
     if not probe:
         raise OrderCompositeError(f"the bundle carries no {PROBE['bundle']} — the master's skin probe (slice/skin_probe.py derive); without it no tone "
                                   "but 'master' is re-tinted (ADR-0002 amendment 2026-10-31)")
+    if not skin_probe.derived_by_current_rule(bm):
+        raise OrderCompositeError(f"the bundle's {PROBE['bundle']} was derived by an older rule (its parts or edge are not the conventions' "
+                                  f"{PROBE['parts']}, {PROBE['edge']}) — derive it again: slice/skin_probe.py derive --replace, then the gate")
     gate = bm.get("skin_tone", {})
     if gate.get("status") not in ("PASS", "VACUOUS") or gate.get("method") != "probe":
         raise OrderCompositeError(f"prerequisite gate: the skin-tone gate is {gate.get('status', 'NOT RUN')!r} by method {gate.get('method', 'first order')!r} "
@@ -192,8 +196,8 @@ def compose_frame(frame, comp_path, derived_path, head_path, shadow_path, seam_c
             raise OrderCompositeError(f"frame {frame}: the tone is re-tinted only with the master's skin probe — no probe frame given")
         pr = read_parts(probe_path)
         g, w = tone["gain"], tone["weight"]
-        back = skin_retint.retint(back, der["SKIN_DIFFUSE_BACK"][0], g, w, pr["REST_BACK"][0], pr["BOUNCE_BACK"][0])
-        front = skin_retint.retint(front, der["SKIN_DIFFUSE_FRONT"][0], g, w, pr["REST_FRONT"][0], pr["BOUNCE_FRONT"][0])
+        back = skin_retint.retint(back, der["SKIN_DIFFUSE_BACK"][0], g, w, *(pr[f"{n}_BACK"][0] for n in ("REST", "BOUNCE", "EDGE", "SHARED")))
+        front = skin_retint.retint(front, der["SKIN_DIFFUSE_FRONT"][0], g, w, *(pr[f"{n}_FRONT"][0] for n in ("REST", "BOUNCE", "EDGE", "SHARED")))
     back[..., :3] *= m
     zone, rings = seam_zone_for(seam_ctx, frame, holdout.shape)
     blur = shutter_frames > 0

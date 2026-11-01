@@ -27,7 +27,8 @@ def test_a_local_defect_fails_the_gate_though_the_mean_passes():
     assert status == "FAIL" and over == [(1338, "darkest", "BODY_BEAUTY", "p99", 0.38)]
 
 
-def test_without_the_owners_local_bound_the_gate_measures_but_does_not_judge():
+def test_without_the_owners_local_bound_the_gate_measures_but_does_not_judge(monkeypatch):
+    monkeypatch.setitem(cst.G, "relative_error_p99_max", None)
     assert cst.verdict(res(0.012, 3.2), lim99=None)[0] == "NOT_JUDGED"
 
 
@@ -47,3 +48,11 @@ def test_the_gate_tones_span_light_to_dark_and_the_bounds_are_declared():
 def test_the_verdict_reads_the_conventions_bounds_by_default(lim99, monkeypatch):
     monkeypatch.setitem(cst.G, "relative_error_p99_max", lim99)
     assert cst.verdict(res(0.012, 3.2))[0] == ("PASS" if lim99 else "NOT_JUDGED")
+
+
+def test_the_owners_bound_on_the_99th_percentile_is_set_and_judges_a_local_defect():
+    """Owner, 2026-11-01 (decision 14 (a)): 0.04, set from the gate with the edge on the three shots — the worst case
+    0.0302 (SHOT_003 1291, the darkest tone, the body); the edge line before the fix measured 0.04–0.40."""
+    assert cst.G["relative_error_p99_max"] == 0.04
+    assert cst.verdict(res(0.006, 3.0, p99=0.0302))[0] == "PASS"
+    assert cst.verdict(res(0.0035, 3.4, p99=0.404))[0] == "FAIL", "SHOT_001's edge line at the darkest tone, 2026-11-01"
