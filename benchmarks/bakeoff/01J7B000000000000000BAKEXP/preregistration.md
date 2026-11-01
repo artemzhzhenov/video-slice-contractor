@@ -54,7 +54,7 @@ cleanup ceiling, reviewer floor; **agent** — pre-filled facts from the reposit
 | # | Precondition | State | Evidence |
 |---|---|---|---|
 | P1 | Slice delivered, eight ADR-0002 exit criteria and the brief's three passed, `t_comp` / `S_frame` / `worker_warmup_minutes` in the record | `MET` 2026-09-29 — the three shots delivered and accepted (burst 2 closed 2026-09-29); the exit review: all eleven met, the render tolerance of criterion 7 and the gates' thresholds PROVISIONAL (SHOT_002's rows re-run at v03 2026-10-02; the render tolerance passed its first independent test there) — `docs/experiments/phase-0-5-exit-review.md` | `slice/package_manifest.json` in this record (`package_hash` pinned by `master.json`; `measurements` holds `t_comp`, `S_frame`, `worker_warmup_minutes`) |
-| P2 | Synthetic reference set exists, hashed, versioned | `NOT MET` | `reference_set_manifest.json`, `TO FILL` |
+| P2 | Synthetic reference set exists, hashed, versioned | `MET` 2026-11-01 (agent; owner «поехали» on the manifest) | `reference_set_manifest.json` — `reference_set_v1`, `reference_set_hash` `af93843391982ed409f9e2d6368ce39f41b0962bae4a87f4ea70e1f4cfb7c78b`; 9 children and 3 controls, every file's sha256 equal to its delivery's `SHA256SUMS.txt` (90 + 9); one `AVATAR` per child in `reference_set/avatars/` (CANONICAL, `ref:synthetic/reference_set_v1/subject_NN`, schema-valid, every tone in the master's supported range); built by `bakeoff/reference_set.py` from `reference_set_inputs.json` |
 | P3 | Every candidate is a `MODEL_REGISTRY_ENTRY` in `TESTING`, `receives_child_data: false` | `PARTIAL` 2026-10-17 — one registered: `registry/keentools_facebuilder.json` (TESTING, no child data). The owner's fork of 2026-10-17: FaceBuilder first; LAM, SOAP, Avatar SDK and Reallusion Headshot picked but FROZEN (registered on the return to the fork). The protocol's minimum (three across two families) is NOT met by one — a FaceBuilder-only run is a feasibility pilot, not the bake-off | `registry/*.json`; the survey `docs/experiments/head-candidates-survey-2026-10-17.md` |
 | P4 | Result-row schema exists | `MET` 2026-09-14 | `schemas/bakeoff_result.json`, fixtures |
 | P5 | `BAKEOFF_COST_CAP` set by the owner | `MET` 2026-10-29 — **220 Mac hours** (owner, «три повтора, 220 часов»; §9) | §9, PROJECT_STATE Open Decisions |
@@ -152,9 +152,10 @@ rows: `docs/experiments/head-candidates-survey-2026-10-17.md`.
   spacing and nose form varied per subject by a parameter table in the manifest, no two subjects
   sharing a row. The hair-class enumeration of ADR-0002 §D3 is an *output* of this bake-off; the
   three classes here are the protocol's §3 coverage, not the enumeration. The wall-clock of §5 is
-  planned against 9; the subjects themselves are `TO FILL` below once the set exists.
-- `reference_set_version` = `TO FILL`; `reference_set_hash` = `TO FILL` (whole set) — from
-  `reference_set_manifest.json`.
+  planned against 9; the subjects are in `reference_set_manifest.json` (2026-11-01): declared attributes, parameter
+  table, provenance and file hashes per child, and the table below.
+- `reference_set_version` = `reference_set_v1`; `reference_set_hash` = `af93843391982ed409f9e2d6368ce39f41b0962bae4a87f4ea70e1f4cfb7c78b` (whole set: the
+  files' hashes, not their paths) — from `reference_set_manifest.json` (agent, 2026-11-01).
 - No subject is derived from any real person's photograph. Provenance per subject is in the
   manifest; the statement is signed in §12.
 

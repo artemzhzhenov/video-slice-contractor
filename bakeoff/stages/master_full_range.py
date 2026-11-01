@@ -10,6 +10,7 @@ Blender call through bakeoff/ledger.py as `bakeoff_master_full_range`:
     python3 bakeoff/stages/master_full_range.py probe [--shot ...] [--chunk 30]
     python3 bakeoff/stages/master_full_range.py gate [--shot ...]
     python3 bakeoff/stages/master_full_range.py all [--shot ...]          # render, probe, then gate, shot by shot
+    python3 bakeoff/stages/master_full_range.py stills [--shot ...]       # after gate
     python3 bakeoff/ledger.py --experiment … --stage bakeoff_master_full_range --job "… package" -- \
         python3 bakeoff/stages/master_full_range.py package [--shot ...]
 
@@ -34,9 +35,15 @@ before the probe (the first-order re-tint) is moved aside and measured again; a 
 (before the edge, 2026-11-01) is derived again from the same renders and its gate run again. Writes
 <out>/<shot>/full_range_gates.json.
 
-package — the package's new version: each shot's video bundle and its gate records replaced (the heavy files APFS-cloned
-into the offline part), the exports, the still, the scene checks, the source and order_qc (the default head's order
-composites on the earlier bundle's frames: a measurement of t_comp, recorded as such) kept; hashed and verified."""
+stills — each shot's still with its skin probe (owner «поехали» 2026-11-01): rendered again when the package's still is
+not of the full-range video's shot file and gaze aim (stills()), its probe at the still profile, SKIN_PROBE_BUNDLE
+derived, the shot's skin-tone gate recorded in the still bundle.
+
+package — the package's new version: each shot's video bundle and its gate records replaced, and its still from `stills`
+(the heavy files APFS-cloned into the offline part); the exports, the scene checks, the source and order_qc (the default
+head's order composites on the earlier bundle's frames: a measurement of t_comp, recorded as such) kept; hashed and
+verified. A shot whose still is not ready is not packaged. The bake-off's views and master inputs made from the old
+version are moved aside (retire_package_derivatives)."""
 import argparse
 import hashlib
 import json
@@ -57,6 +64,7 @@ OUT = Path("<the archive disk>/runs/master_full_range_2026-10-30")
 CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
 PROBE = CONV["skin_tone"]["probe"]
 SAMPLES, SCALE, EVERY = 64, 100, 10
+STILL_SAMPLES = CONV["render_profiles"]["still"]["samples"]
 
 
 class FullRangeError(RuntimeError):
@@ -202,6 +210,135 @@ def replace_video(pkg, off, shot, run, summary, retire):
         place(run / "skin_tone" / name, pkg / rel / "qc/skin_tone" / name, off / rel / "qc/skin_tone" / name, counts)
     place(Path(summary), pkg / rel / "qc/full_range_gates.json", off / rel / "qc/full_range_gates.json", counts)
     return counts
+
+
+def still_render_reason(still_rm, video_rm):
+    """Why the package's still is rendered again before its skin probe, or None. The still's probe is rendered now, as the
+    full-range video was; a still from another shot file, or without the video's gaze aim (SHOT_001 and SHOT_003's,
+    rendered before the gaze amendment of 2026-09-30), would not pair with it: skin_probe.py derive refuses other settings."""
+    if still_rm["source_scene"]["sha256"] != video_rm["source_scene"]["sha256"]:
+        return "rendered from another shot file than the full-range video's"
+    if still_rm["settings"].get("gaze_aim") != video_rm["settings"].get("gaze_aim"):
+        return "its gaze aim is not the full-range video's (rendered before the gaze amendment, 2026-09-30)"
+    return None
+
+
+def replace_still(pkg, off, shot, renders_still, retire):
+    """A new version of one shot's still in the package: renders/still replaced by the stills step's — the plates as the
+    package had them or rendered again, with SKIN_PROBE_BUNDLE derived and the gate's record in the bundle manifest; the
+    probe's raw render stays in the run. The earlier version's offline files are moved under `retire` (one volume, a
+    rename), never deleted — its light part is in git."""
+    pkg, off, src, retire = Path(pkg), Path(off), Path(renders_still), Path(retire)
+    r = Path("shots") / shot / "renders" / "still"
+    if (off / r).exists():
+        dst = retire / r
+        if dst.exists():
+            raise FullRangeError(f"{dst} exists — this version was retired before")
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        os.rename(off / r, dst)
+    if (pkg / r).is_dir():
+        shutil.rmtree(pkg / r)
+    counts = {"light": 0, "offline": 0}
+    for p in sorted(src.rglob("*")):
+        if p.is_file() and p.name not in (".DS_Store", "last_step.log"):
+            rel = r / p.relative_to(src)
+            place(p, pkg / rel, off / rel, counts)
+    return counts
+
+
+def still_ready(st):
+    """A shot's still is ready for the package once its skin probe is derived and the gate's record is in its bundle."""
+    return rn.Steps(st).done("skin_tone_record")
+
+
+def copy_package_still(shot, dst):
+    """The package's still bundle (its light part and offline part) copied into the run, where derive may write: a view
+    of symlinks would write through into the package. The heavy files are cloned when on one volume; every copy is read
+    back."""
+    rel = Path("shots") / shot / "renders" / "still"
+    for base in (rn.LIGHT, rn.OFF):
+        for p in sorted((base / rel).rglob("*")):
+            if not p.is_file() or p.name == ".DS_Store":
+                continue
+            d = Path(dst) / p.relative_to(base / rel)
+            if d.exists():
+                raise FullRangeError(f"{d} is in both the package's light and offline parts")
+            d.parent.mkdir(parents=True, exist_ok=True)
+            if os.stat(p).st_dev == os.stat(d.parent).st_dev:
+                subprocess.run(["cp", "-c", str(p), str(d)], check=True)
+            else:
+                shutil.copy2(p, d)
+            if sha256(d) != sha256(p):
+                raise FullRangeError(f"{d} differs from the package's {p}")
+
+
+def stills(shots, out):
+    """The package's stills with their skin probe (ADR-0002 amendment 2026-10-31, Does not solve: the still profile; owner
+    «поехали» 2026-11-01), per shot in <out>/<shot>/still/, each step resumable:
+    - plates: rendered again from the package's shot file when still_render_reason says so (the profile's samples, 100 %,
+      the exports' gaze, the lighting probe), then split, composite and the round-trip (centre sample) as
+      slice/check_asset.sh checks a still; otherwise the package's still copied as it is;
+    - probe: the full-range probe's shot file, its two skin layers at the still profile (render_passes.py --skin-probe);
+    - skin_probe: SKIN_PROBE_BUNDLE derived into the still bundle (slice/skin_probe.py derive);
+    - skin_tone_record: the shot's skin-tone gate — the full-range run's, PASS or VACUOUS by the probe method — recorded in
+      the still bundle manifest, as check_skin_tone.py records it in every profile it names."""
+    from slice.check_skin_tone import record_in_bundles
+    for shot in shots:
+        sd, st = out / shot, out / shot / "still"
+        st.mkdir(parents=True, exist_ok=True)
+        blend = rn.master_file(shot)
+        video_rm = json.loads((sd / "run" / "renders" / "video" / "render_manifest.video.json").read_text())
+        if rn.sha256(blend) != video_rm["source_scene"]["sha256"]:
+            raise FullRangeError(f"{blend.name}: not the shot file the full-range video was rendered from")
+        pkg_rm = json.loads((rn.LIGHT / "shots" / shot / "renders" / "still" / "render_manifest.still.json").read_text())
+        reason = still_render_reason(pkg_rm, video_rm)
+        exports = exports_view(shot, out)
+        rs, pr = st / "renders" / "still", st / "probe_renders"
+        steps = rn.Steps(st)
+        job = f"{STAGE} {shot} still"
+        if not steps.done("plates"):
+            for d in (rs, pr):
+                if d.exists():
+                    if out.resolve() not in d.resolve().parents:
+                        raise FullRangeError(f"{d} is not under {out}")
+                    shutil.rmtree(d)                 # an unfinished still: made again
+            if reason:
+                s = book([rn.BLENDER, "-b", blend, "--python-exit-code", "2", "-P", ROOT / "slice" / "render_passes.py", "--",
+                          "--shot", shot, "--profile", "still", "--frames", "still", "--samples", STILL_SAMPLES, "--scale", SCALE,
+                          "--exports", exports, "--probe", "--out", st / "renders"], st / "render.log", f"{job} plates")
+            else:
+                s = 0.0
+                copy_package_still(shot, rs)
+            steps.mark("plates", s, [rs / "render_manifest.still.json"], rendered=bool(reason), reason=reason)
+        if steps.rec["plates"].get("rendered"):
+            for name, cmd in (("split", blender(ROOT / "slice/split_bundles.py", "--", rs, "--exports", exports)),
+                              ("composite", blender(ROOT / "slice/composite.py", "--", rs)),
+                              ("roundtrip", blender(ROOT / "slice/roundtrip.py", "--", "--exports", exports, "--renders", rs))):
+                if not steps.done(name):
+                    s = book(cmd, st / f"{name}.log", f"{job} {name}")
+                    steps.mark(name, s, [st / f"{name}.log"])
+        pblend = sd / "skin_probe" / f"{shot}_skin_probe.blend"
+        if not rn.Steps(sd).done("probe_tone"):
+            raise FullRangeError(f"{shot}: no skin probe's shot file — run probe first")
+        if not steps.done("probe"):
+            s = book([rn.BLENDER, "-b", pblend, "--python-exit-code", "2", "-P", ROOT / "slice" / "render_passes.py", "--",
+                      "--shot", shot, "--profile", "still", "--frames", "still", "--samples", STILL_SAMPLES, "--scale", SCALE,
+                      "--exports", exports, "--skin-probe", "--out", pr], st / "probe.log", f"{job} skin probe")
+            steps.mark("probe", s, [pr / "still" / "render_manifest.still.json"])
+        if not steps.done("skin_probe"):
+            again = ["--replace"] if (rs / PROBE["bundle"]).exists() else []
+            s = book(blender(ROOT / "slice/skin_probe.py", "--", "derive", rs, pr / "still", *again), st / "skin_probe.log", f"{job} skin_probe")
+            steps.mark("skin_probe", s, [st / "skin_probe.log", rs / PROBE["bundle"]])
+        if not steps.done("skin_tone_record"):
+            chk = sd / "run" / "skin_tone" / "check_skin_tone.json"
+            record = json.loads(chk.read_text())
+            if record.get("status") not in ("PASS", "VACUOUS") or record.get("method") != "probe":
+                raise FullRangeError(f"{shot}: the skin-tone gate is {record.get('status')!r} by {record.get('method')!r} — "
+                                     "a still is recorded only with a passing gate of the probe method")
+            record_in_bundles(st / "renders", ["still"], record, chk.parent)
+            steps.mark("skin_tone_record", 0.0, [rs / "bundle_manifest.still.json"], record=str(chk))
+        print(f"STILL_OK {shot}: {'rendered again — ' + reason if reason else 'the package still'}, skin probe derived, "
+              f"the gate's record in its bundle", flush=True)
 
 
 def env():
@@ -430,6 +567,23 @@ def gate(shots, size, out):
               f"skin tone {bm['skin_tone']['status']}, blur fidelity {fid.get('status')}", flush=True)
 
 
+def retire_package_derivatives(runs, previous):
+    """The bake-off's views (symlinks into the package) and the master's per-shot order inputs (bakeoff/stages/run.py
+    prepare: the shadow denominator, the still's render context) are made once from the package and never checked
+    against it again; after a new package version they are moved aside — <name>.package_<the old hash's first 12> —
+    never deleted, and made again from the new version on first use. The paths moved."""
+    moved = []
+    for name in ("views", "master"):
+        p = Path(runs) / name
+        if p.exists():
+            dst = Path(runs) / f"{name}.package_{previous[:12]}"
+            if dst.exists():
+                raise FullRangeError(f"{dst} exists — this version's derivatives were moved aside before")
+            os.rename(p, dst)
+            moved.append(dst)
+    return moved
+
+
 def package(shots, out):
     """The package's new version: per shot, only when its three gates passed, the video bundle and its gate records
     replaced (replace_video); then the package hashed and verified with its offline part (slice/package.py). Run it
@@ -445,14 +599,20 @@ def package(shots, out):
         bad = gates_not_passed(g)
         if bad:
             raise FullRangeError(f"{shot}: gates {bad} — not packaged")
+        if not still_ready(sd / "still"):
+            raise FullRangeError(f"{shot}: its still has no skin probe and gate record yet — run stills first")
         counts = replace_video(rn.LIGHT, rn.OFF, shot, sd / "run", summ, retire)
         print(f"VIDEO_REPLACED {shot}: {counts['light']} light files, {counts['offline']} offline (cloned)", flush=True)
+        counts = replace_still(rn.LIGHT, rn.OFF, shot, sd / "still" / "renders" / "still", retire)
+        print(f"STILL_REPLACED {shot}: {counts['light']} light files, {counts['offline']} offline (cloned)", flush=True)
     for cmd in ("hash", "verify"):
         r = subprocess.run([sys.executable, str(ROOT / "slice" / "package.py"), cmd, str(rn.LIGHT), "--offline", str(rn.OFF)],
                            capture_output=True, text=True)
         print(r.stdout.strip().splitlines()[-1] if r.stdout.strip() else "", flush=True)
         if r.returncode != 0:
             raise FullRangeError(f"package.py {cmd}: exit {r.returncode} — {r.stderr.strip()[-500:]}")
+    for p in retire_package_derivatives(rn.RUNS, previous):
+        print(f"PACKAGE_DERIVATIVES_MOVED_ASIDE {p} — made again from the new version on first use", flush=True)
     print("FULL_RANGE_PACKAGED " + " ".join(shots), flush=True)
 
 
@@ -475,6 +635,9 @@ def main(argv):
     al.add_argument("--shot", action="append", choices=sorted(CONV["shots"]))
     al.add_argument("--chunk", type=int, default=30)
     al.add_argument("--out", default=str(OUT))
+    sl = sub.add_parser("stills", help="the stills with their skin probe and the gate's record (after gate)")
+    sl.add_argument("--shot", action="append", choices=sorted(CONV["shots"]))
+    sl.add_argument("--out", default=str(OUT))
     k = sub.add_parser("package")
     k.add_argument("--shot", action="append", choices=sorted(CONV["shots"]))
     k.add_argument("--out", default=str(OUT))
@@ -490,6 +653,8 @@ def main(argv):
             render([shot], a.chunk, Path(a.out))
             probe([shot], a.chunk, Path(a.out))
             gate([shot], a.chunk, Path(a.out))
+    elif a.cmd == "stills":
+        stills(a.shot or sorted(CONV["shots"]), Path(a.out))
     else:
         package(a.shot or sorted(CONV["shots"]), Path(a.out))
 

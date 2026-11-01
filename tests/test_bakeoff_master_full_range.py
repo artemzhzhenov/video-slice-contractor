@@ -162,6 +162,71 @@ def test_a_skin_probe_derived_by_an_older_rule_is_derived_again_and_its_gate_jud
     assert mf.retire_older_probe(tmp_path / "SHOT_002/run/renders/video", rn.Steps(tmp_path / "SHOT_002")) is False   # nothing derived yet
 
 
+def test_a_still_is_rendered_again_only_when_its_shot_file_or_gaze_aim_is_not_the_full_range_videos():
+    """The stills (owner «поехали» 2026-11-01): the still's probe is rendered now, as the full-range video was; a still
+    from another shot file or without the video's gaze aim (SHOT_001 and SHOT_003's, rendered before the gaze amendment)
+    would not pair with it — skin_probe.py derive refuses other settings."""
+    gaze = {"mode": "TARGET_POINT", "track_sha256": "ab"}
+    video = {"source_scene": {"sha256": "s1"}, "settings": {"gaze_aim": gaze, "samples": 64}}
+    assert mf.still_render_reason({"source_scene": {"sha256": "s1"}, "settings": {"gaze_aim": dict(gaze), "samples": 256}}, video) is None
+    assert "gaze" in mf.still_render_reason({"source_scene": {"sha256": "s1"}, "settings": {"samples": 256}}, video)
+    assert "shot file" in mf.still_render_reason({"source_scene": {"sha256": "s0"}, "settings": {"gaze_aim": gaze}}, video)
+
+
+def test_the_still_replaces_the_packages_still_bundle_and_nothing_else(tmp_path):
+    pkg, off, st = tmp_path / "pkg", tmp_path / "off", tmp_path / "still_run"
+    sh = "shots/SHOT_001"
+    keep = [write(pkg / sh / "renders/video/bundle_manifest.video.json", b"V"), write(off / sh / "renders/video/raw/beauty.1001.exr", b"V"),
+            write(off / sh / "exports/camera.json", b"C"), write(pkg / sh / "qc/full_range_gates.json", b"{}")]
+    old = [write(pkg / sh / "renders/still/bundle_manifest.still.json", b"old"), write(off / sh / "renders/still/raw/beauty.1050.exr", b"old"),
+           write(off / sh / "renders/still/COMPOSITE_BUNDLE/composite.1050.exr", b"old")]
+    write(st / "renders/still/bundle_manifest.still.json", b"{}")
+    write(st / "renders/still/render_manifest.still.json", b"{}")
+    write(st / "renders/still/raw/beauty.1050.exr", b"N" * 1000)
+    write(st / "renders/still/SKIN_PROBE_BUNDLE/skin_probe.1050.exr", b"P" * 100)   # the probe's derived parts go in
+    write(st / "renders/still/last_step.log", b"log")
+    write(st / "probe_renders/still/raw/skin_probe.1050.exr", b"raw probe")          # its raw render stays in the run
+    retire = tmp_path / "versions" / "oldhash"
+    counts = mf.replace_still(pkg, off, "SHOT_001", st / "renders/still", retire)
+    assert all(p.exists() for p in keep)
+    assert (retire / sh / "renders/still/raw/beauty.1050.exr").read_bytes() == b"old", "the older version's offline files are retired, never deleted"
+    assert not (off / sh / "renders/still/COMPOSITE_BUNDLE/composite.1050.exr").exists(), "a file the new still does not hold is not left behind"
+    assert (pkg / sh / "renders/still/bundle_manifest.still.json").read_bytes() == b"{}"
+    assert (off / sh / "renders/still/raw/beauty.1050.exr").read_bytes() == b"N" * 1000
+    assert (off / sh / "renders/still/SKIN_PROBE_BUNDLE/skin_probe.1050.exr").exists()
+    assert not [q for d in (pkg, off) for q in d.rglob("skin_probe.1050.exr") if q.parent.name == "raw"], "the probe's raw render stays in the run"
+    assert not (pkg / sh / "renders/still/last_step.log").exists() and counts["offline"] == 2
+
+
+def test_a_shot_is_packaged_only_with_its_still_derived_and_its_gate_recorded(tmp_path):
+    from bakeoff.stages import run as rn
+    st = tmp_path / "SHOT_001" / "still"
+    assert mf.still_ready(st) is False                                              # no still made yet
+    bundle = write(st / "renders/still/bundle_manifest.still.json", b"{}")
+    steps = rn.Steps(st)
+    steps.mark("skin_probe", 1.0, [bundle])
+    assert mf.still_ready(st) is False, "derived but the gate's record not yet in its bundle"
+    steps.mark("skin_tone_record", 0.0, [bundle])
+    assert mf.still_ready(st) is True
+
+
+def test_a_new_package_version_moves_the_bake_offs_views_and_master_inputs_of_the_old_one_aside(tmp_path):
+    """The views (symlinks into the package) and the master's per-shot order inputs (the shadow denominator, the still's
+    render context) are made once from the package and not checked against it again; made from the old version they would
+    point at retired files or the old frames. A new version moves them aside, never deleting them; they are made again
+    from the new one on first use."""
+    runs = tmp_path / "bakeoff"
+    write(runs / "views/SHOT_003/renders/video/bundle_manifest.video.json", b"old view")
+    write(runs / "master/SHOT_003/video/denominator/denominator_manifest.json", b"3 frames")
+    write(runs / "geometry_cache/SHOT_001/x.abc", b"kept")
+    moved = mf.retire_package_derivatives(runs, "abcdef0123456789")
+    assert sorted(p.name for p in moved) == ["master.package_abcdef012345", "views.package_abcdef012345"]
+    assert not (runs / "views").exists() and not (runs / "master").exists()
+    assert (runs / "master.package_abcdef012345/SHOT_003/video/denominator/denominator_manifest.json").read_bytes() == b"3 frames"
+    assert (runs / "geometry_cache/SHOT_001/x.abc").exists()
+    assert mf.retire_package_derivatives(runs, "abcdef0123456789") == [], "nothing left to move"
+
+
 def test_a_shot_is_packaged_only_when_its_skin_tone_gate_is_the_probes():
     ok = {"roundtrip": {"status": "PASS"}, "blur_fidelity": {"status": "PASS"}, "skin_tone": {"status": "PASS", "method": "probe"}}
     assert mf.gates_not_passed(ok) == {}
