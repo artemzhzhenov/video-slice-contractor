@@ -38,7 +38,7 @@
     "video": 360,
     "still": 3
   },
-  "package_hash": "490e980793c41c2ae7ffed775564a86db0d4e0e8c375394162808880dfa7ba09",
+  "package_hash": "675fb10222aea8cbb305bd03b055b522294d882ff0b90379ef4923369aa31f43",
   "rebuild_recipe_ref": "benchmarks/bakeoff/01J7B000000000000000BAKEXP/slice/REBUILD.md",
   "toolchain": {
     "dcc": "Blender",

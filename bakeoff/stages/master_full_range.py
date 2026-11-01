@@ -389,6 +389,20 @@ def package_render_manifest(shot):
     return json.loads((rn.LIGHT / "shots" / shot / "renders" / "video" / "render_manifest.video.json").read_text())
 
 
+def package_picked_frames(shot):
+    """The frames the package's QC picked (slice/pick_frames.py): its video frames while it held those alone; once it holds
+    the shot's full range (the version 85ba5341, 2026-11-01), the picked frames its gate summary records
+    (qc/full_range_gates.json) — compared with all of them, every shot's gate run again was refused."""
+    frames = sorted(r["frame"] for r in package_render_manifest(shot)["frames"])
+    fr = CONV["shots"][shot]["frame_range"]
+    if frames != list(range(fr["start"], fr["end"] + 1)):
+        return frames
+    summ = rn.LIGHT / "shots" / shot / "qc" / "full_range_gates.json"
+    if not summ.exists():
+        raise FullRangeError(f"{shot}: the package holds the full range but no qc/full_range_gates.json — its picked frames are not recorded")
+    return json.loads(summ.read_text())["picked_frames"]
+
+
 def render(shots, size, out):
     for shot in shots:
         fr = CONV["shots"][shot]["frame_range"]
@@ -527,9 +541,9 @@ def gate(shots, size, out):
             merge_chunks([sd / "chunks" / f"{a}-{b}" for a, b in parts], run / "renders")
             steps.mark("merge", 0.0, [rv / "render_manifest.video.json"])
         picked = pick(exports)
-        package_frames = sorted(r["frame"] for r in package_render_manifest(shot)["frames"])
+        package_frames = package_picked_frames(shot)
         if picked != package_frames:
-            raise FullRangeError(f"{shot}: pick_frames gives {picked}, the package holds {package_frames}")
+            raise FullRangeError(f"{shot}: pick_frames gives {picked}, the package picked {package_frames}")
         g = gated_frames(picked, fr["start"], fr["end"])
         gs = ",".join(map(str, g))
         job = f"{STAGE} {shot}"

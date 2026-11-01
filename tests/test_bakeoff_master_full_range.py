@@ -356,3 +356,20 @@ def test_a_new_package_version_is_pinned_in_the_master_record_and_nothing_else_t
     assert mf.pin_package(m, pm) == ("a" * 64, "b" * 64)
     assert json.loads(m.read_text()) == dict(rec, package_hash="b" * 64)
     assert m.read_text() == json.dumps(dict(rec, package_hash="b" * 64), indent=2, ensure_ascii=False) + "\n"
+
+
+def test_the_packages_picked_frames_are_its_frames_until_it_holds_the_full_range_then_its_gate_summarys(tmp_path, monkeypatch):
+    """2026-11-01: once the package held the full-range video (85ba5341), `gate` compared pick_frames with all 120 frames and
+    refused every shot — the picked frames are then the ones its gate summary records."""
+    from bakeoff.stages import run as rn
+    light = tmp_path / "slice"
+    monkeypatch.setattr(rn, "LIGHT", light)
+    fr = mf.CONV["shots"]["SHOT_001"]["frame_range"]
+    rm = light / "shots/SHOT_001/renders/video/render_manifest.video.json"
+    write(rm, json.dumps({"frames": [{"frame": f} for f in (1001, 1094, 1101)]}).encode())
+    assert mf.package_picked_frames("SHOT_001") == [1001, 1094, 1101]
+    write(rm, json.dumps({"frames": [{"frame": f} for f in range(fr["start"], fr["end"] + 1)]}).encode())
+    with pytest.raises(mf.FullRangeError, match="full_range_gates"):
+        mf.package_picked_frames("SHOT_001")
+    write(light / "shots/SHOT_001/qc/full_range_gates.json", json.dumps({"picked_frames": [1001, 1094, 1101]}).encode())
+    assert mf.package_picked_frames("SHOT_001") == [1001, 1094, 1101]
