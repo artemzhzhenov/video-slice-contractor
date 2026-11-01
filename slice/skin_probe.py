@@ -13,12 +13,15 @@ BODY_BEAUTY / FOREGROUND_PLATE and SKIN_BUNDLE: REST and BOUNCE of each layer (s
 SHARED — the pixels the skin shares with another surface and their own change (slice/skin_retint.edge_parts; owner
 2026-11-01, decision 13 (A)) — written to <master>/SKIN_PROBE_BUNDLE/skin_probe.####.exr and recorded in the master's
 bundle manifest (bundles.SKIN_PROBE_BUNDLE: the frames with their pixel hashes and shared pixel counts, the probe's albedo
-and render, the edge's thresholds). The probe is quantised to half as the master's bundles are before the difference. Refused: a render that is not a skin probe, misses a frame of the master's, is not at
-the conventions' probe tone in every toned material, was rendered with other settings than the master's, or whose
-direct light inside the skin is not the master's (or cannot be measured on any layer of any frame); an existing
-SKIN_PROBE_BUNDLE without --replace. The bundle is written beside as SKIN_PROBE_BUNDLE.partial and put in place only
-whole: a derive that fails leaves the bundle that was there. A bundle derived by an older rule (derived_by_current_rule)
-is used by no order and no gate: derive it again with --replace."""
+and render, the edge's thresholds). The probe is quantised to half as the master's bundles are before the difference.
+Refused: a render that is not a skin probe, misses a frame of the master's, is not at the conventions' probe tone in
+every toned material, was rendered with other settings than the master's, or whose direct light inside the skin is not
+the master's within direct_light_z_max sampling-noise units (or cannot be measured on any layer of any frame, or of a
+chunk with skin: unmeasured_chunks); an existing SKIN_PROBE_BUNDLE without --replace. The bundle is written beside as
+SKIN_PROBE_BUNDLE.partial and put in place only whole: a derive that fails leaves the bundle that was there. A bundle
+derived by an older rule (derived_by_current_rule) is used by no order and no gate: derive it again with --replace. A
+derive moves the bundle's skin-tone gate record to `skin_tone_retired`: it vouched for the probe that was there
+(gate_refusal; burst 6 review Q79-1, 2026-11-01)."""
 import argparse
 import hashlib
 import json
@@ -69,14 +72,93 @@ def sha256(p):
     return h.hexdigest()
 
 
+def _same(a, b):
+    return a is not None and b is not None and len(a) == len(b) == 3 and all(abs(float(x) - float(y)) <= 1e-6 for x, y in zip(a, b))
+
+
 def derived_by_current_rule(bm):
     """Whether the bundle manifest's SKIN_PROBE_BUNDLE was derived by the conventions' rule as it is now: every frame of
     the conventions' parts, the edge found by the conventions' thresholds (a bundle derived before the edge, 2026-11-01,
-    is not)."""
+    is not), the probe at the conventions' tone."""
     b = bm.get("bundles", {}).get(P["bundle"])
     if not b or not b.get("frames"):
         return False
-    return b.get("probe", {}).get("edge") == P["edge"] and all([q["name"] for q in r["parts"]] == P["parts"] for r in b["frames"])
+    pr = b.get("probe", {})
+    return (pr.get("edge") == P["edge"] and _same(pr.get("albedo"), P["tone"])
+            and all([q["name"] for q in r["parts"]] == P["parts"] for r in b["frames"]))
+
+
+def probe_fingerprint(bm):
+    """The bundle's SKIN_PROBE_BUNDLE as one sha256 — its probe and master albedos and every frame's file sha256, the rows
+    in frame order — or None without one. The skin-tone gate's record carries the fingerprint of the probe it was written
+    beside (check_skin_tone.record_in_bundles); an order re-tints only when it is the bundle's (gate_refusal)."""
+    b = bm.get("bundles", {}).get(P["bundle"])
+    if not b or not b.get("frames"):
+        return None
+    t = {"albedo": b.get("probe", {}).get("albedo"), "master_albedo": b.get("probe", {}).get("master_albedo"),
+         "frames": [[r["frame"], r.get("sha256")] for r in sorted(b["frames"], key=lambda r: r["frame"])]}
+    return hashlib.sha256(json.dumps(t, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def probe_frames(bm):
+    """{frame: the probe frame file's sha256} — what composite_order.compose_frame checks the file it reads against."""
+    return {r["frame"]: r["sha256"] for r in bm.get("bundles", {}).get(P["bundle"], {}).get("frames", [])}
+
+
+def gate_refusal(bm):
+    """Why the bundle's skin-tone gate does not admit a re-tint by its SKIN_PROBE_BUNDLE — None when it does: a PASS of the
+    probe method written beside this very probe (its fingerprint, its probe and master albedos the bundle's). A VACUOUS
+    gate admits nothing: derive refuses a render without measurable skin, so beside a probe VACUOUS is skin the gate did
+    not measure (burst 6 review, Q79-1 and finding 5, 2026-11-01)."""
+    gate = bm.get("skin_tone", {})
+    if gate.get("status") != "PASS" or gate.get("method") != "probe":
+        return (f"the skin-tone gate is {gate.get('status', 'NOT RUN')!r} by method {gate.get('method') or 'first order'!r} on this "
+                "bundle — only a PASS of the probe method admits a re-tint (slice/check_skin_tone.py; VACUOUS: gate more frames)")
+    pr = bm.get("bundles", {}).get(P["bundle"], {}).get("probe", {})
+    if gate.get("probe_bundle_sha256") != probe_fingerprint(bm):
+        return (f"the skin-tone gate's record was written beside another {P['bundle']} (its fingerprint "
+                f"{str(gate.get('probe_bundle_sha256'))[:12]}, the bundle's {str(probe_fingerprint(bm))[:12]}) — the probe was derived "
+                "again after the gate: run the gate again on this one")
+    if not _same(gate.get("probe_albedo"), pr.get("albedo")) or not _same(gate.get("master_albedo"), pr.get("master_albedo")):
+        return (f"the skin-tone gate measured the probe albedo {gate.get('probe_albedo')} over the master's {gate.get('master_albedo')}, "
+                f"the bundle's probe is {pr.get('albedo')} over {pr.get('master_albedo')}")
+    return None
+
+
+def retire_gate_record(bm, why):
+    """The gate's record moved to `skin_tone_retired` (kept, never dropped): the probe it was written beside is replaced."""
+    if "skin_tone" in bm:
+        bm.setdefault("skin_tone_retired", []).append(dict(bm.pop("skin_tone"), retired=why))
+
+
+def material_status(sss, textured, base_color, toned, toned_sss):
+    """RE-TINTABLE, or why not: the body's skin a plain colour without subsurface scattering (ADR-0002 amendment
+    2026-09-29), and every hero skin material the probe tones (materials_toned) of that same colour, untextured, without
+    subsurface — the probe sets them all to one tone, so light the head throws on the body is weighted by the body's
+    albedo (burst 6 review finding 7, 2026-11-01). slice/render_passes.py records it in every render manifest."""
+    if textured or sss != 0.0:
+        return "NOT RE-TINTABLE BY A GAIN (textured base colour or subsurface — re-measure, ADR-0002 amendment 2026-09-29 §Does not solve)"
+    off = sorted(k for k in ST["materials_toned"] if not _same(toned.get(k) if isinstance(toned.get(k), list) else None, base_color)
+                 or toned_sss.get(k) != 0.0)
+    if off:
+        return (f"NOT RE-TINTABLE BY A GAIN ({', '.join(off)}: not the body skin's plain colour without subsurface — the probe tones "
+                "every hero skin material alike; burst 6 review finding 7)")
+    return "RE-TINTABLE"
+
+
+def unmeasured_chunks(rows, chunks):
+    """The chunks of the probe render (its manifest's assembled_from_chunks; a render without them is one chunk) whose
+    frames show skin and measure none of it — the guard cannot tell such a chunk from another render, a frame off or an
+    older light (burst 6 review Q79-3, 2026-11-01). A chunk with no skin re-tints nothing."""
+    frames = sorted(r["frame"] for r in rows)
+    chunks = chunks or [{"chunk": f"{frames[0]}-{frames[-1]}", "frames": [frames[0], frames[-1]]}] if frames else []
+    out = []
+    for c in chunks:
+        a, b = c["frames"]
+        vals = [v for r in rows if a <= r["frame"] <= b for v in r["direct_light_mismatch"].values()]
+        if any(v != "NO_SKIN" for v in vals) and not any(isinstance(v, float) for v in vals):
+            out.append(c["chunk"])
+    return out
 
 
 def has_skin(m):
@@ -133,12 +215,18 @@ def derive(master_dir, probe_dir, replace=False):
         if not measured:
             raise SkinProbeError(f"no layer of any frame has skin interior enough to measure the probe's direct light on "
                                  f"(conventions → skin_tone.probe.direct_light_interior) — the probe cannot be told from another render")
+        blind = unmeasured_chunks(rows, pman.get("assembled_from_chunks"))
+        if blind:
+            raise SkinProbeError(f"the probe render's chunks {blind} show skin and measure none of it (conventions → "
+                                 f"skin_tone.probe.direct_light_interior) — such a chunk cannot be told from another render")
     except BaseException:
         shutil.rmtree(work, ignore_errors=True)
         raise
     if out.exists():
         shutil.rmtree(out)
     work.rename(out)
+    before = probe_fingerprint(bm)
+    retire_gate_record(bm, f"{P['bundle']} derived again (the record's was {str(before)[:12]}) — the gate runs again on the new one")
     sizes = [r["bytes"] for r in rows]
     bm["bundles"][P["bundle"]] = {
         "read_granularity": "per-frame", "consumer": "the per-order skin re-tint (slice/composite_order.py) and the skin-tone gate",
@@ -147,12 +235,12 @@ def derive(master_dir, probe_dir, replace=False):
                             "measured_on": bm["bundles"]["COMPOSITE_BUNDLE"]["bytes_per_frame"]["measured_on"]},
         "probe": {"albedo": tone, "master_albedo": sm["base_color"], "materials_toned": ST["materials_toned"],
                   "render_manifest": {"file": pman_path.name, "sha256": sha256(pman_path)}, "source_scene": pman["source_scene"],
-                  "direct_light_mismatch_max": worst, "direct_light_match_max": P["direct_light_match_max"],
+                  "direct_light_z_worst": worst, "direct_light_z_max": P["direct_light_z_max"],
                   "direct_light_interior": P["direct_light_interior"], "direct_light_grain_px": list(sr.grain(scale)),
                   "direct_light_measured_layers": measured,
                   "direct_light_layers_with_skin": with_skin, "edge": P["edge"]}}
     bm_path.write_text(json.dumps(bm, indent=1) + "\n")
-    print(f"SKIN_PROBE_OK {profile} {len(rows)} frames, probe {tone}, direct light within {worst:.2e} of the master's inside the skin "
+    print(f"SKIN_PROBE_OK {profile} {len(rows)} frames, probe {tone}, direct light within {worst:.2f} noise units of the master's inside the skin "
           f"({measured} of {with_skin} layers with skin measured), {sum(sum(r['edge_px'].values()) for r in rows)} shared edge px -> {out}")
 
 

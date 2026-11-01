@@ -188,15 +188,18 @@ def skin_material(scene):
         return {"name": name, "status": "NO PRINCIPLED BSDF"}
     sss = float(b.inputs["Subsurface Weight"].default_value)
     textured = bool(b.inputs["Base Color"].is_linked)
-    toned = {}   # every hero skin material's base colour: the skin probe and the gate's truths set them all (amendment 2026-10-31)
+    toned, toned_sss = {}, {}   # every hero skin material: the skin probe and the gate's truths set them all (amendment 2026-10-31)
     for t in CONV["skin_tone"]["materials_toned"]:
         tm = bpy.data.materials.get(t)
         tb = next((n for n in tm.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None) if tm is not None and tm.use_nodes else None
         toned[t] = ("MISSING" if tb is None else "TEXTURED" if tb.inputs["Base Color"].is_linked
                     else [round(float(v), 6) for v in tb.inputs["Base Color"].default_value[:3]])
-    return {"name": name, "base_color": [round(float(v), 6) for v in b.inputs["Base Color"].default_value[:3]],
-            "subsurface_weight": sss, "base_color_textured": textured, "materials_toned": toned,
-            "status": "RE-TINTABLE" if not textured and sss == 0.0 else "NOT RE-TINTABLE BY A GAIN (textured base colour or subsurface — re-measure, ADR-0002 amendment 2026-09-29 §Does not solve)"}
+        toned_sss[t] = None if tb is None else float(tb.inputs["Subsurface Weight"].default_value)
+    base = [round(float(v), 6) for v in b.inputs["Base Color"].default_value[:3]]
+    sys.path.insert(0, str(ROOT))
+    from slice import skin_probe
+    return {"name": name, "base_color": base, "subsurface_weight": sss, "base_color_textured": textured, "materials_toned": toned,
+            "materials_toned_subsurface": toned_sss, "status": skin_probe.material_status(sss, textured, base, toned, toned_sss)}
 
 
 def set_group(scene, group, dof_setting):

@@ -24,14 +24,15 @@ first-order re-tint (2026-09-29, C3) is recorded beside them, not judged.
 Verdicts:
 - PASS when every case's mean is within `relative_error_max`, its 99th percentile within `relative_error_p99_max`, and no
   re-tint is not within the mean bound (the negative control on every measured case).
-- NOT_JUDGED while the owner has not set `relative_error_p99_max`: the measurements are recorded, the bundles not marked,
-  exit 2; `--recompare` judges them again once it is set.
-- VACUOUS when no case has the blocks.
+- NOT_JUDGED while the owner has not set `relative_error_p99_max`: the measurements are recorded, the bundles marked
+  NOT_JUDGED (no re-tint), exit 2; `--recompare` judges them again once it is set.
+- VACUOUS when no case has the blocks — not a pass (burst 6 review finding 5, 2026-11-01): exit 2.
 - FAIL otherwise.
 
-On PASS / VACUOUS the gate is written into the run's bundle manifests as `skin_tone` (method `probe`, the supported range
-— the per-channel box between the passing tones), which composite_order.py requires before it re-tints. The record is
-<out>/check_skin_tone.json.
+Every verdict is written into the run's bundle manifests as `skin_tone` (method `probe`; on PASS the supported range — the
+per-channel box between the passing tones), with the fingerprint of the bundle's SKIN_PROBE_BUNDLE beside it
+(slice/skin_probe.probe_fingerprint): composite_order.py re-tints only on a PASS beside the very probe it reads
+(skin_probe.gate_refusal; Q79-1). The record is <out>/check_skin_tone.json.
 
 With --recompare a gate's own SKIN_PROBE_BUNDLE derived by an older rule (slice/skin_probe.derived_by_current_rule) is
 derived again from the same renders (--replace) and the record says so; nothing is rendered.
@@ -51,7 +52,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from slice.frame_subset import select  # noqa: E402
-from slice.skin_probe import derived_by_current_rule  # noqa: E402
+from slice.skin_probe import derived_by_current_rule, probe_fingerprint  # noqa: E402
 CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
 G = CONV["skin_tone"]["gate"]
 PROBE = CONV["skin_tone"]["probe"]
@@ -103,6 +104,11 @@ def compare(argv):
                 r = sr.measure(got, truth, src, mask, G["block_px"], G["block_min_skin_px"])
                 if r is None or r["blocks"] < G["min_skin_blocks"]:
                     continue
+                shared = pp[f"SHARED_{side}"][0][..., 0] > 0.5        # the edge, the front plate's on transparency too
+                shared &= seen
+                if shared.any():                                       # recorded, not judged (shared_summary)
+                    e = np.abs(got[..., :3] - truth[..., :3]).max(-1)[shared] / float(truth[..., :3][mask].mean())
+                    r["shared"] = {"px": int(shared.sum()), "relative_error": float(e.mean()), "relative_error_p99": float(np.percentile(e, 99))}
                 first = sr.measure(retint(src, sd, gain), truth, src, mask, G["block_px"], G["block_min_skin_px"])
                 r["first_order_relative_error"] = first["relative_error"]
                 r["first_order_relative_error_p99"] = first["relative_error_p99"]
@@ -117,6 +123,16 @@ def run(cmd, env, log):
     if r.returncode != 0:
         raise SkinToneError(f"{Path(str(cmd[4] if len(cmd) > 4 else cmd[0])).name} failed (rc {r.returncode}) — {log}")
     return r
+
+
+def shared_summary(res):
+    """The pixels the skin shares with another surface (SHARED — the front plate's edge on transparency among them, which
+    the visible-skin mask leaves out): per case their largest channel difference relative to the truth's mean on the
+    visible skin, summed up over the cases — recorded beside the verdict, never judged (burst 6 review, 2026-11-01)."""
+    cases = [v["shared"] for ts in res["frames"].values() for ls in ts.values() for v in ls.values() if "shared" in v]
+    return {"cases": len(cases), "px": sum(c["px"] for c in cases),
+            "worst_mean": max((c["relative_error"] for c in cases), default=None),
+            "worst_p99": max((c["relative_error_p99"] for c in cases), default=None), "judged": False}
 
 
 def verdict(res, lim=None, lim99=None):
@@ -137,8 +153,10 @@ def verdict(res, lim=None, lim99=None):
 
 
 def record_in_bundles(renders, profiles, record, out):
-    """The gate's verdict into each named profile's bundle manifest — what composite_order.py reads before it re-tints.
-    Every named bundle must exist; nothing is written unless all do."""
+    """The gate's verdict into each named profile's bundle manifest — what composite_order.py reads before it re-tints —
+    with the fingerprint of the SKIN_PROBE_BUNDLE beside it in that bundle (slice/skin_probe.probe_fingerprint; None
+    without one): the probe the verdict vouches for (burst 6 review Q79-1, 2026-11-01). Every named bundle must exist;
+    nothing is written unless all do."""
     paths = [Path(renders) / prof / f"bundle_manifest.{prof}.json" for prof in profiles]
     missing = [str(p) for p in paths if not p.exists()]
     if missing or not paths:
@@ -147,7 +165,8 @@ def record_in_bundles(renders, profiles, record, out):
             "scale_percent", "frames_gated", "frames_in_bundle", "coverage")
     for bp in paths:
         bm = json.loads(bp.read_text())
-        bm["skin_tone"] = {k: record[k] for k in keys} | {"record": str(Path(out) / "check_skin_tone.json")}
+        bm["skin_tone"] = {k: record[k] for k in keys} | {"record": str(Path(out) / "check_skin_tone.json"),
+                                                          "probe_bundle_sha256": probe_fingerprint(bm)}
         bp.write_text(json.dumps(bm, indent=1) + "\n")
 
 
@@ -210,20 +229,31 @@ def main(argv):
               "scale_percent": G["scale_percent"], "samples": G["samples"], "relative_error_max": G["relative_error_max"],
               "relative_error_p99_max": G["relative_error_p99_max"], "block_px": G["block_px"], "block_min_skin_px": G["block_min_skin_px"],
               "min_skin_blocks": G["min_skin_blocks"], "over_the_bound": over, "negative_control_within_the_bound": blind,
-              "supported_range": rng if status in ("PASS", "VACUOUS") else None, "measured": res["frames"], "rule": G["rule"],
-              "probe_bundle": {"rule": pb["rule"], "edge": pb["probe"].get("edge"), "derived_again": derived_again}, **coverage}
+              "supported_range": rng if status == "PASS" else None, "measured": res["frames"], "rule": G["rule"],
+              "probe_bundle": {"rule": pb["rule"], "edge": pb["probe"].get("edge"), "derived_again": derived_again},
+              "shared_edge": shared_summary(res), **coverage}
     (out / "check_skin_tone.json").write_text(json.dumps(record, indent=1) + "\n")
     cases = [v for ts in res["frames"].values() for ls in ts.values() for v in ls.values()]
     worst = (max(v["relative_error"] for v in cases), max(v["relative_error_p99"] for v in cases)) if cases else None
+    conclude(record, renders, [x for x in a.profiles.split(",") if x], out, worst, over, blind)
+
+
+def conclude(record, renders, profiles, out, worst, over, blind):
+    """Every verdict into the named bundles — a FAIL, NOT_JUDGED or VACUOUS over a PASS written beside an earlier probe
+    (burst 6 review Q79-1, 2026-11-01) — then: a PASS returns; anything else stops (exit 2). VACUOUS stops too: the bundle
+    has a probe, so skin, and the gated frames measured none of it (finding 5) — gate more frames."""
+    status, shot, rng = record["status"], record.get("shot"), record.get("supported_range")
+    record_in_bundles(renders, profiles, record, out)
     if status == "NOT_JUDGED":
-        raise SkinToneError(f"{a.shot}: measured — worst mean {worst[0]:.4f}, worst 99th percentile {worst[1]:.4f} — but relative_error_p99_max "
-                            f"is not set (the owner sets it from {out / 'compare.json'}); then --recompare. Over the mean bound: {over}")
+        raise SkinToneError(f"{shot}: NOT_JUDGED — measured: worst mean {worst[0]:.4f}, worst 99th percentile {worst[1]:.4f} — but relative_error_p99_max "
+                            f"is not set (the owner sets it from {Path(out) / 'compare.json'}); then --recompare. Over the mean bound: {over}")
     if status == "FAIL":
-        raise SkinToneError(f"{a.shot}: over the bound {over}; the negative control within it {blind}")
-    record_in_bundles(renders, [x for x in a.profiles.split(",") if x], record, out)
-    print(f"SKIN_TONE_{status} {a.shot}: " + (f"worst re-tint error {worst[0]:.4f} mean, {worst[1]:.4f} at the 99th percentile (bounds "
-                                              f"{G['relative_error_max']}, {G['relative_error_p99_max']})" if worst else "no body skin in view")
-          + f"; supported range {rng['min']}–{rng['max']} -> {out / 'check_skin_tone.json'}")
+        raise SkinToneError(f"{shot}: over the bound {over}; the negative control within it {blind}")
+    if status == "VACUOUS":
+        raise SkinToneError(f"{shot}: VACUOUS — no gated frame shows {G['min_skin_blocks']} blocks of body skin; not a pass: "
+                            "gate frames that show the skin (--frames)")
+    print(f"SKIN_TONE_{status} {shot}: worst re-tint error {worst[0]:.4f} mean, {worst[1]:.4f} at the 99th percentile (bounds "
+          f"{G['relative_error_max']}, {G['relative_error_p99_max']}); supported range {rng['min']}–{rng['max']} -> {Path(out) / 'check_skin_tone.json'}")
 
 
 if __name__ == "__main__":

@@ -42,9 +42,10 @@ def gain_and_weight(target, master, probe):
 
 
 def grain(scale=1.0):
-    """(block px, erode px) at a render's scale: direct_light_interior's are image area at 100 %."""
+    """(block px, erode px) at a render's scale: direct_light_interior's are image area at 100 %; the block at least 4 px,
+    so its noise estimate keeps seven degrees of freedom (direct_mismatch)."""
     c = P["direct_light_interior"]
-    return max(2, int(c["block_px"] * scale + 0.5)), int(c["erode_px"] * scale + 0.5)
+    return max(4, int(c["block_px"] * scale + 0.5)), int(c["erode_px"] * scale + 0.5)
 
 
 def interior(skin, scale=1.0):
@@ -61,23 +62,28 @@ def interior(skin, scale=1.0):
 
 
 def direct_mismatch(skin, dir_m, dir_p, scale=1.0):
-    """How far the probe's direct diffuse light is from the master's inside the skin: over the blocks of the interior, the
-    mean of |the block's mean difference| (channels averaged) relative to the master's mean there; None when no block
-    is interior enough to measure. Inside the skin the albedo leaves the direct light alone but for sampling noise, which
-    the blocks average away; at pixels the skin shares with another surface Cycles' pass weights the light by each
-    surface's colour, so the edge is left out (measured 2026-11-01, conventions → direct_light_interior_note). `scale`:
-    the render's resolution_percentage / 100."""
+    """How far the probe's direct diffuse light is from the master's inside the skin, in units of its own sampling noise:
+    per block of the interior, z = the block's mean difference (channels averaged) over its standard deviation / √n; the
+    root mean square of z over the blocks. None when fewer than min_blocks blocks are interior enough to measure. Inside the skin the albedo
+    leaves the direct light alone but for sampling noise, so the master's render at another albedo is of order 1 at any
+    scale, sample count or device, and another light, frame or scene moves the mean (burst 6 review Q79-2, 2026-11-01;
+    conventions → direct_light_z_status). At pixels the skin shares with another surface Cycles' pass weights the light by
+    each surface's colour, so the edge is left out. A block of identical pixels is 0; a difference with no noise in it,
+    infinite. `scale`: the render's resolution_percentage / 100."""
     c = P["direct_light_interior"]
     inner = interior(skin, scale)
     k = grain(scale)[0]
-    d_m = np.asarray(dir_m, np.float32)[..., :3]
-    n, diff = blocks(np.asarray(dir_p, np.float32)[..., :3] - d_m, inner, k)
-    _, ref = blocks(np.abs(d_m), inner, k)
-    keep = n >= c["block_min_fraction"] * k * k
-    if not keep.any():
+    diff = (np.asarray(dir_p, np.float64)[..., :3] - np.asarray(dir_m, np.float64)[..., :3]).mean(-1, keepdims=True)
+    n, mean = blocks(diff, inner, k)
+    _, sq = blocks(diff * diff, inner, k)
+    keep = n >= max(2.0, c["block_min_fraction"] * k * k)
+    if keep.sum() < c["min_blocks"]:              # a root mean square over a handful of normal draws is not small by chance
         return None
-    ref = float(ref[keep].mean())
-    return float(np.abs(diff[keep]).mean()) / ref if ref > 0 else 0.0
+    n, mean, sq = n[keep], mean[keep, 0], sq[keep, 0]
+    se = np.sqrt(np.maximum(sq - mean * mean, 0.0) / (n - 1.0))          # the mean's standard error: sd·√(n/(n−1)) / √n
+    z = np.where(se > 1e-12 * np.maximum(np.abs(mean), 1e-30), np.abs(mean) / np.maximum(se, 1e-300),
+                 np.where(mean == 0, 0.0, np.inf))
+    return float(np.sqrt(np.mean(z * z)))
 
 
 def probe_parts(skin, col_m, dir_m, ind_m, comb_m, col_p, dir_p, ind_p, comb_p, scale=1.0):
@@ -86,9 +92,9 @@ def probe_parts(skin, col_m, dir_m, ind_m, comb_m, col_p, dir_p, ind_p, comb_p, 
     A layer whose skin has no interior to measure is not refused here; the caller counts what was measured."""
     s = np.asarray(skin, np.float32)[..., None]
     off = direct_mismatch(skin, dir_m, dir_p, scale)
-    if off is not None and off > P["direct_light_match_max"]:
-        raise SkinRetintError(f"the probe's direct diffuse light on the skin is {off:.2e} off the master's (at most "
-                              f"{P['direct_light_match_max']}) — not the master's render at another albedo")
+    if off is not None and off > P["direct_light_z_max"]:
+        raise SkinRetintError(f"the probe's direct diffuse light on the skin is {off:.2f} sampling-noise units off the master's "
+                              f"(at most {P['direct_light_z_max']}) — not the master's render at another albedo")
     rest_m = comb_m[..., :3] - s * col_m * (dir_m + ind_m)
     rest_p = comb_p[..., :3] - s * col_p * (dir_p + ind_p)
     rest = s * (rest_p - rest_m)

@@ -85,7 +85,10 @@ per master version from the probe; the per-order composite refuses every tone bu
 measures over blocks of visible skin (a thin strip of neck included) and judges the 99th percentile as well as the mean.
 Contract version `master_contract_version = 7` (additive: every v6 plate and part unchanged). Amended 2026-11-01 (owner,
 decision 13 (A)): at the pixels the skin shares with another surface the re-tint takes the pixel's own change between the
-master and the probe (EDGE, SHARED in SKIN_PROBE_BUNDLE); version unchanged, no v7 package existed.
+master and the probe (EDGE, SHARED in SKIN_PROBE_BUNDLE); version unchanged, no v7 package existed. Amended again
+2026-11-01 (owner, the burst 6 review): a tone is re-tinted only on a PASS of the tone gate written beside the very probe
+the bundle carries (its fingerprint), VACUOUS is no pass, and the probe's guard on the direct light is in units of its
+sampling noise; version unchanged.
 Validated by the Phase 0.5 reference slice (§Validation; the checklist and its state:
 `../experiments/phase-0-5-exit-review.md`); any item that fails validation reopens
 this ADR before any master production begins. Layer: Core (`../architecture/layering.md`).
@@ -206,7 +209,7 @@ Hair lives on the body even though it is personalized.
   multiply and on the front plate, before compositing and the blur (`slice/skin_retint.py`). The range is measured per
   master version (every hero skin material re-rendered at the range's tones against the re-tint, the mean and the 99th
   percentile over blocks of visible skin; `slice/check_skin_tone.py`), and the per-order composite refuses a tone outside
-  it, and every tone without the probe.
+  it, and every tone without the probe or without a PASS recorded beside that probe (amended 2026-11-01).
 
 ### D5. Frozen base pass set
 

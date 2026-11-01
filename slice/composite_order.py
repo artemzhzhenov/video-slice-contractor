@@ -127,9 +127,10 @@ PROBE = CONV["skin_tone"]["probe"]
 
 
 def skin_gain(bm, tone):
-    """The order's body-skin re-tint — {gain, weight, probe_albedo} per channel (ADR-0002 amendment 2026-10-31) — or None
-    for 'master' (no re-tint). Refuses a tone the master cannot take: no recorded albedo, a skin a gain cannot describe, no
-    skin probe, no passing gate of the probe method, outside the range."""
+    """The order's body-skin re-tint — {gain, weight, probe_albedo} per channel (ADR-0002 amendment 2026-10-31) and the
+    probe's frames {frame: sha256}, which compose_frame checks the probe file against — or None for 'master' (no re-tint).
+    Refuses a tone the master cannot take: no recorded albedo, a skin a gain cannot describe, no skin probe, no PASS of the
+    probe method written beside this very probe (skin_probe.gate_refusal; burst 6 review, 2026-11-01), outside the range."""
     if tone == "master":
         return None
     try:
@@ -146,12 +147,12 @@ def skin_gain(bm, tone):
         raise OrderCompositeError(f"the bundle carries no {PROBE['bundle']} — the master's skin probe (slice/skin_probe.py derive); without it no tone "
                                   "but 'master' is re-tinted (ADR-0002 amendment 2026-10-31)")
     if not skin_probe.derived_by_current_rule(bm):
-        raise OrderCompositeError(f"the bundle's {PROBE['bundle']} was derived by an older rule (its parts or edge are not the conventions' "
-                                  f"{PROBE['parts']}, {PROBE['edge']}) — derive it again: slice/skin_probe.py derive --replace, then the gate")
-    gate = bm.get("skin_tone", {})
-    if gate.get("status") not in ("PASS", "VACUOUS") or gate.get("method") != "probe":
-        raise OrderCompositeError(f"prerequisite gate: the skin-tone gate is {gate.get('status', 'NOT RUN')!r} by method {gate.get('method', 'first order')!r} "
-                                  "on this bundle — run slice/check_skin_tone.py (the probe method)")
+        raise OrderCompositeError(f"the bundle's {PROBE['bundle']} was derived by an older rule (its parts, edge or probe tone are not the conventions' "
+                                  f"{PROBE['parts']}, {PROBE['edge']}, {PROBE['tone']}) — derive it again: slice/skin_probe.py derive --replace, then the gate")
+    why = skin_probe.gate_refusal(bm)
+    if why:
+        raise OrderCompositeError(f"prerequisite gate: {why}")
+    gate = bm["skin_tone"]
     lo, hi = np.array(gate["supported_range"]["min"], np.float32), np.array(gate["supported_range"]["max"], np.float32)
     if (target < lo - 1e-6).any() or (target > hi + 1e-6).any():
         raise OrderCompositeError(f"--skin-tone {target.tolist()} is outside the master's supported range {lo.tolist()}–{hi.tolist()} — a qualification reject (ADR-0002 D4), never clamped")
@@ -159,7 +160,7 @@ def skin_gain(bm, tone):
         gain, weight = skin_retint.gain_and_weight(target, st["master_albedo"], probe["albedo"])
     except skin_retint.SkinRetintError as e:
         raise OrderCompositeError(str(e)) from None
-    return {"gain": gain, "weight": weight, "probe_albedo": probe["albedo"]}
+    return {"gain": gain, "weight": weight, "probe_albedo": probe["albedo"], "probe_frames": skin_probe.probe_frames(bm)}
 
 
 def probe_file(rd, bm, frame):
@@ -194,6 +195,10 @@ def compose_frame(frame, comp_path, derived_path, head_path, shadow_path, seam_c
     if tone is not None:   # the order's skin tone between the master and its probe, before the shadow (ADR-0002 amendment 2026-10-31)
         if probe_path is None:
             raise OrderCompositeError(f"frame {frame}: the tone is re-tinted only with the master's skin probe — no probe frame given")
+        want = tone.get("probe_frames", {}).get(frame)
+        if want is None or skin_probe.sha256(probe_path) != want:   # the tone and the probe of one bundle (burst 6 review, finding 8)
+            raise OrderCompositeError(f"frame {frame}: the probe file {Path(probe_path).name} is not the frame of the probe the tone was "
+                                      f"computed from ({'no such frame' if want is None else want[:12]}) — the tone comes from skin_gain of the same bundle")
         pr = read_parts(probe_path)
         g, w = tone["gain"], tone["weight"]
         back = skin_retint.retint(back, der["SKIN_DIFFUSE_BACK"][0], g, w, *(pr[f"{n}_BACK"][0] for n in ("REST", "BOUNCE", "EDGE", "SHARED")))
@@ -326,6 +331,7 @@ def compose(args):
                 "skin_tone": {"requested": args.skin_tone, "gain": None if gain is None else [round(float(g), 6) for g in gain["gain"]],
                               "weight": None if gain is None else [round(float(v), 6) for v in gain["weight"]],
                               "probe_albedo": None if gain is None else gain["probe_albedo"], "method": None if gain is None else "probe",
+                              "probe_bundle_sha256": None if gain is None else bm["skin_tone"]["probe_bundle_sha256"],
                               "master_albedo": bm["bundles"]["COMPOSITE_BUNDLE"]["derived"].get("skin_tone", {}).get("master_albedo"),
                               "supported_range": bm.get("skin_tone", {}).get("supported_range"), "applied": gain is not None},
                 "fallbacks": [], "frames": [], "status": "RUNNING"}

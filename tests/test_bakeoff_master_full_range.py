@@ -155,7 +155,7 @@ def test_a_skin_probe_derived_by_an_older_rule_is_derived_again_and_its_gate_jud
     assert not steps.done("skin_probe") and not steps.done("skin_tone")
     assert (rv / "SKIN_PROBE_BUNDLE/skin_probe.1001.exr").exists(), "derive --replace puts the new bundle in place whole"
     now = {"bundles": {spb.P["bundle"]: {"frames": [{"frame": 1001, "parts": [{"name": n} for n in spb.P["parts"]]}],
-                                         "probe": {"edge": spb.P["edge"]}}}}
+                                         "probe": {"edge": spb.P["edge"], "albedo": list(spb.P["tone"])}}}}
     write(rv / "bundle_manifest.video.json", json.dumps(now).encode())
     steps.mark("skin_probe", 1.0, [rv / "SKIN_PROBE_BUNDLE"])
     assert mf.retire_older_probe(rv, steps) is False and steps.done("skin_probe")
@@ -198,16 +198,83 @@ def test_the_still_replaces_the_packages_still_bundle_and_nothing_else(tmp_path)
     assert not (pkg / sh / "renders/still/last_step.log").exists() and counts["offline"] == 2
 
 
-def test_a_shot_is_packaged_only_with_its_still_derived_and_its_gate_recorded(tmp_path):
+def probe_bundle(path, shas):
+    """A bundle manifest with a SKIN_PROBE_BUNDLE of the conventions' rule, its rows by sha256."""
+    from slice import skin_probe as spb
+    bm = {"bundles": {spb.P["bundle"]: {"frames": [{"frame": 1001 + i, "sha256": s, "parts": [{"name": n} for n in spb.P["parts"]]}
+                                                   for i, s in enumerate(shas)],
+                                        "probe": {"edge": spb.P["edge"], "albedo": list(spb.P["tone"]), "master_albedo": [0.8, 0.55, 0.45]}}}}
+    return write(path, json.dumps(bm).encode())
+
+
+def gate_record(status="PASS"):
+    from slice import skin_probe as spb
+    return {"status": status, "method": "probe", "master_albedo": [0.8, 0.55, 0.45], "probe_albedo": list(spb.P["tone"]),
+            "supported_range": {"min": [0.2, 0.11, 0.07], "max": [0.9, 0.72, 0.62]}, "relative_error_max": 0.03,
+            "relative_error_p99_max": 0.04, "tones": {}, "scale_percent": 25, "frames_gated": 1, "frames_in_bundle": 1, "coverage": ""}
+
+
+def test_a_shot_is_packaged_only_with_its_still_derived_and_its_gate_recorded_beside_its_probe(tmp_path):
     from bakeoff.stages import run as rn
+    from slice.check_skin_tone import record_in_bundles
     st = tmp_path / "SHOT_001" / "still"
     assert mf.still_ready(st) is False                                              # no still made yet
-    bundle = write(st / "renders/still/bundle_manifest.still.json", b"{}")
+    bundle = probe_bundle(st / "renders/still/bundle_manifest.still.json", ["a" * 64])
     steps = rn.Steps(st)
     steps.mark("skin_probe", 1.0, [bundle])
     assert mf.still_ready(st) is False, "derived but the gate's record not yet in its bundle"
+    record_in_bundles(st / "renders", ["still"], gate_record(), tmp_path / "gate")
     steps.mark("skin_tone_record", 0.0, [bundle])
     assert mf.still_ready(st) is True
+    probe_bundle(bundle, ["b" * 64])                                               # the probe derived again, the record not
+    bm = json.loads(bundle.read_text())
+    bm["skin_tone"] = json.loads(json.dumps(gate_record())) | {"probe_bundle_sha256": "0" * 64}
+    bundle.write_text(json.dumps(bm))
+    assert mf.still_ready(st) is False, "the record vouches for another probe"
+
+
+def test_a_gate_record_not_written_beside_the_bundles_probe_sends_its_step_back(tmp_path):
+    """Burst 6 review Q79-1 (2026-11-01): a record written before the binding (no fingerprint) or beside another probe —
+    the step that wrote it is no longer DONE, so the gate (or the still's record) runs again; a bound record is left alone."""
+    from bakeoff.stages import run as rn
+    from slice.check_skin_tone import record_in_bundles
+    sd = tmp_path / "SHOT_003"
+    bp = probe_bundle(sd / "run/renders/video/bundle_manifest.video.json", ["a" * 64, "b" * 64])
+    steps = rn.Steps(sd)
+    assert mf.retire_unbound_gate(bp, steps, "skin_tone") is False, "the step never ran: nothing to send back"
+    write(sd / "skin_tone.log", b"")
+    steps.mark("skin_tone", 1.0, [sd / "skin_tone.log"])
+    record_in_bundles(sd / "run/renders", ["video"], gate_record(), tmp_path / "gate")
+    assert mf.retire_unbound_gate(bp, steps, "skin_tone") is False and steps.done("skin_tone")
+    bm = json.loads(bp.read_text())
+    del bm["skin_tone"]["probe_bundle_sha256"]                                     # as written before 2026-11-01
+    bp.write_text(json.dumps(bm))
+    assert mf.retire_unbound_gate(bp, steps, "skin_tone") is True and not steps.done("skin_tone")
+
+
+def test_a_shot_is_packaged_only_when_its_video_bundles_gate_vouches_for_its_probe(tmp_path):
+    from bakeoff.stages import run as rn
+    from slice.check_skin_tone import record_in_bundles
+    sd = tmp_path / "SHOT_002"
+    assert "full_range_gates.json" in mf.shot_not_ready(sd)
+    ok = {"roundtrip": {"status": "PASS"}, "blur_fidelity": {"status": "PASS"}, "skin_tone": {"status": "PASS", "method": "probe"}}
+    write(sd / "full_range_gates.json", json.dumps(dict(ok, roundtrip={"status": "FAIL"})).encode())
+    assert "roundtrip" in mf.shot_not_ready(sd)
+    write(sd / "full_range_gates.json", json.dumps(ok).encode())
+    vb = probe_bundle(sd / "run/renders/video/bundle_manifest.video.json", ["a" * 64])
+    assert "still" in mf.shot_not_ready(sd)
+    st = sd / "still"
+    sb = probe_bundle(st / "renders/still/bundle_manifest.still.json", ["c" * 64])
+    record_in_bundles(st / "renders", ["still"], gate_record(), tmp_path / "gate")
+    rn.Steps(st).mark("skin_tone_record", 0.0, [sb])
+    assert "NOT RUN" in mf.shot_not_ready(sd), "the video bundle carries no gate record"
+    record_in_bundles(sd / "run/renders", ["video"], gate_record(), tmp_path / "gate")
+    assert mf.shot_not_ready(sd) is None
+    probe_bundle(vb, ["d" * 64])
+    bm = json.loads(vb.read_text())
+    bm["skin_tone"] = gate_record() | {"probe_bundle_sha256": "0" * 64}
+    vb.write_text(json.dumps(bm))
+    assert "another" in mf.shot_not_ready(sd)
 
 
 def test_a_new_package_version_moves_the_bake_offs_views_and_master_inputs_of_the_old_one_aside(tmp_path):
@@ -231,7 +298,8 @@ def test_a_shot_is_packaged_only_when_its_skin_tone_gate_is_the_probes():
     ok = {"roundtrip": {"status": "PASS"}, "blur_fidelity": {"status": "PASS"}, "skin_tone": {"status": "PASS", "method": "probe"}}
     assert mf.gates_not_passed(ok) == {}
     assert mf.gates_not_passed(dict(ok, skin_tone={"status": "PASS"})) == {"skin_tone": "PASS (first order)"}
-    assert mf.gates_not_passed(dict(ok, skin_tone={"status": "VACUOUS", "method": "probe"})) == {}
+    assert mf.gates_not_passed(dict(ok, skin_tone={"status": "VACUOUS", "method": "probe"})) == {"skin_tone": "VACUOUS"}, \
+        "VACUOUS is not a pass (burst 6 review finding 5): the gated frames measured none of the skin the bundle has"
     assert mf.gates_not_passed(dict(ok, roundtrip={"status": "FAIL"})) == {"roundtrip": "FAIL"}
 
 
@@ -277,3 +345,14 @@ def test_the_full_range_replaces_the_packages_video_bundle_and_its_gates_and_not
     # the earlier version's offline files are moved aside, not deleted (its light part is in git)
     assert (retire / sh / "renders/video/raw/beauty.1001.exr").read_bytes() == b"old"
     assert (retire / sh / "qc/blur_reference/video/raw/blur_reference.1001.exr").read_bytes() == b"old"
+
+
+def test_a_new_package_version_is_pinned_in_the_master_record_and_nothing_else_there_changes(tmp_path):
+    """2026-11-01: the package's version 85ba5341 left master.json pinning 490e9807 — the master record pins the package
+    as hashed (tests/test_bakeoff_record.py), so packaging writes it."""
+    rec = {"master_id": "M", "shots": ["SHOT_001"], "package_hash": "a" * 64, "toolchain": {"dcc": "Blender"}}
+    m = write(tmp_path / "master.json", (json.dumps(rec, indent=2, ensure_ascii=False) + "\n").encode())
+    pm = write(tmp_path / "package_manifest.json", json.dumps({"package_hash": "b" * 64}).encode())
+    assert mf.pin_package(m, pm) == ("a" * 64, "b" * 64)
+    assert json.loads(m.read_text()) == dict(rec, package_hash="b" * 64)
+    assert m.read_text() == json.dumps(dict(rec, package_hash="b" * 64), indent=2, ensure_ascii=False) + "\n"

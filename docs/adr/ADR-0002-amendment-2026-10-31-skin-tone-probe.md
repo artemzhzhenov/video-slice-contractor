@@ -79,9 +79,10 @@ probe belongs beyond the dark end.
   - misses a frame;
   - is not at the conventions' tone in every toned material;
   - was rendered with other settings than the master's;
-  - has direct diffuse light on the skin more than `direct_light_match_max` off the master's — the albedo cannot change
+  - has direct diffuse light on the skin off the master's by more than its sampling noise — the albedo cannot change
     it, so it is not the master's render at another albedo. Measured inside the skin, by blocks (2026-11-01, see
-    Implemented): at the skin's edge and per pixel the albedo does move Cycles' direct pass;
+    Implemented): at the skin's edge and per pixel the albedo does move Cycles' direct pass. Since 2026-11-01's review
+    in units of the noise, `direct_light_z_max` (§Amended 2026-11-01 — the burst 6 review);
   - has no layer of any frame where that can be measured;
   - a refused derivation leaves the bundle that was there (it is written beside and put in place whole).
 
@@ -151,7 +152,7 @@ probe belongs beyond the dark end.
 - **The order's head is not the default head.** The light the head throws on the body is the default head's shape at the
   order's tone.
 - **Metal does not repeat a frame pixel for pixel** (Known Risks). Two renders differ in rare isolated pixels, which enter
-  REST and BOUNCE as such. The gate's blocks average them; `direct_light_match_max` is a mean over blocks.
+  REST and BOUNCE as such. The gate's blocks average them; the guard's z (2026-11-01) counts them as noise.
 - **The still profile.** The package's stills of SHOT_001 and SHOT_003 were rendered before the gaze amendment
   (2026-09-30). A probe rendered now follows it, and its settings would not be the stills', so D2 refuses the pair. The
   stills need a fresh render and their own probe before a still order can be re-tinted. Until then a still re-tints
@@ -276,3 +277,61 @@ the edge"). The three shots' bundles were derived again and the gate re-run: 0.7
 - What is left is the hand before the face at the middle tone (max 0.083, unchanged by the edge) — the residual named
   above.
 - The gate is NOT_JUDGED until the owner sets `relative_error_p99_max`.
+
+## Amended 2026-11-01 — the burst 6 review: the permit bound to the probe, the guard in noise units
+
+**APPROVED — 2026-11-01, by the owner** («поехали целиком по всем пунктам»), on the contractor's review of this amendment
+(`contractor/burst-6/REVIEW_2026-10-31.md`, both parts, on the code of `be0647c` and `42bd4d7`). It amends D2, D3 and D4;
+D1 and D5 are unchanged; `master_contract_version` stays 7 — no render, no derived part changes. Every finding was checked
+against the code and our renders (`<the archive disk>/reviews/burst-6_review_2026-11-01/`); none was false.
+
+**A. The re-tint permit is bound to the probe it vouches for** (findings Q79-1, 2, 5, 8):
+- found: `derive --replace` rewrote SKIN_PROBE_BUNDLE and left the gate's PASS beside it; a gate that then failed wrote
+  nothing; `composite_order.skin_gain` checked the status and the method, not that the gate was recorded beside this
+  probe; VACUOUS admitted a re-tint; `compose_frame` took the tone and the probe file separately;
+- now: the gate's record carries `probe_bundle_sha256` (`skin_probe.probe_fingerprint`: both albedos and every frame
+  file's sha256) of the bundle it is written into; every verdict is written, so a FAIL replaces the PASS of an earlier
+  probe; `derive` moves the record to `skin_tone_retired`; an order re-tints only on a PASS of the probe method whose
+  fingerprint and albedos are the bundle's (`skin_probe.gate_refusal`), and reads each probe frame only when its sha256
+  is the bundle's (`probe_frames`); the order manifest records the fingerprint;
+- **VACUOUS is not a pass** anywhere — order, stage, reference set; the gate exits 2. derive refuses a render without
+  measurable skin, so beside a probe VACUOUS means skin the gated frames did not measure;
+- `derived_by_current_rule` also requires the probe at the conventions' tone.
+
+**B. The guard on the direct light in units of its own noise** (Q79-2, Q79-3; the partial 4 of part 1):
+- found: the absolute guard's honest value grew as its blocks shrank with the render — at the gate's 25 %
+  0.86–1.54e-3 against 0.002 (margin 1.3–2×), at 100 % 1.6–2.6e-4; on the contractor's CPU at 10 % and 16 spp an honest
+  probe was refused. A chunk with skin but nothing measurable was never checked;
+- now: per block of the skin's interior z = |the mean difference| / (its standard deviation / √n), the root mean square
+  over the blocks against `skin_tone.probe.direct_light_z_max` = 2 (`slice/skin_retint.direct_mismatch`); the block at
+  least 4 px, a layer measured on at least 20 blocks (`direct_light_interior.min_blocks`); every chunk of the probe render
+  with skin must measure some (`skin_probe.unmeasured_chunks`);
+- bundles derived before keep the absolute guard's record (`direct_light_mismatch_max`); the guard checks a derivation,
+  it is not a part of it — they are not derived again.
+
+**Evidence for B** — the three shots' own renders, nothing rendered: every frame at 100 %, every gated frame at 25 %
+(`slice/measurements/skin_tone_probe_guard_2026-11-01/`, 0.17 Mac h on the CPU). z of the honest probe 0.37–0.50 at 100 %,
+0.60–0.77 at 25 % (Cycles' blue-noise sampling; white noise is 1); the probe's direct light ×1.02 ≥ 30 at 100 %, ≥ 7.9 at
+25 %; the probe's next frame ≥ 3.4 at 100 %, ≥ 3.0 at 25 % but for one near-still pair of the gate's (SHOT_003 1286 →
+1291: 1.67 — a difference the size of the noise, and so is its effect). Every layer has 40–850 blocks. The bound is 2,
+with at least 20 blocks to a layer: 2.6× over the worst honest layer, under every next frame at 100 %. Proposed as 3 to
+the contractor (Q80) before the full measurement; 4 would have passed SHOT_001's next frames at 100 % (3.4, 3.7) — and so
+did the absolute guard it replaces (1011 → 1012: 0.0016 against 0.002).
+
+**Finding 3 — the gate measures its own probe (25 %, 64 spp), orders the bundle's (100 %).** Measured, not changed:
+the truths rendered at 100 % on two gated frames a shot, the bundle's master re-tinted with the bundle's probe against
+them (`slice/measurements/skin_tone_bundle_probe_2026-11-01/`, 0.85 Mac h). Worst over 24 cases: at the gate's image
+area 0.0015 mean, 0.029 at the 99th percentile; at its pixel count 0.0033 / 0.031 — the 25 % gate's own probe 0.0033 /
+0.028; no re-tint ≥ 0.218. The production probe re-tints as the gate's does; the gate keeps its own probe.
+
+**Smaller:**
+- `render_passes.py` records the skin RE-TINTABLE only when every toned material is the body's plain colour without
+  subsurface (`skin_probe.material_status`, finding 7). The three master files read 2026-11-01: `HERO_SKIN_HEAD` =
+  `HERO_SKIN_BODY` (0.8, 0.55, 0.45), untextured, subsurface 0;
+- the gate records the error on the SHARED pixels — the front plate's edge on transparency, which its mask leaves out —
+  beside the verdict (`shared_edge`), not judged; a bound for it is the owner's;
+- `probe.tone_note`: the lightest gate tone is an extrapolation beyond the master's albedo (w −0.15 to −0.43), measured and
+  passing (finding 6).
+
+**Does not solve.** The Metal renders' rare isolated pixels still enter REST and BOUNCE as such; the gate's blocks average
+them, the guard's z sees them as noise.

@@ -5,11 +5,14 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from slice import skin_probe  # noqa: E402
 CONV = json.loads((ROOT / "slice" / "conventions.json").read_text())
 OCIO_CONFIG = ROOT / "benchmarks" / "bakeoff" / "01J7B000000000000000BAKEXP" / "slice" / "ocio" / "studio-config-v4.0.0_aces-v2.0_ocio-v2.5.ocio"
 PY = str(ROOT / ".venv" / "bin" / "python") if (ROOT / ".venv").exists() else "python3"
@@ -204,6 +207,7 @@ write_parts({str(bad_shadow / 'shadow.1001.exr')!r}, [('SHADOW_MULTIPLY', pix * 
     assert bmj["bundles"]["COMPOSITE_BUNDLE"]["derived"]["skin_tone"]["master_albedo"], "composite.py records the master's skin albedo"
     bmj["skin_tone"] = {"status": "PASS", "supported_range": {"min": [0.2, 0.11, 0.07], "max": [0.9, 0.72, 0.62]}}   # the first-order gate's record
     bmp.write_text(json.dumps(bmj, indent=1) + "\n")
+    first_order = dict(bmj["skin_tone"])
     probe_blend, probe_out = tmp_path / "probe.blend", tmp_path / "probe_renders"
     r = subprocess.run(["blender", "-b", str(blend), "--python-exit-code", "2", "-P", str(ROOT / "slice" / "skin_probe.py"), "--", "set-tone", "--tone", ",".join(map(str, CONV["skin_tone"]["probe"]["tone"])), "--out", str(probe_blend)], capture_output=True, text=True, timeout=300, env=env)
     assert r.returncode == 0 and "TONE_SET" in r.stdout, r.stdout[-800:] + r.stderr[-800:]
@@ -219,7 +223,9 @@ write_parts({str(bad_shadow / 'shadow.1001.exr')!r}, [('SHADOW_MULTIPLY', pix * 
     bmj = json.loads(bmp.read_text())
     sp = bmj["bundles"]["SKIN_PROBE_BUNDLE"]
     assert [p["name"] for p in sp["frames"][0]["parts"]] == CONV["skin_tone"]["probe"]["parts"] and sp["probe"]["albedo"] == [round(v, 6) for v in CONV["skin_tone"]["probe"]["tone"]]
-    assert sp["probe"]["direct_light_mismatch_max"] <= CONV["skin_tone"]["probe"]["direct_light_match_max"]
+    assert sp["probe"]["direct_light_z_worst"] <= CONV["skin_tone"]["probe"]["direct_light_z_max"]
+    # the gate's record beside the bundle before the probe was derived vouches for no probe: moved aside, kept (Q79-1)
+    assert "skin_tone" not in bmj and bmj["skin_tone_retired"][0]["status"] == first_order["status"]
     assert sp["probe"]["direct_light_measured_layers"] >= 1 and sp["probe"]["direct_light_interior"] == CONV["skin_tone"]["probe"]["direct_light_interior"]
     # the layers with skin are the frames' layers not NO_SKIN (a layer with the material and no skin is NO_SKIN:
     # tests/test_skin_probe.py; on the smoke frame the body shows none, the front plate's hand does)
@@ -242,9 +248,21 @@ except skin_retint.SkinRetintError as e:
     assert {f.name: f.read_bytes() for f in (out / "video" / "SKIN_PROBE_BUNDLE").iterdir()} == before
     assert json.loads(bmp.read_text())["bundles"]["SKIN_PROBE_BUNDLE"] == sp
     assert not [p for p in (out / "video").iterdir() if p.name.startswith("SKIN_PROBE_BUNDLE") and p.name != "SKIN_PROBE_BUNDLE"]
+    bmj["skin_tone"] = first_order
+    bmp.write_text(json.dumps(bmj, indent=1) + "\n")
     r = tone_run("0.4,0.24,0.16", "01J7B00000000000000TESTTN5", tmp_path / "order_tone5")
     assert r.returncode == 2 and "probe method" in r.stderr, "a gate measured on the first-order re-tint does not admit the probe's: " + r.stdout[-800:] + r.stderr[-800:]
-    bmj["skin_tone"] = {"status": "PASS", "method": "probe", "supported_range": {"min": [0.2, 0.11, 0.07], "max": [0.9, 0.72, 0.62]}}
+    # the gate's record as check_skin_tone.record_in_bundles writes it: beside this probe (burst 6 review Q79-1, 2026-11-01)
+    pb = bmj["bundles"]["SKIN_PROBE_BUNDLE"]["probe"]
+    bound = {"status": "PASS", "method": "probe", "supported_range": {"min": [0.2, 0.11, 0.07], "max": [0.9, 0.72, 0.62]},
+             "probe_albedo": pb["albedo"], "master_albedo": pb["master_albedo"], "probe_bundle_sha256": skin_probe.probe_fingerprint(bmj)}
+    for over, oid, why in (({"probe_bundle_sha256": "0" * 64}, "01J7B00000000000000TESTTN7", "another"),
+                           ({"status": "VACUOUS"}, "01J7B00000000000000TESTTN8", "VACUOUS")):
+        bmj["skin_tone"] = bound | over
+        bmp.write_text(json.dumps(bmj, indent=1) + "\n")
+        r = tone_run("0.4,0.24,0.16", oid, tmp_path / f"order_{oid[-3:]}")
+        assert r.returncode == 2 and why in r.stderr and not list((tmp_path / f"order_{oid[-3:]}").glob("final.*.exr")), r.stdout[-800:] + r.stderr[-800:]
+    bmj["skin_tone"] = bound
     older = json.loads(json.dumps(bmj))
     for row in older["bundles"]["SKIN_PROBE_BUNDLE"]["frames"]:
         row["parts"] = [q for q in row["parts"] if not q["name"].startswith(("EDGE_", "SHARED_"))]   # derived before the edge
@@ -256,10 +274,18 @@ except skin_retint.SkinRetintError as e:
     assert r.returncode == 2 and "outside the master's supported range" in r.stderr, r.stdout[-800:] + r.stderr[-800:]
     r = subprocess.run(B + ["-P", str(ROOT / "slice" / "composite_order.py"), "--", *base, "--skin-tone", "dark", "--order-id", "01J7B00000000000000TESTTN3", "--out", str(tmp_path / "order_tone_bad")], capture_output=True, text=True, timeout=600, env=env)
     assert r.returncode == 2 and "R,G,B" in r.stderr, r.stdout[-800:] + r.stderr[-800:]
+    # a probe frame that is not the bundle's (another bundle's file in its place): refused before it is read (finding 8)
+    pf = out / "video" / "SKIN_PROBE_BUNDLE" / bmj["bundles"]["SKIN_PROBE_BUNDLE"]["frames"][0]["file"]
+    kept = pf.read_bytes()
+    pf.write_bytes(kept + b"\0")
+    r = tone_run("0.4,0.24,0.16", "01J7B00000000000000TESTTN9", tmp_path / "order_tone9")
+    pf.write_bytes(kept)
+    assert r.returncode == 2 and "not the frame of the probe" in r.stderr and not list((tmp_path / "order_tone9").glob("final.*.exr")), r.stdout[-800:] + r.stderr[-800:]
     r = subprocess.run(B + ["-P", str(ROOT / "slice" / "composite_order.py"), "--", *base, "--skin-tone", "0.4,0.24,0.16", "--order-id", "01J7B00000000000000TESTTN4", "--out", str(tmp_path / "order_tone")], capture_output=True, text=True, timeout=600, env=env)
     assert r.returncode == 0 and "ORDER_COMPOSITE_OK" in r.stdout, r.stdout[-1500:] + r.stderr[-1500:]
     omt = json.loads((tmp_path / "order_tone" / "order_composite_manifest.json").read_text())
     assert omt["skin_tone"]["applied"] and omt["skin_tone"]["gain"][0] < 1.0 and omt["skin_tone"]["method"] == "probe" and 0 < omt["skin_tone"]["weight"][0] < 1
+    assert omt["skin_tone"]["probe_bundle_sha256"] == bound["probe_bundle_sha256"]
     r = subprocess.run(["blender", "-b", "--python-expr", f"""import sys; sys.path.insert(0, {str(ROOT)!r})
 import numpy as np
 from slice.composite import read_parts

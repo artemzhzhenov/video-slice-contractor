@@ -32,18 +32,20 @@ blur), the blur reference's plan, the skin probe's chunks merged and SKIN_PROBE_
 the blur reference's render, the round-trip, the blur fidelity, and the skin-tone gate — the last four on the gated
 frames (`--frames`); the package's picked frames must be pick_frames.py's on these exports. A skin-tone gate measured
 before the probe (the first-order re-tint) is moved aside and measured again; a SKIN_PROBE_BUNDLE derived by an older rule
-(before the edge, 2026-11-01) is derived again from the same renders and its gate run again. Writes
-<out>/<shot>/full_range_gates.json.
+(before the edge, 2026-11-01) is derived again from the same renders and its gate run again; a skin-tone record in the
+bundle not written beside its probe (before the binding of 2026-11-01, or a probe derived again since: burst 6 review
+Q79-1) is judged again (retire_unbound_gate). Writes <out>/<shot>/full_range_gates.json.
 
 stills — each shot's still with its skin probe (owner «поехали» 2026-11-01): rendered again when the package's still is
 not of the full-range video's shot file and gaze aim (stills()), its probe at the still profile, SKIN_PROBE_BUNDLE
-derived, the shot's skin-tone gate recorded in the still bundle.
+derived, the shot's skin-tone gate recorded in the still bundle beside that probe.
 
 package — the package's new version: each shot's video bundle and its gate records replaced, and its still from `stills`
 (the heavy files APFS-cloned into the offline part); the exports, the scene checks, the source and order_qc (the default
 head's order composites on the earlier bundle's frames: a measurement of t_comp, recorded as such) kept; hashed and
-verified. A shot whose still is not ready is not packaged. The bake-off's views and master inputs made from the old
-version are moved aside (retire_package_derivatives)."""
+verified. A shot is packaged only with its three gates passed — the skin tone's a PASS, never VACUOUS — its still
+ready and its video bundle's skin-tone record vouching for its probe (shot_not_ready). The bake-off's views and master
+inputs made from the old version are moved aside (retire_package_derivatives)."""
 import argparse
 import hashlib
 import json
@@ -57,7 +59,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from bakeoff.stages import run as rn  # noqa: E402
-from slice.skin_probe import derived_by_current_rule  # noqa: E402
+from slice.skin_probe import derived_by_current_rule, gate_refusal  # noqa: E402
 
 STAGE = "bakeoff_master_full_range"
 OUT = Path("<the archive disk>/runs/master_full_range_2026-10-30")
@@ -247,8 +249,21 @@ def replace_still(pkg, off, shot, renders_still, retire):
 
 
 def still_ready(st):
-    """A shot's still is ready for the package once its skin probe is derived and the gate's record is in its bundle."""
-    return rn.Steps(st).done("skin_tone_record")
+    """A shot's still is ready for the package once its skin probe is derived and the gate's record is in its bundle,
+    written beside that probe (slice/skin_probe.gate_refusal)."""
+    bp = Path(st) / "renders" / "still" / "bundle_manifest.still.json"
+    return rn.Steps(st).done("skin_tone_record") and bp.exists() and gate_refusal(json.loads(bp.read_text())) is None
+
+
+def retire_unbound_gate(bundle_manifest, steps, step):
+    """A skin-tone gate record in the bundle that does not vouch for the bundle's probe — written before the binding
+    (2026-11-01: no fingerprint) or beside a probe derived again since (burst 6 review Q79-1) — sends the step that wrote
+    it back: no longer DONE, so it runs again. True when so."""
+    bp = Path(bundle_manifest)
+    if not steps.done(step) or not bp.exists() or gate_refusal(json.loads(bp.read_text())) is None:
+        return False
+    steps.unmark(step)
+    return True
 
 
 def copy_package_still(shot, dst):
@@ -280,8 +295,9 @@ def stills(shots, out):
       slice/check_asset.sh checks a still; otherwise the package's still copied as it is;
     - probe: the full-range probe's shot file, its two skin layers at the still profile (render_passes.py --skin-probe);
     - skin_probe: SKIN_PROBE_BUNDLE derived into the still bundle (slice/skin_probe.py derive);
-    - skin_tone_record: the shot's skin-tone gate — the full-range run's, PASS or VACUOUS by the probe method — recorded in
-      the still bundle manifest, as check_skin_tone.py records it in every profile it names."""
+    - skin_tone_record: the shot's skin-tone gate — the full-range run's, a PASS by the probe method — recorded in the
+      still bundle manifest beside its probe, as check_skin_tone.py records it in every profile it names; a record there
+      that does not vouch for the still's probe is written again (retire_unbound_gate)."""
     from slice.check_skin_tone import record_in_bundles
     for shot in shots:
         sd, st = out / shot, out / shot / "still"
@@ -329,10 +345,12 @@ def stills(shots, out):
             again = ["--replace"] if (rs / PROBE["bundle"]).exists() else []
             s = book(blender(ROOT / "slice/skin_probe.py", "--", "derive", rs, pr / "still", *again), st / "skin_probe.log", f"{job} skin_probe")
             steps.mark("skin_probe", s, [st / "skin_probe.log", rs / PROBE["bundle"]])
+        if retire_unbound_gate(rs / "bundle_manifest.still.json", steps, "skin_tone_record"):
+            print(f"SKIN_TONE_RECORD_UNBOUND {shot} still: the gate's record does not vouch for the still's probe — written again", flush=True)
         if not steps.done("skin_tone_record"):
             chk = sd / "run" / "skin_tone" / "check_skin_tone.json"
             record = json.loads(chk.read_text())
-            if record.get("status") not in ("PASS", "VACUOUS") or record.get("method") != "probe":
+            if record.get("status") != "PASS" or record.get("method") != "probe":
                 raise FullRangeError(f"{shot}: the skin-tone gate is {record.get('status')!r} by {record.get('method')!r} — "
                                      "a still is recorded only with a passing gate of the probe method")
             record_in_bundles(st / "renders", ["still"], record, chk.parent)
@@ -470,8 +488,9 @@ def retire_older_probe(rv, steps):
 
 def gates_not_passed(summary):
     """The gates of one shot's summary that bar it from the package: {gate: status}; the skin-tone gate counts only when
-    measured between the master and its probe (ADR-0002 amendment 2026-10-31)."""
-    bad = {k: summary[k]["status"] for k, ok in (("roundtrip", ("PASS",)), ("skin_tone", ("PASS", "VACUOUS")), ("blur_fidelity", ("PASS",)))
+    measured between the master and its probe (ADR-0002 amendment 2026-10-31), and only as a PASS — VACUOUS is skin the
+    gated frames did not measure (burst 6 review finding 5, 2026-11-01)."""
+    bad = {k: summary[k]["status"] for k, ok in (("roundtrip", ("PASS",)), ("skin_tone", ("PASS",)), ("blur_fidelity", ("PASS",)))
            if summary[k]["status"] not in ok}
     if "skin_tone" not in bad and summary["skin_tone"].get("method") != "probe":
         bad["skin_tone"] = f"{summary['skin_tone']['status']} (first order)"
@@ -532,6 +551,8 @@ def gate(shots, size, out):
                 if (sd / name).exists():                     # the older rule's logs kept beside, never overwritten
                     os.replace(sd / name, sd / name.replace(".", ".older_rule.", 1))
             print(f"SKIN_PROBE_OLDER_RULE {shot}: {PROBE['bundle']} derived again, its gate run again", flush=True)
+        if retire_unbound_gate(rv / "bundle_manifest.video.json", steps, "skin_tone"):
+            print(f"SKIN_TONE_UNBOUND {shot}: the gate's record does not vouch for the bundle's probe — judged again", flush=True)
         if not steps.done("skin_probe"):
             again = ["--replace"] if (rv / PROBE["bundle"]).exists() else []    # an older rule's, or a derive that died before its mark
             s = book(blender(ROOT / "slice/skin_probe.py", "--", "derive", rv, run / "probe_renders" / "video", *again), sd / "skin_probe.log", f"{job} skin_probe")
@@ -584,23 +605,49 @@ def retire_package_derivatives(runs, previous):
     return moved
 
 
+def pin_package(master_json, package_manifest):
+    """The master record (benchmarks/…/master.json) pins the package as hashed: its package_hash set to the package
+    manifest's, nothing else touched. (old, new). The version 85ba5341 (2026-11-01) was hashed without it and left the
+    record on 490e9807."""
+    m, pm = Path(master_json), Path(package_manifest)
+    rec = json.loads(m.read_text())
+    old, new = rec.get("package_hash"), json.loads(pm.read_text())["package_hash"]
+    rec["package_hash"] = new
+    m.write_text(json.dumps(rec, indent=2, ensure_ascii=False) + "\n")
+    return old, new
+
+
+def shot_not_ready(sd):
+    """Why one shot of the run may not go into the package — None when it may: its three gates passed
+    (gates_not_passed), its still ready (still_ready), and its video bundle's skin-tone record written beside that
+    bundle's probe (slice/skin_probe.gate_refusal; burst 6 review Q79-1, 2026-11-01)."""
+    sd = Path(sd)
+    summ = sd / "full_range_gates.json"
+    if not summ.exists():
+        return "no full_range_gates.json — run gate first"
+    bad = gates_not_passed(json.loads(summ.read_text()))
+    if bad:
+        return f"gates {bad}"
+    if not still_ready(sd / "still"):
+        return "its still has no skin probe and gate record beside it yet — run stills first"
+    bp = sd / "run" / "renders" / "video" / "bundle_manifest.video.json"
+    why = gate_refusal(json.loads(bp.read_text())) if bp.exists() else "no video bundle"
+    return f"the video bundle: {why} — run gate first" if why else None
+
+
 def package(shots, out):
     """The package's new version: per shot, only when its three gates passed, the video bundle and its gate records
-    replaced (replace_video); then the package hashed and verified with its offline part (slice/package.py). Run it
+    replaced (replace_video); then the package hashed and verified with its offline part (slice/package.py), and the master
+record pinned to it (pin_package). Run it
     under bakeoff/ledger.py: it reads every file of the new bundles twice (the clone's check, the hash)."""
     previous = json.loads((rn.LIGHT / "package_manifest.json").read_text())["package_hash"]
     retire = rn.OFF.parent / "versions" / previous[:12]
     for shot in shots:
         sd = out / shot
         summ = sd / "full_range_gates.json"
-        if not summ.exists():
-            raise FullRangeError(f"{shot}: no full_range_gates.json — run gate first")
-        g = json.loads(summ.read_text())
-        bad = gates_not_passed(g)
-        if bad:
-            raise FullRangeError(f"{shot}: gates {bad} — not packaged")
-        if not still_ready(sd / "still"):
-            raise FullRangeError(f"{shot}: its still has no skin probe and gate record yet — run stills first")
+        why = shot_not_ready(sd)
+        if why:
+            raise FullRangeError(f"{shot}: {why} — not packaged")
         counts = replace_video(rn.LIGHT, rn.OFF, shot, sd / "run", summ, retire)
         print(f"VIDEO_REPLACED {shot}: {counts['light']} light files, {counts['offline']} offline (cloned)", flush=True)
         counts = replace_still(rn.LIGHT, rn.OFF, shot, sd / "still" / "renders" / "still", retire)
@@ -611,6 +658,8 @@ def package(shots, out):
         print(r.stdout.strip().splitlines()[-1] if r.stdout.strip() else "", flush=True)
         if r.returncode != 0:
             raise FullRangeError(f"package.py {cmd}: exit {r.returncode} — {r.stderr.strip()[-500:]}")
+    old, new = pin_package(rn.EXP / "master.json", rn.LIGHT / "package_manifest.json")
+    print(f"MASTER_RECORD_PINNED {old[:12]} -> {new[:12]} (master.json package_hash)", flush=True)
     for p in retire_package_derivatives(rn.RUNS, previous):
         print(f"PACKAGE_DERIVATIVES_MOVED_ASIDE {p} — made again from the new version on first use", flush=True)
     print("FULL_RANGE_PACKAGED " + " ".join(shots), flush=True)

@@ -35,7 +35,7 @@ def scene(albedo, seed=0):
     return {"skin": skin, "col": col, "dir": d, "ind": ind, "comb": comb}
 
 
-BOUND = sr.P["direct_light_match_max"]
+Z_MAX = sr.P["direct_light_z_max"]
 N = 64                                                                 # a layer the guard's 16 px blocks fit in
 
 
@@ -159,47 +159,93 @@ def test_the_edge_parts_refuse_non_finite_passes():
         sr.edge_parts(m["skin"], m["col"], m["comb"], p["col"], p["comb"], MASTER, PROBE)
 
 
+def noisy(d, sigma, seed):
+    """A render's direct light with independent per-pixel sampling noise of relative size sigma (zero mean)."""
+    return (d * (1.0 + np.random.default_rng(seed).normal(0.0, sigma, d.shape))).astype(np.float32)
+
+
+M = 128                                                                # a layer with many of the guard's blocks
+
+
 def test_a_probe_that_is_not_the_masters_render_at_another_tone_is_refused():
-    skin, d = square_skin(N), light(N)
-    z = np.zeros((N, N, 3), np.float32)
-    comb = np.ones((N, N, 4), np.float32)
-    for wrong in (d * 1.05, light(N, shift=3.0)):                     # another light; the light moved (the next frame)
-        with pytest.raises(sr.SkinRetintError, match="direct"):
-            sr.probe_parts(skin, z + 0.8, d, z, comb, z + 0.15, wrong, z, comb)
+    skin, d = square_skin(M), light(M)
+    z = np.zeros((M, M, 3), np.float32)
+    comb = np.ones((M, M, 4), np.float32)
+    for wrong in (noisy(d * 1.05, 0.009, 2), noisy(light(M, shift=3.0), 0.009, 2)):   # another light; the next frame
+        with pytest.raises(sr.SkinRetintError, match="noise"):
+            sr.probe_parts(skin, z + 0.8, noisy(d, 0.009, 1), z, comb, z + 0.15, wrong, z, comb)
+
+
+@pytest.mark.parametrize("scale", [1.0, 0.25, 0.1])
+@pytest.mark.parametrize("sigma", [0.005, 0.02, 0.08])
+def test_an_honest_probe_is_of_order_one_in_noise_units_at_any_scale_and_any_noise(scale, sigma):
+    """Burst 6 review Q79-2 (2026-11-01): the absolute guard's honest value grew as the blocks shrank with the render's
+    scale (at the gate's 25 % 1.0–1.5e-3 against 0.002) and with the noise (CPU, fewer samples). In units of its own
+    noise the master's render at another albedo is of order 1 whatever the block, the samples or the device."""
+    skin, d = square_skin(M), light(M)
+    got = sr.direct_mismatch(skin, noisy(d, sigma, 1), noisy(d, sigma, 2), scale)
+    assert got is not None and got < 0.75 * Z_MAX, "white noise is about 1; the renders' blue noise 0.37–0.77 (2026-11-01)"
+
+
+@pytest.mark.parametrize("scale", [1.0, 0.25])
+def test_a_light_two_percent_brighter_or_the_next_frame_is_refused_at_the_production_and_the_gates_scale(scale):
+    """Measured on SHOT_003 (2026-11-01, archive reviews/burst-6_review_2026-11-01): light ×1.02 10–68, the next frame
+    14–830, the honest probe 0.4–0.8. The synthetic noise here is the measured 0.9 % per pixel."""
+    skin, d = square_skin(M), light(M)
+    m = noisy(d, 0.009, 1)
+    assert sr.direct_mismatch(skin, m, noisy(d * 1.02, 0.009, 2), scale) > Z_MAX
+    assert sr.direct_mismatch(skin, m, noisy(light(M, shift=2.0), 0.009, 2), scale) > Z_MAX
 
 
 def test_sampling_noise_inside_the_skin_and_colour_weighted_light_at_its_edge_are_not_another_render():
     """Measured 2026-11-01 on the master's probe (slice/measurements/skin_tone_interreflection_2026-10-31/): inside the
     skin the probe's direct light is 0.5–0.9 % per pixel off the master's with a zero mean — sampling noise; at pixels the
     skin shares with cloth, Cycles' direct pass is the light weighted by each surface's colour, so a darker skin moves it
-    by 4–11 %. Neither is another light, frame or scene."""
-    skin, d = square_skin(N), light(N)
-    noisy = d * (1.0 + np.random.default_rng(1).normal(0.0, 0.01, d.shape)).astype(np.float32)
-    edge = (skin > 0.5) & (skin < 0.999)
-    noisy[edge] *= 1.3
-    on = skin > 0.5
-    assert np.abs(noisy - d)[on].mean() / np.abs(d[on]).mean() > BOUND, "the pixel mean over all the skin would refuse it"
-    got = sr.direct_mismatch(skin, d, noisy)
-    assert got is not None and got < BOUND / 2
-    z = np.zeros((N, N, 3), np.float32)
-    sr.probe_parts(skin, z + 0.8, d, z, np.ones((N, N, 4), np.float32), z + 0.15, noisy, z, np.ones((N, N, 4), np.float32))
+    by 4–11 %. Neither is another light, frame or scene: the edge is outside the interior the guard measures."""
+    skin, d = square_skin(M), light(M)
+    p = noisy(d, 0.009, 2)
+    p[(skin > 0.5) & (skin < 0.999)] *= 1.3
+    got = sr.direct_mismatch(skin, noisy(d, 0.009, 1), p)
+    assert got is not None and got < 0.75 * Z_MAX
+    z = np.zeros((M, M, 3), np.float32)
+    sr.probe_parts(skin, z + 0.8, noisy(d, 0.009, 1), z, np.ones((M, M, 4), np.float32), z + 0.15, p, z, np.ones((M, M, 4), np.float32))
 
 
-def test_a_coherent_change_of_the_light_inside_the_skin_is_measured():
-    skin, d = square_skin(N), light(N)
+def test_identical_blocks_are_zero_and_a_change_without_noise_is_refused():
+    """A bit-identical probe (the control at the master's own tone) is 0; a difference with no noise in it at all is no
+    sampling noise — infinitely many noise units."""
+    skin, d = square_skin(M), light(M)
     assert sr.direct_mismatch(skin, d, d) == 0.0
-    assert sr.direct_mismatch(skin, d, d * 1.01) == pytest.approx(0.01, rel=1e-3)
-    assert sr.direct_mismatch(skin, d, light(N, shift=3.0)) > 10 * BOUND
+    assert sr.direct_mismatch(skin, d, d * 1.01) > Z_MAX
+    assert sr.direct_mismatch(skin, d, d + np.float32(0.001)) > Z_MAX
 
 
-def test_the_guards_grain_is_set_at_100_percent_and_follows_the_renders_scale():
-    """block_px and erode_px are image area at 100 %: a render at 25 % measures the same skin with 4 px blocks, 1 px in."""
-    skin = np.zeros((N, N), np.float32)
-    skin[20:30, 20:30] = 1.0                                           # 10 px: 6 px of interior, no 16 px block half full
-    d = light(N)
+def test_the_guards_grain_is_set_at_100_percent_follows_the_renders_scale_and_keeps_four_pixels_a_side():
+    """block_px and erode_px are image area at 100 %: a render at 25 % measures the same skin with 4 px blocks, 1 px in.
+    Below 25 % the block stays 4 px: a block of 2 × 2 px leaves its noise estimate one or three degrees of freedom, and
+    the honest probe's z heavy tails (Q79-2)."""
+    assert sr.grain(1.0)[0] == 16 and sr.grain(0.25)[0] == 4 and sr.grain(0.1)[0] == 4
+    skin = np.zeros((M, M), np.float32)
+    skin[20:60, 20:60] = 1.0                                           # 40 px: a few 16 px blocks, many of 4 px
+    d = light(M)
     assert sr.direct_mismatch(skin, d, d * 1.01) is None
-    assert sr.direct_mismatch(skin, d, d * 1.01, scale=0.25) == pytest.approx(0.01, rel=1e-3)
+    assert sr.direct_mismatch(skin, d, noisy(d, 0.009, 2), scale=0.25) is not None
     assert sr.direct_mismatch(skin, d, d, scale=0.25) == 0.0
+
+
+def test_a_layer_with_fewer_blocks_than_the_minimum_is_not_measured():
+    """A root mean square over a handful of blocks is a handful of normal draws: the honest probe's chance over the bound
+    is then not small (2026-11-01: min_blocks 20 — the three shots' layers have 57–365 at 100 %, 40–850 at 25 %)."""
+    k, need = sr.grain(1.0)[0], sr.P["direct_light_interior"]["min_blocks"]
+    side = int(np.ceil(np.sqrt(need))) * k
+    d = light(M)
+    few = np.zeros((M, M), np.float32)
+    few[0:k * 2 + 2, 0:k * 2 + 2] = 1.0                                # 4 blocks
+    assert sr.direct_mismatch(few, d, d * 1.5) is None
+    enough = np.zeros((side + 8, side + 8), np.float32)
+    enough[:] = 1.0
+    dd = light(side + 8)
+    assert sr.direct_mismatch(enough, dd, noisy(dd, 0.009, 2)) is not None
 
 
 def test_skin_without_an_interior_block_is_not_measured_and_not_refused():
