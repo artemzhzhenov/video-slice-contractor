@@ -429,10 +429,15 @@ or the ADR. A missing cell is `NOT_EVALUATED` with a reason and the candidate is
 - Planted strength for people (owner as the TD of record, 2026-10-31, «поехали»): the levels are a
   file of the review kit (its sha256 in every inventory), not constants. The metrics' gross control
   levels (§6) are a start, not the answer — the review kit found that a 5 px seam shift at 4K is
-  barely visible to a person. Before the freeze the owner looks at the six kinds on the default head
+  barely visible to a person. Before the freeze the owner looks at the kinds on the default head
   at 100 %, rendered on our GPU (the seam at 5 / 10 / 20 px), and sets each level to one the owner sees
   without searching; the chosen levels and the file's sha256 are written here. Seeing the kinds on
   the default head tells the owner what a plant looks like, not which items are planted; recorded.
+  Four kinds before the freeze (owner, 2026-11-01: «по третьему пункту идем, как ты рекомендуешь»):
+  the three with a level — seam shift, flicker, wrong skin tone — and head over hand, on the burst 6
+  calibration set (SHOT_001 whole, the default head's order on the package `675fb102`). Identity swap
+  and wrong hairstyle have no level and need runs that do not exist before the candidates' (a partner
+  of the same tone, a hair re-render): the owner sees them on the first real runs, recorded.
   Levels: `TO FILL (owner, before the freeze)`.
 - Reviewers: count **2** (owner, 2026-10-31: «Вариант В — двое, как сейчас записано») — the owner as the TD of record
   and one naive person who has never seen the pipeline, as protocol §8 requires; the salt holder is a third person (row

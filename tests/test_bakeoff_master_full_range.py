@@ -2,6 +2,8 @@
 rendered in, the frames its gates measure, and the check that lets a finished chunk be skipped on a resume."""
 import hashlib
 import json
+import shutil
+import sys
 
 import pytest
 
@@ -173,6 +175,7 @@ def test_a_still_is_rendered_again_only_when_its_shot_file_or_gaze_aim_is_not_th
     assert "shot file" in mf.still_render_reason({"source_scene": {"sha256": "s0"}, "settings": {"gaze_aim": gaze}}, video)
 
 
+@pytest.mark.usefixtures("clone_off_macos")
 def test_the_still_replaces_the_packages_still_bundle_and_nothing_else(tmp_path):
     pkg, off, st = tmp_path / "pkg", tmp_path / "off", tmp_path / "still_run"
     sh = "shots/SHOT_001"
@@ -309,6 +312,24 @@ def write(p, data):
     return p
 
 
+@pytest.fixture
+def clone_off_macos(monkeypatch):
+    """CI runs on Linux, which has no APFS clone (`cp -c`): there a heavy file is copied instead, read back as on macOS."""
+    if sys.platform != "darwin":
+        monkeypatch.setattr(mf, "clone", shutil.copy2)
+
+
+def test_a_heavy_file_off_macos_is_refused_not_copied(tmp_path, monkeypatch):
+    """2026-11-01: on a CI runner (Linux) `cp -c` is not a clone but an unknown option; a plain copy there would be a
+    silent second copy of ≈ 100 GB a shot — refused, by name."""
+    src = write(tmp_path / "beauty.1001.exr", b"B")
+    monkeypatch.setattr(mf.sys, "platform", "linux")
+    with pytest.raises(mf.FullRangeError, match="macOS"):
+        mf.clone(src, tmp_path / "clone.exr")
+    assert not (tmp_path / "clone.exr").exists()
+
+
+@pytest.mark.usefixtures("clone_off_macos")
 def test_the_full_range_replaces_the_packages_video_bundle_and_its_gates_and_nothing_else(tmp_path):
     pkg, off, run = tmp_path / "pkg", tmp_path / "off", tmp_path / "run"
     sh = "shots/SHOT_001"

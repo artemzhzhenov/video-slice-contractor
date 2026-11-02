@@ -161,6 +161,14 @@ def is_light(p):
     return light(p) or (p.suffix == ".json" and p.name.startswith(("bundle_manifest.", "render_manifest.")))
 
 
+def clone(src, dst):
+    """An APFS clone (macOS `cp -c`): no second copy of the heavy file. Elsewhere `cp` has no clone, and a plain copy
+    would be a silent second copy of ≈ 100 GB a shot — refused (the tests copy in its place on a CI runner's Linux)."""
+    if sys.platform != "darwin":
+        raise FullRangeError(f"{src}: a clone needs macOS APFS (`cp -c`), this is {sys.platform}")
+    subprocess.run(["cp", "-c", str(src), str(dst)], check=True)
+
+
 def place(src, dst_light, dst_off, counts):
     """A light file copied into the package, a heavy one CLONED into its offline part (APFS: no second copy of ≈ 100 GB a
     shot). macOS `cp -c` copies silently across volumes, so the two must be one volume; the clone is read back."""
@@ -174,7 +182,7 @@ def place(src, dst_light, dst_off, counts):
         dst.parent.mkdir(parents=True, exist_ok=True)
         if os.stat(src).st_dev != os.stat(dst.parent).st_dev:
             raise FullRangeError(f"{src} and the offline package are on different volumes: a clone would be a copy")
-        subprocess.run(["cp", "-c", str(src), str(dst)], check=True)
+        clone(src, dst)
         counts["offline"] += 1
     if sha256(dst) != sha256(src):
         raise FullRangeError(f"{dst} differs from its source {src}")
@@ -280,7 +288,7 @@ def copy_package_still(shot, dst):
                 raise FullRangeError(f"{d} is in both the package's light and offline parts")
             d.parent.mkdir(parents=True, exist_ok=True)
             if os.stat(p).st_dev == os.stat(d.parent).st_dev:
-                subprocess.run(["cp", "-c", str(p), str(d)], check=True)
+                clone(p, d)
             else:
                 shutil.copy2(p, d)
             if sha256(d) != sha256(p):
