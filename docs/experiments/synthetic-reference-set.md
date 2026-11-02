@@ -134,7 +134,11 @@ provenance, file hashes) in the bake-off record; one `AVATAR` per child with `ca
   by script, 08–09 built with the fix; his diagnosis and estimate first, within the 40-h cap. **The default head of the
   master's shots keeps the defect for now — recorded, not fixed** (SHOT_001 v02 laughter, SHOT_002 v03 profile; the
   teeth cross skin faces they do not cross at rest on SHOT_001 1041–1120, SHOT_002 1136–1240, SHOT_003 up to 12 faces —
-  `slice/measurements/burst3_pair_06_07_2026-10-28/teeth_probe/`).
+  `slice/measurements/burst3_pair_06_07_2026-10-28/teeth_probe/`). **Changed 2026-11-02 (owner, Q84): the default head
+  gets the same fix** — seen by the owner at 100 % on every clip of the R3 calibration (SHOT_001 laughter, 1085–1110);
+  the default head is candidate 0 and the substrate of every planted defect, and the FaceBuilder candidate is built on
+  the master's shots and takes their teeth and tongue. The three master shots are rebuilt with it, the children 01–09
+  unchanged by content hash; the master's package, the calibration and the metrics' dry runs are made again.
 - 2026-10-28 (owner, Q66, after his diagnosis — confirmed by our measurement: the upper teeth fixed in the socket on
   every frame, the lower teeth and tongue one translation linear in `jaw_open`, no rotation, 8.6 mm at 0.97; the arch's
   half-width 33.8 mm, wider than the mouth in the laughter): **fix as he proposes — the arch narrowed and the lower teeth
