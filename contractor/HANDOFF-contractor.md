@@ -44,6 +44,14 @@
 | `subject_01_character.blend` (хэш содержимого, после починки зубов — Q69) | `03f94e3d080c7c65c2a521a9ed915d503e47e686fc29acb5efa303d67a293c11` |
 | `subject_02_character.blend` (хэш содержимого, после починки зубов — Q69) | `32b429f9c78e5ea113194c104f7e81921c2ac19ad88a84246ebc86b22e5c1f29` |
 | `subject_03_character.blend` (хэш содержимого, после починки зубов — Q69) | `231d704db4372a5ca09ad52ed5d1312d00a41907601921d2c1597895c7e555bd` |
+| `subject_04_character.blend` (хэш содержимого, после починки зубов — Q69; сверено в Q86) | `b3818d24cc134297d01f156b2036b11f4d682f5f44348f24dac40f45c5192a2a` |
+| `subject_05_character.blend` (хэш содержимого, после починки зубов — Q69; сверено в Q86) | `f061b4eea73dedf9b2933475649c71c46918f3958deba3ffd95062993452b3d4` |
+| `subject_06_character.blend` (хэш содержимого, после починки зубов — Q69; сверено в Q86) | `b4494f8233c4c31651e672006615d57b9d971571ecf3fb3958f296726173104f` |
+| `subject_07_character.blend` (хэш содержимого, после починки зубов — Q69; сверено в Q86) | `5eb300f03302545941ee97d7bf71607db95c2aadc2ca4d2870fabb5b2faaec98` |
+| `subject_08_character.blend` (хэш содержимого, принят Q71) | `3a2cc477db05314caec0ee3a90cc8d47a4182c7c9ad5e7f97bd72b12bb8ab57e` |
+| `subject_09_character.blend` v02 (хэш содержимого, принят Q75) | `14d76618a94650cb3122dcae2c22a588b9e9d8cbf1104e7187ed0d795472ce16` |
+| `character_v04_2.blend` — голова по умолчанию v04.2, `--default-head v04.2` (хэш содержимого, принят Q86) | `921e780b3a0a4f5eaac5fe2c1a0742a890589e9a480b3d77597ee1c80b93106a` |
+| `SHOT_001_v03` / `SHOT_002_v04` / `SHOT_003_v07` — шоты с v04.2 (хэши содержимого, приняты Q86) | `8d8cb4f04904…` / `6c00777c4dff…` / `e28bf22b68cd…` |
 
 Хэш содержимого v04.1 (`slice/blend_content_hash.py`) — `b292f45e…`; текущий `build_character.py` без `--subject`
 обязан его давать — проверять после каждой правки скрипта.
