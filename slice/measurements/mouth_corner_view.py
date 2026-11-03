@@ -10,9 +10,10 @@ wide — the close-up of scripts/owner_preview/closeup.py --bbox --half 0.05 --w
 object the camera does not render. The first rendered surface is counted by kind:
 - `skin_back` — HERO_HEAD struck from behind: the skin's inner side, seen where the corners fold (the cheek slits);
 - `teeth` — HERO_TEETH_UPPER / LOWER, split by where the struck face lies on the teeth at rest (the base mesh, the
-  head's frame: +X left/right, -Y forward): `front` when its centre is within `--front-mm` of the arch's front and
+  head's frame: +X left/right, -Y forward): `front` when its centre is within `--front-mm` of its row's front and
   within `--half-width-mm` of the middle, else `lateral` — the arch's sides, which the owner saw as grey plates at the
   corners; the face index of the evaluated mesh is the base mesh's (no modifier changes the teeth's topology — checked);
+  the split, face by face, is recorded (`teeth_split`);
 - `tongue`, `sack` (HERO_MOUTH_SACK, the dark mouth), `skin_front`, `other`.
 The darkened teeth (owner, 2026-11-02, Q88: v04.3 darkens the arch behind the incisors): each teeth hit also reads the
 teeth's POINT attribute `teeth_shade` (the factor their material multiplies the base colour by, 1 = full albedo) at the
@@ -20,9 +21,18 @@ struck point, interpolated over the struck face (mathutils.interpolate.poly_3d_c
 lateral hit is counted `teeth_lateral_light` when the shade is above `--light-shade` (0.3, the contractor's own split
 in Q87), else `teeth_lateral_dark`; `teeth_lateral` stays their sum. A mesh without the attribute is at full albedo by
 construction (its material multiplies nothing) and counts at 1.0 — recorded per object in `teeth_shade`.
-The counts are rays (pixels / step²), comparable between files on the same shot and frames. The split of the teeth is
-an ENGINEERING JUDGMENT (front 8 mm, half-width 12 mm: a 7-9-year-old's canines stand ~13-15 mm from the middle; the
-arch here is 39 mm wide and 43 mm deep), recorded with its bins (`teeth_bins`), so another split can be read off."""
+Every teeth hit's shade is also binned by tenths with its kind (`shade_bins`, "front 0.4-0.5": the incisors dimmed).
+The counts are rays (pixels / step²), comparable between files on the same shot and frames.
+The split of the teeth (owner, 2026-11-03, after burst 8: the incisors and the canines of both rows stay light, the
+arch darkens only behind the canines) counts each face's depth from its own row's front (`--front-ref row`): on the
+default head the arch is one block per row, its faces' centres — the incisors 0-6.4 mm deep, the canines (the arch's
+turn) 7.8-10.7 mm, the first tooth behind them 14.0 mm and on — so front 12 mm, half-width 16 mm (the canines' centres
+at most 15.1 mm from the middle). The split of 2026-11-02 (`--front-ref common --front-mm 8 --half-width-mm 12`: the
+depth from the front of both rows, the upper incisors', with the lower row 5.8 mm behind it, so the lower canines and
+lateral incisors fell lateral) gives the burst-8 records. Recorded with its bins (`teeth_bins`, the depth as split),
+so another split can be read off.
+`--windows <record.json>` (burst 8: v04.3 sinks the lower teeth, and the window, centred on the teeth, moves with them)
+takes each frame's window from an earlier record instead — the same pixels on both files; a frame it lacks fails."""
 import argparse
 import json
 import struct
@@ -64,30 +74,38 @@ def main():
     ap.add_argument("--maps")
     ap.add_argument("--map-frames", default="")
     ap.add_argument("--step", type=int, default=3)
-    ap.add_argument("--front-mm", type=float, default=8.0)
-    ap.add_argument("--half-width-mm", type=float, default=12.0)
+    ap.add_argument("--front-mm", type=float, default=12.0)
+    ap.add_argument("--half-width-mm", type=float, default=16.0)
+    ap.add_argument("--front-ref", choices=("row", "common"), default="row")
     ap.add_argument("--light-shade", type=float, default=0.3)
+    ap.add_argument("--windows")
     a = ap.parse_args(sys.argv[sys.argv.index("--") + 1:])
+    windows = {fr["frame"]: fr["window_px"] for fr in json.loads(Path(a.windows).read_text())["frames"]} if a.windows else None
     sc = bpy.data.scenes["SLICE"]
     cam = sc.camera
     W, H = 3840, 2160
     sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = W, H, 100
     head = bpy.data.objects["HERO_HEAD"]
     teeth_names = [n for n in ("HERO_TEETH_UPPER", "HERO_TEETH_LOWER") if n in bpy.data.objects]
-    # each teeth face's centre at rest, in the head's frame
+    # each teeth face's centre at rest, in the head's frame; its depth from its row's front (or both rows', `common`)
     rest = {}
-    front_y = min(min((head.matrix_world.inverted() @ (bpy.data.objects[n].matrix_world @ v.co)).y
-                      for v in bpy.data.objects[n].data.vertices) for n in teeth_names)
+    row_front = {n: min((head.matrix_world.inverted() @ (bpy.data.objects[n].matrix_world @ v.co)).y
+                        for v in bpy.data.objects[n].data.vertices) for n in teeth_names}
+    front_y = {n: (row_front[n] if a.front_ref == "row" else min(row_front.values())) for n in teeth_names}
     for n in teeth_names:
         o = bpy.data.objects[n]
         m = head.matrix_world.inverted() @ o.matrix_world
         rest[n] = [m @ (sum((o.data.vertices[i].co for i in p.vertices), Vector()) / len(p.vertices)) for p in o.data.polygons]
+    split = {n: ["front" if (q.y - front_y[n]) * 1000 <= a.front_mm and abs(q.x) * 1000 <= a.half_width_mm else "lateral"
+                 for q in rest[n]] for n in teeth_names}
     shade_attr = {n: ("teeth_shade" in bpy.data.objects[n].data.attributes
                       and bpy.data.objects[n].data.attributes["teeth_shade"].domain == "POINT") for n in teeth_names}
     rec = {"rule": __doc__.split("\n\n")[0].replace("\n", " "), "source": bpy.data.filepath, "shot": sc.get("shot_id"),
-           "step": a.step, "front_mm": a.front_mm, "half_width_mm": a.half_width_mm, "light_shade": a.light_shade,
+           "step": a.step, "front_ref": a.front_ref, "front_mm": a.front_mm, "half_width_mm": a.half_width_mm,
+           "light_shade": a.light_shade,
+           "teeth_split": {n: {k: [i for i, s in enumerate(split[n]) if s == k] for k in ("front", "lateral")} for n in teeth_names},
            "teeth_shade": {n: "POINT attribute read" if v else "absent — full albedo, counted at 1.0" for n, v in shade_attr.items()},
-           "default_head_version": head.get("default_head_version", "v04.1 or a child"), "frames": []}
+           "default_head_version": head.get("default_head_version", "v04.1 or a child"), "windows_from": a.windows, "frames": []}
     map_frames = set(frames_arg(a.map_frames)) if a.map_frames else set()
     if a.maps:
         Path(a.maps).mkdir(parents=True, exist_ok=True)
@@ -104,9 +122,13 @@ def main():
         hx = abs(world_to_camera_view(sc, cam, p + right * 0.05).x - c.x)
         hy = hx * W / H
         x0, x1, y0, y1 = int((c.x - hx) * W), int((c.x + hx) * W), int((c.y - hy) * H), int((c.y + hy) * H)
+        if windows is not None:
+            if f not in windows:
+                sys.exit(f"MOUTH_CORNER_ERROR frame {f}: not in --windows {a.windows}")
+            x0, y0, x1, y1 = windows[f]
         tr, br, bl, tl = [cam.matrix_world @ v for v in cam.data.view_frame(scene=sc)]
         origin = cam.matrix_world.translation
-        counts, bins, rows = {}, {}, []
+        counts, bins, shades, rows = {}, {}, {}, []
         for py in range(y1, y0, -a.step):
             row = bytearray()
             for px in range(x0, x1, a.step):
@@ -125,17 +147,21 @@ def main():
                         kind = "skin_back" if nrm.dot(d) > 0 else "skin_front"
                     elif n in rest:
                         q = rest[n][idx]
-                        depth, half = (q.y - front_y) * 1000, abs(q.x) * 1000
-                        kind = "teeth_front" if depth <= a.front_mm and half <= a.half_width_mm else "teeth_lateral"
-                        if kind == "teeth_lateral":
-                            shade = 1.0
-                            if shade_attr[n]:
-                                me = ob.evaluated_get(dg).data
-                                vi = list(me.polygons[idx].vertices)
-                                wts = poly_3d_calc([ob.matrix_world @ me.vertices[i].co for i in vi], loc)
-                                vals = me.attributes["teeth_shade"].data
-                                shade = sum(w * vals[i].value for w, i in zip(wts, vi))
+                        depth, half = (q.y - front_y[n]) * 1000, abs(q.x) * 1000
+                        side = split[n][idx]
+                        kind = "teeth_" + side
+                        shade = 1.0
+                        if shade_attr[n]:
+                            me = ob.evaluated_get(dg).data
+                            vi = list(me.polygons[idx].vertices)
+                            wts = poly_3d_calc([ob.matrix_world @ me.vertices[i].co for i in vi], loc)
+                            vals = me.attributes["teeth_shade"].data
+                            shade = sum(w * vals[i].value for w, i in zip(wts, vi))
+                        if side == "lateral":
                             kind += "_light" if shade > a.light_shade else "_dark"
+                        tenth = min(max(int(round(shade * 10, 6)), 0), 9)
+                        sk = f"{side} {tenth / 10:.1f}-{(tenth + 1) / 10:.1f}"
+                        shades[sk] = shades.get(sk, 0) + 1
                         key = f"{n[11:].lower()} depth {int(depth // 4) * 4}-{int(depth // 4) * 4 + 4} mm, |x| {int(half // 4) * 4}-{int(half // 4) * 4 + 4} mm"
                         bins[key] = bins.get(key, 0) + 1
                     elif n == "HERO_TONGUE":
@@ -149,14 +175,18 @@ def main():
                 row += bytes(COL[kind])
             rows.append(row)
         counts["teeth_lateral"] = counts.get("teeth_lateral_light", 0) + counts.get("teeth_lateral_dark", 0)
-        rec["frames"].append({"frame": f, "window_px": [x0, y0, x1, y1], "counts": counts, "teeth_bins": bins})
+        rec["frames"].append({"frame": f, "window_px": [x0, y0, x1, y1], "counts": counts, "teeth_bins": bins,
+                              "shade_bins": shades})
         if a.maps and f in map_frames:
             write_png(Path(a.maps) / f"corners_{f}.png", rows)
-    tot = {}
+    tot, tot_shades = {}, {}
     for fr in rec["frames"]:
         for k, v in fr["counts"].items():
             tot[k] = tot.get(k, 0) + v
+        for k, v in fr["shade_bins"].items():
+            tot_shades[k] = tot_shades.get(k, 0) + v
     rec["totals"] = tot
+    rec["shade_bins"] = dict(sorted(tot_shades.items()))
     rec["worst"] = {k: max(((fr["counts"].get(k, 0), fr["frame"]) for fr in rec["frames"]), default=(0, None))
                     for k in ("teeth_lateral", "teeth_lateral_light", "skin_back")}
     Path(a.out).write_text(json.dumps(rec, indent=1) + "\n")
